@@ -11,12 +11,16 @@ export function AgentRunButton() {
   const handleRun = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/agent/run", { method: "POST" });
+      const res = await fetch("/api/agent/run?async=true", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success(
-        `Agent complete: ${data.processed} processed, ${data.prepared} prepared, ${data.submitted} submitted`
-      );
+      if (data.queued) {
+        toast.success("AI agent queued — results will appear shortly");
+      } else {
+        toast.success(
+          `Agent complete: ${data.processed} processed, ${data.prepared} prepared, ${data.submitted} submitted`
+        );
+      }
       window.location.reload();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Agent run failed");

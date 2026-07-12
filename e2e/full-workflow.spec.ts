@@ -54,14 +54,15 @@ test.describe("Full Application Workflow", () => {
 
     await page.goto("/dashboard");
     const agentRes = page.waitForResponse(
-      (r) => r.url().includes("/api/agent/run") && r.request().method() === "POST",
-      { timeout: 120000 }
+      (r) =>
+        r.url().includes("/api/agent/run") && r.request().method() === "POST",
+      { timeout: 30000 }
     );
     await page.getByRole("button", { name: /Run AI Agent/i }).click();
     const agentResponse = await agentRes;
     expect(agentResponse.ok()).toBeTruthy();
     const agentData = await agentResponse.json();
-    expect(agentData).toHaveProperty("searched");
+    expect(agentData.queued === true || "searched" in agentData).toBeTruthy();
 
     await page.goto("/dashboard/applications");
     await expect(
@@ -110,13 +111,12 @@ test.describe("Full Application Workflow", () => {
   });
 
   test("agent API endpoint is accessible when authenticated", async ({ page }) => {
-    test.setTimeout(180000);
-    const res = await page.request.post("/api/agent/run", { timeout: 120000 });
-    expect([200, 400, 500]).toContain(res.status());
-    if (res.status() === 200) {
-      const data = await res.json();
-      expect(data).toHaveProperty("searched");
-      expect(data).toHaveProperty("errors");
-    }
+    const res = await page.request.post("/api/agent/run?async=true", {
+      timeout: 30000,
+    });
+    expect(res.ok()).toBeTruthy();
+    const data = await res.json();
+    expect(data.queued).toBe(true);
+    expect(data.status).toBe("pending");
   });
 });
