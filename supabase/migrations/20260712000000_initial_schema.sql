@@ -1,6 +1,5 @@
 -- Job Agent Initial Schema with Row Level Security
 -- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Enums
@@ -26,7 +25,7 @@ CREATE TYPE job_status AS ENUM ('ACTIVE', 'CLOSED', 'EXPIRED', 'ARCHIVED');
 
 -- Users table (synced with Supabase Auth)
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
@@ -36,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS master_resume (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title TEXT DEFAULT 'Master Resume',
   content JSONB NOT NULL DEFAULT '{}',
@@ -51,7 +50,7 @@ CREATE TABLE IF NOT EXISTS master_resume (
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   external_id TEXT,
   source job_source NOT NULL,
@@ -84,7 +83,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE TABLE IF NOT EXISTS applications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   status application_status DEFAULT 'DISCOVERED',
@@ -104,7 +103,7 @@ CREATE TABLE IF NOT EXISTS applications (
 );
 
 CREATE TABLE IF NOT EXISTS tailored_resumes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   master_resume_id UUID NOT NULL REFERENCES master_resume(id) ON DELETE CASCADE,
   job_id UUID REFERENCES jobs(id) ON DELETE SET NULL,
@@ -121,7 +120,7 @@ CREATE TABLE IF NOT EXISTS tailored_resumes (
 );
 
 CREATE TABLE IF NOT EXISTS cover_letters (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   job_id UUID REFERENCES jobs(id) ON DELETE SET NULL,
   application_id UUID UNIQUE REFERENCES applications(id) ON DELETE SET NULL,
@@ -135,7 +134,7 @@ CREATE TABLE IF NOT EXISTS cover_letters (
 );
 
 CREATE TABLE IF NOT EXISTS recruiters (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT,
@@ -148,7 +147,7 @@ CREATE TABLE IF NOT EXISTS recruiters (
 );
 
 CREATE TABLE IF NOT EXISTS interviews (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   application_id UUID REFERENCES applications(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
@@ -166,7 +165,7 @@ CREATE TABLE IF NOT EXISTS interviews (
 );
 
 CREATE TABLE IF NOT EXISTS emails (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   application_id UUID REFERENCES applications(id) ON DELETE SET NULL,
   recruiter_id UUID REFERENCES recruiters(id) ON DELETE SET NULL,
@@ -183,7 +182,7 @@ CREATE TABLE IF NOT EXISTS emails (
 );
 
 CREATE TABLE IF NOT EXISTS settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   job_titles TEXT[] DEFAULT '{}',
   experience_years INT,
@@ -214,7 +213,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   level log_level DEFAULT 'INFO',
   action TEXT NOT NULL,
@@ -227,7 +226,7 @@ CREATE TABLE IF NOT EXISTS logs (
 );
 
 CREATE TABLE IF NOT EXISTS encrypted_secrets (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
   value TEXT NOT NULL,
@@ -237,7 +236,7 @@ CREATE TABLE IF NOT EXISTS encrypted_secrets (
 );
 
 CREATE TABLE IF NOT EXISTS background_jobs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL,
   payload JSONB,
   status TEXT DEFAULT 'pending',

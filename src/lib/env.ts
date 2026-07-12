@@ -39,9 +39,15 @@ export function isProduction(): boolean {
 }
 
 export function isConfigured(): boolean {
-  return !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
-    process.env.DATABASE_URL
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const dbUrl = process.env.DATABASE_URL;
+
+  const isPlaceholder = (value?: string) =>
+    !value ||
+    value.includes("placeholder") ||
+    value.includes("your-project") ||
+    value.includes("[password]");
+
+  return !isPlaceholder(url) && !isPlaceholder(anonKey) && !isPlaceholder(dbUrl);
 }
