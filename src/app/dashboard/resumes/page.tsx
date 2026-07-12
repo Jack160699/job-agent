@@ -26,17 +26,17 @@ export default async function ResumesPage() {
           <CardContent>
             {masterResume ? (
               <div>
-                <p className="text-sm font-medium text-zinc-200">
+                <p className="text-sm font-medium text-[var(--ink)]">
                   {masterResume.title}
                 </p>
-                <p className="mt-2 text-sm text-zinc-400 line-clamp-6">
+                <p className="mt-2 text-sm text-[var(--ink-tertiary)] line-clamp-6">
                   {masterResume.rawText}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
                   {masterResume.skills.map((skill) => (
                     <span
                       key={skill}
-                      className="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-300"
+                      className="rounded-full bg-[var(--accent-muted)] px-2.5 py-0.5 text-xs text-[var(--accent)]"
                     >
                       {skill}
                     </span>
@@ -65,15 +65,15 @@ export default async function ResumesPage() {
                 {tailoredResumes.map((resume) => (
                   <div
                     key={resume.id}
-                    className="rounded-lg border border-zinc-800 p-4"
+                    className="rounded-lg border border-[var(--line)] p-4"
                   >
-                    <p className="font-medium text-zinc-200">{resume.title}</p>
+                    <p className="font-medium text-[var(--ink)]">{resume.title}</p>
                     {resume.job && (
-                      <p className="text-sm text-zinc-500">
+                      <p className="text-sm text-[var(--ink-tertiary)]">
                         For: {resume.job.title} at {resume.job.company}
                       </p>
                     )}
-                    <p className="mt-2 text-xs text-zinc-500 line-clamp-3">
+                    <p className="mt-2 text-xs text-[var(--ink-tertiary)] line-clamp-3">
                       {resume.rawText}
                     </p>
                   </div>

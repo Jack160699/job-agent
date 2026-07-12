@@ -58,8 +58,8 @@ export default function ForgotPasswordPage() {
                   <CheckCircle2 className="h-8 w-8 text-emerald-400" />
                 </div>
               </div>
-              <p className="text-sm text-zinc-400">
-                We sent a password reset link to <strong className="text-zinc-300">{email}</strong>
+              <p className="text-sm text-[var(--ink-secondary)]">
+                We sent a password reset link to <strong className="text-[var(--ink-secondary)]">{email}</strong>
               </p>
               <Link href="/login">
                 <Button className="h-11 w-full">Back to Sign In</Button>
@@ -68,8 +68,8 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={handleReset} className="space-y-4">
               <div className="flex justify-center pb-2">
-                <div className="rounded-full bg-violet-500/10 p-4">
-                  <Mail className="h-8 w-8 text-violet-400" />
+                <div className="rounded-full bg-[var(--accent-muted)] p-4">
+                  <Mail className="h-8 w-8 text-[var(--accent)]" />
                 </div>
               </div>
               <div className="space-y-2">
@@ -91,8 +91,8 @@ export default function ForgotPasswordPage() {
             </form>
           )}
 
-          <p className="mt-6 text-center text-sm text-zinc-400">
-            <Link href="/login" className="text-violet-400 hover:underline">
+          <p className="mt-6 text-center text-sm text-[var(--ink-secondary)]">
+            <Link href="/login" className="text-[var(--accent)] hover:underline">
               Back to login
             </Link>
           </p>

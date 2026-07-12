@@ -28,20 +28,20 @@ export default async function CoverLettersPage() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-semibold text-zinc-100">
+                    <h3 className="font-semibold text-[var(--ink)]">
                       {letter.title}
                     </h3>
                     {letter.job && (
-                      <p className="text-sm text-zinc-400">
+                      <p className="text-sm text-[var(--ink-tertiary)]">
                         {letter.job.company} — {letter.job.title}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
                       {formatDate(letter.createdAt)} · {letter.tone} tone
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 whitespace-pre-wrap text-sm text-zinc-300">
+                <div className="mt-4 whitespace-pre-wrap text-sm text-[var(--ink-secondary)]">
                   {letter.content}
                 </div>
               </CardContent>

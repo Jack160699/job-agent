@@ -4,20 +4,22 @@ test.describe("Landing Page", () => {
   test("renders hero section", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "intelligent automation"
+      "Apply to the right jobs"
     );
   });
 
   test("has navigation links", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Sign In" }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: "Get Started" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Sign in/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Get started/i }).first()).toBeVisible();
   });
 
-  test("has feature and FAQ sections", async ({ page }) => {
+  test("has feature and pricing sections", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Quality over volume" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Frequently asked questions" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /Built for people who apply every day/i })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Simple pricing" })).toBeVisible();
   });
 });
 
@@ -49,7 +51,7 @@ test.describe("Dashboard", () => {
     await page.goto("/login");
     await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
     await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
+    await page.getByRole("button", { name: /Sign In/i }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
   });
 
@@ -59,7 +61,9 @@ test.describe("Dashboard", () => {
   });
 
   test("sidebar navigation works", async ({ page }) => {
-    await page.getByRole("link", { name: "Job Search" }).click();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/dashboard");
+    await page.getByRole("link", { name: "Jobs", exact: true }).click();
     await page.waitForURL(/\/dashboard\/jobs/, { timeout: 10000 });
     await expect(page).toHaveURL(/\/dashboard\/jobs/);
   });

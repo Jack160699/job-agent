@@ -110,7 +110,7 @@ function LoginForm() {
                 <Label htmlFor="password">Password</Label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-violet-400 hover:underline"
+                  className="text-xs text-[var(--accent)] hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -131,9 +131,9 @@ function LoginForm() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-zinc-400">
+          <p className="mt-6 text-center text-sm text-[var(--ink-secondary)]">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-medium text-violet-400 hover:underline">
+            <Link href="/signup" className="font-medium text-[var(--accent)] hover:underline">
               Create one
             </Link>
           </p>
@@ -145,7 +145,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-[var(--ink-tertiary)]">Loading…</div>}>
       <LoginForm />
     </Suspense>
   );

@@ -30,29 +30,29 @@ export function ErrorCallout({
     <div
       role="alert"
       className={cn(
-        "rounded-xl border border-red-500/30 bg-red-950/30 p-4 sm:p-5",
+        "rounded-[var(--radius-md)] border border-[var(--error)]/20 bg-[var(--error-muted)] p-4 sm:p-5",
         className
       )}
     >
       <div className="flex gap-3">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" aria-hidden />
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--error)]" aria-hidden />
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <h3 className="font-semibold text-red-200">{title}</h3>
-            <p className="mt-1 text-sm text-red-200/80">{what}</p>
+            <h3 className="font-semibold text-[var(--error)]">{title}</h3>
+            <p className="mt-1 text-sm text-[var(--ink-secondary)]">{what}</p>
           </div>
 
           {why && (
             <div className="text-sm">
-              <span className="font-medium text-zinc-300">Why: </span>
-              <span className="text-zinc-400">{why}</span>
+              <span className="font-medium text-[var(--ink)]">Why: </span>
+              <span className="text-[var(--ink-secondary)]">{why}</span>
             </div>
           )}
 
           {fix && (
             <div className="text-sm">
-              <span className="font-medium text-zinc-300">How to fix: </span>
-              <span className="text-zinc-400">{fix}</span>
+              <span className="font-medium text-[var(--ink)]">How to fix: </span>
+              <span className="text-[var(--ink-secondary)]">{fix}</span>
             </div>
           )}
 
@@ -63,7 +63,7 @@ export function ErrorCallout({
                 variant="outline"
                 onClick={onRetry}
                 disabled={retrying}
-                className="gap-1.5 border-red-500/30 text-red-200 hover:bg-red-950/50"
+                className="gap-1.5 border-[var(--error)]/30 text-[var(--error)] hover:bg-[var(--error-muted)]"
               >
                 <RefreshCw className={cn("h-3.5 w-3.5", retrying && "animate-spin")} />
                 {retrying ? "Retrying…" : "Try again"}
@@ -74,7 +74,7 @@ export function ErrorCallout({
                 size="sm"
                 variant="ghost"
                 onClick={() => setShowLogs(!showLogs)}
-                className="gap-1 text-zinc-400"
+                className="gap-1 text-[var(--ink-secondary)]"
               >
                 {showLogs ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 {showLogs ? "Hide logs" : "View logs"}
@@ -83,7 +83,7 @@ export function ErrorCallout({
           </div>
 
           {showLogs && logs && logs.length > 0 && (
-            <pre className="max-h-40 overflow-auto rounded-lg bg-zinc-950/80 p-3 font-mono text-xs text-zinc-500">
+            <pre className="max-h-40 overflow-auto rounded-[var(--radius-sm)] bg-[var(--surface-sunken)] p-3 font-mono text-xs text-[var(--ink-tertiary)]">
               {logs.join("\n")}
             </pre>
           )}

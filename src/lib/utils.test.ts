@@ -16,9 +16,9 @@ test("formatDate formats dates", () => {
 });
 
 test("getMatchScoreColor returns correct colors", () => {
-  expect(getMatchScoreColor(85)).toBe("text-emerald-400");
-  expect(getMatchScoreColor(65)).toBe("text-amber-400");
-  expect(getMatchScoreColor(40)).toBe("text-red-400");
+  expect(getMatchScoreColor(85)).toBe("text-[var(--success)]");
+  expect(getMatchScoreColor(65)).toBe("text-[var(--warning)]");
+  expect(getMatchScoreColor(40)).toBe("text-[var(--error)]");
 });
 
 test("truncate shortens long strings", () => {

@@ -52,18 +52,18 @@ export default function VerifyEmailPage() {
       <Card>
         <CardContent className="space-y-6 p-6">
           <div className="flex justify-center">
-            <div className="rounded-full bg-violet-500/10 p-4">
-              <Mail className="h-8 w-8 text-violet-400" />
+            <div className="rounded-full bg-[var(--accent-muted)] p-4">
+              <Mail className="h-8 w-8 text-[var(--accent)]" />
             </div>
           </div>
 
-          <div className="space-y-2 text-center text-sm text-zinc-400">
+          <div className="space-y-2 text-center text-sm text-[var(--ink-secondary)]">
             <p>
               Click the link in your email to verify your account. You won&apos;t be able to
               sign in until verification is complete.
             </p>
             {emailParam && (
-              <p className="font-medium text-zinc-300">{emailParam}</p>
+              <p className="font-medium text-[var(--ink-secondary)]">{emailParam}</p>
             )}
           </div>
 
@@ -94,8 +94,8 @@ export default function VerifyEmailPage() {
             </Button>
           </div>
 
-          <p className="text-center text-sm text-zinc-500">
-            <Link href="/login" className="text-violet-400 hover:underline">
+          <p className="text-center text-sm text-[var(--ink-tertiary)]">
+            <Link href="/login" className="text-[var(--accent)] hover:underline">
               Back to sign in
             </Link>
           </p>

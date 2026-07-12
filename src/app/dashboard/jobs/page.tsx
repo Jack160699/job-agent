@@ -27,26 +27,26 @@ export default async function JobsPage() {
       ) : (
         <div className="space-y-4">
           {jobs.map((job) => (
-            <Card key={job.id} className="transition-colors hover:border-zinc-700">
-              <CardContent className="flex items-start justify-between p-6">
+            <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
+              <CardContent className="flex items-start justify-between p-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-zinc-100">
+                    <h3 className="text-base font-semibold text-[var(--ink)]">
                       {job.title}
                     </h3>
                     {job.matchScore != null && (
                       <MatchScoreBadge score={job.matchScore} size="sm" />
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-zinc-400">{job.company}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-500">
+                  <p className="mt-1 text-sm text-[var(--ink-tertiary)]">{job.company}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-[var(--ink-tertiary)]">
                     {job.location && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {job.location}
                       </span>
                     )}
-                    <span className="rounded bg-zinc-800 px-2 py-0.5">
+                    <span className="rounded bg-[var(--surface-sunken)] px-2 py-0.5">
                       {job.source}
                     </span>
                     <span>{formatRelativeTime(job.discoveredAt)}</span>
@@ -56,7 +56,7 @@ export default async function JobsPage() {
                       {job.requiredSkills.slice(0, 6).map((skill) => (
                         <span
                           key={skill}
-                          className="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-300"
+                          className="rounded-full bg-[var(--accent-muted)] px-2.5 py-0.5 text-xs text-[var(--accent)]"
                         >
                           {skill}
                         </span>

@@ -252,7 +252,7 @@ export function SettingsForm({
                 onChange={(e) => setTargetCompanies(e.target.value)}
                 placeholder="openai, stripe, linear, netflix"
               />
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-[var(--ink-tertiary)]">
                 Greenhouse/Lever/Ashby board slugs for job discovery
               </p>
             </div>
@@ -271,13 +271,13 @@ export function SettingsForm({
                 type="checkbox"
                 checked={requireReview}
                 onChange={(e) => setRequireReview(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">
+                <p className="text-sm font-medium text-[var(--ink)]">
                   Require review before submission
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--ink-tertiary)]">
                   Pause for your approval before final application submit
                 </p>
               </div>
@@ -287,13 +287,13 @@ export function SettingsForm({
                 type="checkbox"
                 checked={autoSubmit}
                 onChange={(e) => setAutoSubmit(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">
+                <p className="text-sm font-medium text-[var(--ink)]">
                   Enable auto-submit (Greenhouse, Lever, Ashby only)
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--ink-tertiary)]">
                   Automatically submit on supported ATS platforms when review is disabled
                 </p>
               </div>
@@ -308,10 +308,10 @@ export function SettingsForm({
             <CardTitle>Integrations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-4">
+            <div className="flex items-center justify-between rounded-lg border border-[var(--line)] p-4">
               <div>
-                <p className="text-sm font-medium text-zinc-200">Google Account</p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-sm font-medium text-[var(--ink)]">Google Account</p>
+                <p className="text-xs text-[var(--ink-tertiary)]">
                   {googleConnected
                     ? `Connected${googleEmail ? ` as ${googleEmail}` : ""}`
                     : "Connect for Gmail, Drive, Sheets, and Calendar"}
@@ -340,11 +340,11 @@ export function SettingsForm({
                 checked={gmailSync}
                 disabled={!googleConnected}
                 onChange={(e) => setGmailSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">Gmail sync</p>
-                <p className="text-xs text-zinc-500">Import recruiter emails to inbox</p>
+                <p className="text-sm font-medium text-[var(--ink)]">Gmail sync</p>
+                <p className="text-xs text-[var(--ink-tertiary)]">Import recruiter emails to inbox</p>
               </div>
             </label>
             <label className="flex items-center gap-3">
@@ -352,11 +352,11 @@ export function SettingsForm({
                 type="checkbox"
                 checked={driveSync}
                 disabled={!googleConnected}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">Google Drive</p>
-                <p className="text-xs text-zinc-500">Store tailored resume PDFs</p>
+                <p className="text-sm font-medium text-[var(--ink)]">Google Drive</p>
+                <p className="text-xs text-[var(--ink-tertiary)]">Store tailored resume PDFs</p>
               </div>
             </label>
             <label className="flex items-center gap-3">
@@ -365,11 +365,11 @@ export function SettingsForm({
                 checked={sheetsSync}
                 disabled={!googleConnected}
                 onChange={(e) => setSheetsSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">Google Sheets sync</p>
-                <p className="text-xs text-zinc-500">Export application tracker</p>
+                <p className="text-sm font-medium text-[var(--ink)]">Google Sheets sync</p>
+                <p className="text-xs text-[var(--ink-tertiary)]">Export application tracker</p>
               </div>
             </label>
             <label className="flex items-center gap-3">
@@ -378,11 +378,11 @@ export function SettingsForm({
                 checked={calendarSync}
                 disabled={!googleConnected}
                 onChange={(e) => setCalendarSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
               />
               <div>
-                <p className="text-sm font-medium text-zinc-200">Google Calendar sync</p>
-                <p className="text-xs text-zinc-500">Sync interview schedule</p>
+                <p className="text-sm font-medium text-[var(--ink)]">Google Calendar sync</p>
+                <p className="text-xs text-[var(--ink-tertiary)]">Sync interview schedule</p>
               </div>
             </label>
           </CardContent>

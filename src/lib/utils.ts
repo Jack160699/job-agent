@@ -37,15 +37,15 @@ export function formatRelativeTime(date: Date | string): string {
 }
 
 export function getMatchScoreColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-red-400";
+  if (score >= 80) return "text-[var(--success)]";
+  if (score >= 60) return "text-[var(--warning)]";
+  return "text-[var(--error)]";
 }
 
 export function getMatchScoreBg(score: number): string {
-  if (score >= 80) return "bg-emerald-500/20 border-emerald-500/30";
-  if (score >= 60) return "bg-amber-500/20 border-amber-500/30";
-  return "bg-red-500/20 border-red-500/30";
+  if (score >= 80) return "bg-[var(--success-muted)] border-[var(--success)]/20 text-[var(--success)]";
+  if (score >= 60) return "bg-[var(--warning-muted)] border-[var(--warning)]/20 text-[var(--warning)]";
+  return "bg-[var(--error-muted)] border-[var(--error)]/20 text-[var(--error)]";
 }
 
 export function truncate(str: string, length: number): string {

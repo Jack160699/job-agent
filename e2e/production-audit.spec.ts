@@ -66,7 +66,7 @@ test.describe("Phase 2: Authentication", () => {
       await page.reload();
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
 
-      await page.getByRole("button", { name: "Sign Out" }).click();
+      await page.getByRole("button", { name: /Sign out/i }).click();
       await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
     } finally {
       await deleteUserByEmail(user.email);

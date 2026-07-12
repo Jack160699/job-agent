@@ -5,7 +5,7 @@ export default function VerifyEmailWrapper() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center text-zinc-500">
+        <div className="flex min-h-screen items-center justify-center text-[var(--ink-tertiary)]">
           Loading…
         </div>
       }

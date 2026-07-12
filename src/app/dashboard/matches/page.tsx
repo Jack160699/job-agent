@@ -40,10 +40,10 @@ export default async function MatchesPage() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-zinc-100">
+                      <h3 className="text-lg font-semibold text-[var(--ink)]">
                         {job.title}
                       </h3>
-                      <p className="text-sm text-zinc-400">{job.company}</p>
+                      <p className="text-sm text-[var(--ink-tertiary)]">{job.company}</p>
                     </div>
                     {job.matchScore != null && (
                       <MatchScoreBadge score={job.matchScore} size="lg" />
@@ -53,14 +53,14 @@ export default async function MatchesPage() {
                   {analysis && (
                     <div className="mt-6 grid gap-4 sm:grid-cols-2">
                       <div>
-                        <div className="mb-1 flex justify-between text-xs text-zinc-400">
+                        <div className="mb-1 flex justify-between text-xs text-[var(--ink-tertiary)]">
                           <span>Skill Match</span>
                           <span>{analysis.skillMatch ?? 0}%</span>
                         </div>
                         <Progress value={analysis.skillMatch ?? 0} />
                       </div>
                       <div>
-                        <div className="mb-1 flex justify-between text-xs text-zinc-400">
+                        <div className="mb-1 flex justify-between text-xs text-[var(--ink-tertiary)]">
                           <span>Experience Match</span>
                           <span>{analysis.experienceMatch ?? 0}%</span>
                         </div>
@@ -104,7 +104,7 @@ export default async function MatchesPage() {
                   )}
 
                   {analysis?.reasoning && (
-                    <p className="mt-4 text-sm text-zinc-500">
+                    <p className="mt-4 text-sm text-[var(--ink-tertiary)]">
                       {analysis.reasoning}
                     </p>
                   )}

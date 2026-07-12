@@ -12,7 +12,7 @@ export default async function SettingsPage() {
         title="Settings"
         description="Configure job search filters and automation preferences"
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading settings...</div>}>
+      <Suspense fallback={<div className="text-sm text-[var(--ink-tertiary)]">Loading settings...</div>}>
         <SettingsForm initialSettings={settings} />
       </Suspense>
     </div>

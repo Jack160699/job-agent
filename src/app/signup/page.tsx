@@ -115,16 +115,16 @@ export default function SignupPage() {
                 minLength={8}
                 required
               />
-              <p className="text-xs text-zinc-500">Minimum 8 characters</p>
+              <p className="text-xs text-[var(--ink-tertiary)]">Minimum 8 characters</p>
             </div>
             <Button type="submit" className="h-11 w-full" disabled={loading}>
               {loading ? "Creating account…" : "Create Account"}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-zinc-400">
+          <p className="mt-6 text-center text-sm text-[var(--ink-secondary)]">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-violet-400 hover:underline">
+            <Link href="/login" className="font-medium text-[var(--accent)] hover:underline">
               Sign in
             </Link>
           </p>

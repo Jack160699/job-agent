@@ -26,28 +26,28 @@ export default async function InboxPage() {
           {emails.map((email) => (
             <Card
               key={email.id}
-              className={!email.isRead ? "border-violet-500/30" : ""}
+              className={!email.isRead ? "border-[var(--accent)]/20" : ""}
             >
               <CardContent className="flex items-start gap-4 p-4">
                 <div
-                  className={`mt-1 h-2 w-2 rounded-full ${!email.isRead ? "bg-violet-500" : "bg-transparent"}`}
+                  className={`mt-1 h-2 w-2 rounded-full ${!email.isRead ? "bg-[var(--accent)]" : "bg-transparent"}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-zinc-200 truncate">
+                    <p className="font-medium text-[var(--ink)] truncate">
                       {email.subject}
                     </p>
-                    <span className="text-xs text-zinc-500 shrink-0 ml-4">
+                    <span className="text-xs text-[var(--ink-tertiary)] shrink-0 ml-4">
                       {formatRelativeTime(email.receivedAt)}
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-[var(--ink-tertiary)]">
                     {email.direction === "INBOUND" ? "From" : "To"}:{" "}
                     {email.direction === "INBOUND"
                       ? email.fromAddress
                       : email.toAddress}
                   </p>
-                  <p className="mt-1 text-sm text-zinc-500 line-clamp-2">
+                  <p className="mt-1 text-sm text-[var(--ink-tertiary)] line-clamp-2">
                     {email.body}
                   </p>
                 </div>

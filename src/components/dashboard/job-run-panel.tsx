@@ -157,16 +157,16 @@ export function JobRunPanel({
       </Button>
 
       {running && progress && (
-        <Card className="border-violet-500/20 bg-violet-950/10">
+        <Card className="border-[var(--accent)]/20 bg-[var(--accent-subtle)]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
               {progress.stageLabel}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-xs text-zinc-400">
+              <div className="flex justify-between text-xs text-[var(--ink-tertiary)]">
                 <span>Progress</span>
                 <span>{progress.progress}%</span>
               </div>
@@ -212,16 +212,16 @@ export function JobRunPanel({
             </div>
 
             {progress.logs.length > 0 && (
-              <div className="max-h-36 overflow-y-auto rounded-lg bg-zinc-950/60 p-3">
-                <p className="mb-2 text-xs font-medium text-zinc-500">Live logs</p>
+              <div className="max-h-36 overflow-y-auto rounded-[var(--radius-sm)] bg-[var(--surface-sunken)] p-3">
+                <p className="mb-2 text-xs font-medium text-[var(--ink-tertiary)]">Live logs</p>
                 <div className="space-y-1 font-mono text-[11px]">
                   {progress.logs.map((log, i) => (
                     <div
                       key={i}
                       className={cn(
-                        "text-zinc-500",
-                        log.level === "ERROR" && "text-red-400",
-                        log.level === "WARN" && "text-amber-400"
+                        "text-[var(--ink-tertiary)]",
+                        log.level === "ERROR" && "text-[var(--error)]",
+                        log.level === "WARN" && "text-[var(--warning)]"
                       )}
                     >
                       {log.message}
@@ -235,12 +235,12 @@ export function JobRunPanel({
       )}
 
       {running && !progress && (
-        <Card className="border-violet-500/20">
+        <Card className="border-[var(--accent)]/20">
           <CardContent className="flex items-center gap-3 p-4">
-            <Loader2 className="h-5 w-5 animate-spin text-violet-400" />
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
             <div>
-              <p className="text-sm font-medium text-zinc-200">Starting…</p>
-              <p className="text-xs text-zinc-500">Connecting to job search pipeline</p>
+              <p className="text-sm font-medium text-[var(--ink)]">Starting…</p>
+              <p className="text-xs text-[var(--ink-tertiary)]">Connecting to job search pipeline</p>
             </div>
           </CardContent>
         </Card>
@@ -259,7 +259,7 @@ export function JobRunPanel({
       )}
 
       {progress?.status === "completed" && !running && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">
+        <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--success)]/20 bg-[var(--success-muted)] px-4 py-3 text-sm text-[var(--success)]">
           <CheckCircle2 className="h-4 w-4" />
           Complete — {progress.jobsFound} jobs found, {progress.jobsNew} new
         </div>
@@ -280,12 +280,12 @@ function StatPill({
   truncate?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-zinc-500">
+    <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-sunken)] px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[var(--ink-tertiary)]">
         <Icon className="h-3 w-3" />
         {label}
       </div>
-      <p className={cn("mt-0.5 text-sm font-semibold text-zinc-200", shouldTruncate && "truncate")}>
+      <p className={cn("mt-0.5 text-sm font-semibold text-[var(--ink)] tabular-nums", shouldTruncate && "truncate")}>
         {value}
       </p>
     </div>

@@ -31,8 +31,8 @@ export default async function ApplicationsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-zinc-200 truncate">{app.job.title}</p>
-                      <p className="text-sm text-zinc-500">{app.job.company}</p>
+                      <p className="font-medium text-[var(--ink)] truncate">{app.job.title}</p>
+                      <p className="text-sm text-[var(--ink-tertiary)]">{app.job.company}</p>
                     </div>
                     <StatusBadge status={app.status} />
                   </div>
@@ -41,9 +41,9 @@ export default async function ApplicationsPage() {
                       {app.matchScore != null ? (
                         <MatchScoreBadge score={app.matchScore} size="sm" />
                       ) : (
-                        <span className="text-xs text-zinc-500">No score</span>
+                        <span className="text-xs text-[var(--ink-tertiary)]">No score</span>
                       )}
-                      <span className="text-xs text-zinc-500">{formatDate(app.updatedAt)}</span>
+                      <span className="text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</span>
                     </div>
                     <ApplicationActions applicationId={app.id} status={app.status} />
                   </div>
@@ -53,37 +53,37 @@ export default async function ApplicationsPage() {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden overflow-hidden rounded-xl border border-zinc-800 md:block">
+          <div className="hidden overflow-hidden rounded-xl border border-[var(--line)] md:block">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Position</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Match</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Updated</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Actions</th>
+                <tr className="border-b border-[var(--line)] bg-[var(--surface-sunken)]">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Position</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Company</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Match</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Updated</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {applications.map((app) => (
                   <tr
                     key={app.id}
-                    className="border-b border-zinc-800/50 transition-colors hover:bg-zinc-900/30"
+                    className="border-b border-[var(--line)]/50 transition-colors hover:bg-[var(--surface-sunken)]"
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-zinc-200">{app.job.title}</td>
-                    <td className="px-6 py-4 text-sm text-zinc-400">{app.job.company}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-[var(--ink)]">{app.job.title}</td>
+                    <td className="px-6 py-4 text-sm text-[var(--ink-tertiary)]">{app.job.company}</td>
                     <td className="px-6 py-4">
                       {app.matchScore != null ? (
                         <MatchScoreBadge score={app.matchScore} size="sm" />
                       ) : (
-                        <span className="text-xs text-zinc-500">—</span>
+                        <span className="text-xs text-[var(--ink-tertiary)]">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={app.status} />
                     </td>
-                    <td className="px-6 py-4 text-xs text-zinc-500">{formatDate(app.updatedAt)}</td>
+                    <td className="px-6 py-4 text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</td>
                     <td className="px-6 py-4">
                       <ApplicationActions applicationId={app.id} status={app.status} />
                     </td>

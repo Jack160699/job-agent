@@ -31,7 +31,7 @@ export default async function CalendarPage() {
         <div className="space-y-8">
           {upcoming.length > 0 && (
             <div>
-              <h2 className="mb-4 text-lg font-semibold text-zinc-200">
+              <h2 className="mb-4 text-lg font-semibold text-[var(--ink)]">
                 Upcoming
               </h2>
               <div className="space-y-3">
@@ -43,7 +43,7 @@ export default async function CalendarPage() {
           )}
           {past.length > 0 && (
             <div>
-              <h2 className="mb-4 text-lg font-semibold text-zinc-200">Past</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[var(--ink)]">Past</h2>
               <div className="space-y-3 opacity-60">
                 {past.map((interview) => (
                   <InterviewCard key={interview.id} interview={interview} />
@@ -75,11 +75,11 @@ function InterviewCard({
     <Card>
       <CardContent className="flex items-center justify-between p-4">
         <div>
-          <p className="font-medium text-zinc-200">{interview.title}</p>
+          <p className="font-medium text-[var(--ink)]">{interview.title}</p>
           {interview.company && (
-            <p className="text-sm text-zinc-400">{interview.company}</p>
+            <p className="text-sm text-[var(--ink-tertiary)]">{interview.company}</p>
           )}
-          <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500">
+          <div className="mt-2 flex items-center gap-4 text-xs text-[var(--ink-tertiary)]">
             <span>{formatDate(interview.scheduledAt)}</span>
             <span>{interview.durationMin} min</span>
             {interview.location && (
@@ -91,7 +91,7 @@ function InterviewCard({
             {interview.meetingUrl && (
               <a
                 href={interview.meetingUrl}
-                className="flex items-center gap-1 text-violet-400 hover:underline"
+                className="flex items-center gap-1 text-[var(--accent)] hover:underline"
               >
                 <Video className="h-3 w-3" />
                 Join

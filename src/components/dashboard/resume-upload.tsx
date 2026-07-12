@@ -51,7 +51,7 @@ export function ResumeUploadForm() {
         <Label htmlFor="content">Resume Content</Label>
         <textarea
           id="content"
-          className="flex min-h-[200px] w-full rounded-lg border border-zinc-700 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+          className="flex min-h-[200px] w-full rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           placeholder="Paste your full resume text here..."
           value={content}
           onChange={(e) => setContent(e.target.value)}

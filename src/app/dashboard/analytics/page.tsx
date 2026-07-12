@@ -39,7 +39,7 @@ export default async function AnalyticsPage() {
               label="Submitted"
               value={analytics.submitted}
               total={analytics.totalApplications}
-              color="bg-violet-500"
+              color="bg-[var(--accent)]"
             />
             <FunnelBar
               label="Interviewing"
@@ -68,13 +68,13 @@ export default async function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             {analytics.sourceBreakdown.length === 0 ? (
-              <p className="text-sm text-zinc-500">No data yet</p>
+              <p className="text-sm text-[var(--ink-tertiary)]">No data yet</p>
             ) : (
               <div className="space-y-3">
                 {analytics.sourceBreakdown.map((item) => (
                   <div key={item.source} className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">{item.source}</span>
-                    <span className="text-sm font-medium text-zinc-100">
+                    <span className="text-sm text-[var(--ink-secondary)]">{item.source}</span>
+                    <span className="text-sm font-medium text-[var(--ink)]">
                       {item._count}
                     </span>
                   </div>
@@ -103,12 +103,12 @@ function FunnelBar({
   return (
     <div>
       <div className="mb-1 flex justify-between text-sm">
-        <span className="text-zinc-400">{label}</span>
-        <span className="text-zinc-200">
+        <span className="text-[var(--ink-tertiary)]">{label}</span>
+        <span className="text-[var(--ink)]">
           {value} ({Math.round(pct)}%)
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+      <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
         <div
           className={`h-full rounded-full ${color} transition-all`}
           style={{ width: `${pct}%` }}
