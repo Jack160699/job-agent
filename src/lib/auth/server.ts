@@ -33,13 +33,6 @@ export async function getDbUser() {
             create: {
               jobTitles: ["Software Engineer"],
               locations: ["Remote"],
-              enabledSources: [
-                "LINKEDIN",
-                "INDEED",
-                "GREENHOUSE",
-                "LEVER",
-                "ASHBY",
-              ],
             },
           },
         },

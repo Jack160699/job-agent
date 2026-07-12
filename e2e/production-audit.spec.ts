@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { SAMPLE_RESUME, TEST_USER } from "./fixtures";
+import { confirmUserByEmail, deleteUserByEmail } from "./helpers/auth";
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 
@@ -28,24 +29,30 @@ test.describe("Phase 2: Authentication", () => {
   test("signup, login, logout flow", async ({ page }) => {
     const user = { ...TEST_USER, email: `qa.jobagent.${Date.now()}@gmail.com` };
 
-    await page.goto("/signup");
-    await page.getByLabel("Full Name").fill(user.fullName);
-    await page.getByLabel("Email").fill(user.email);
-    await page.getByLabel("Password").fill(user.password);
-    await page.getByRole("button", { name: "Create Account" }).click();
+    try {
+      await page.goto("/signup");
+      await page.getByLabel("Full Name").fill(user.fullName);
+      await page.getByLabel("Email").fill(user.email);
+      await page.getByLabel("Password").fill(user.password);
+      await page.getByRole("button", { name: "Create Account" }).click();
 
-    await expect(page).toHaveURL(/\/(dashboard|signup)/, { timeout: 15000 });
+      await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 15000 });
 
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(user.email);
-    await page.getByLabel("Password").fill(user.password);
-    await page.getByRole("button", { name: "Sign In" }).click();
+      await confirmUserByEmail(user.email);
 
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
-    await expect(page.getByText("Overview")).toBeVisible();
+      await page.goto("/login");
+      await page.getByLabel("Email").fill(user.email);
+      await page.getByLabel("Password").fill(user.password);
+      await page.getByRole("button", { name: "Sign In" }).click();
 
-    await page.getByRole("button", { name: "Sign Out" }).click();
-    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+      await expect(page.getByText("Overview")).toBeVisible();
+
+      await page.getByRole("button", { name: "Sign Out" }).click();
+      await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+    } finally {
+      await deleteUserByEmail(user.email);
+    }
   });
 
   test("protected routes redirect to login", async ({ page }) => {
@@ -64,9 +71,10 @@ test.describe("Phase 2: Authentication", () => {
     await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
     await page.getByLabel("Password").fill("TestPass123!Secure");
     await page.getByRole("button", { name: "Create Account" }).click();
-    await page.waitForTimeout(3000);
-    const url = page.url();
-    expect(url.includes("/signup") || url.includes("/dashboard")).toBeTruthy();
+    await expect(
+      page.getByText(/already registered|already exists|User already/i)
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/signup/);
   });
 });
 
@@ -121,14 +129,20 @@ test.describe("Phase 4: Resume Pipeline", () => {
     const textarea = page.locator("textarea");
     if (await textarea.isVisible()) {
       await textarea.fill(SAMPLE_RESUME);
+      const uploadResponse = page.waitForResponse(
+        (res) =>
+          res.url().includes("/api/resumes/master") && res.request().method() === "POST"
+      );
       await page.getByRole("button", { name: /Upload Resume/i }).click();
-      await page.waitForTimeout(3000);
+      const res = await uploadResponse;
+      expect(res.ok()).toBeTruthy();
       await page.reload();
       await expect(page.getByText(/JavaScript|TypeScript|React/)).toBeVisible({
         timeout: 10000,
       });
     } else {
       await expect(page.getByText("Master Resume")).toBeVisible();
+      await expect(page.getByText(/JavaScript|TypeScript|React/)).toBeVisible();
     }
   });
 });

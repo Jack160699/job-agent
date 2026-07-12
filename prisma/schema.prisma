@@ -18,6 +18,8 @@ enum JobSource {
   ASHBY
   COMPANY_PORTAL
   OTHER
+
+  @@map("job_source")
 }
 
 enum WorkMode {
@@ -25,6 +27,8 @@ enum WorkMode {
   HYBRID
   ONSITE
   UNKNOWN
+
+  @@map("work_mode")
 }
 
 enum EmploymentType {
@@ -34,6 +38,8 @@ enum EmploymentType {
   INTERNSHIP
   FREELANCE
   UNKNOWN
+
+  @@map("employment_type")
 }
 
 enum ApplicationStatus {
@@ -52,6 +58,8 @@ enum ApplicationStatus {
   OFFERED
   REJECTED
   ACCEPTED
+
+  @@map("application_status")
 }
 
 enum InterviewStatus {
@@ -60,11 +68,15 @@ enum InterviewStatus {
   CANCELLED
   NO_SHOW
   RESCHEDULED
+
+  @@map("interview_status")
 }
 
 enum EmailDirection {
   INBOUND
   OUTBOUND
+
+  @@map("email_direction")
 }
 
 enum LogLevel {
@@ -73,6 +85,8 @@ enum LogLevel {
   WARN
   ERROR
   AUDIT
+
+  @@map("log_level")
 }
 
 enum JobStatus {
@@ -80,6 +94,8 @@ enum JobStatus {
   CLOSED
   EXPIRED
   ARCHIVED
+
+  @@map("job_status")
 }
 
 model User {

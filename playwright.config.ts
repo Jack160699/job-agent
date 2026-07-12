@@ -1,4 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+
+const envPath = resolve(__dirname, ".env");
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, "utf8").split("\n")) {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (!match) continue;
+    const key = match[1].trim();
+    const value = match[2].trim().replace(/^"|"$/g, "");
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
 
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL || "https://job-agent-mu-steel.vercel.app";
