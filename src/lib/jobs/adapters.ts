@@ -1,62 +1,49 @@
 import type { DiscoveredJob, JobSearchFilters } from "./types";
+import { getAllAutomators } from "@/lib/automation/registry";
+
+function getBoardSlugs(
+  filters: JobSearchFilters & { targetCompanies?: string[] },
+  envKey: string,
+  fallback: string[]
+) {
+  const fromSettings = filters.targetCompanies || [];
+  const fromEnv = (process.env[envKey] || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...fromSettings, ...fromEnv, ...fallback])];
+}
 
 export class GreenhouseAdapter {
   source = "GREENHOUSE" as const;
   name = "Greenhouse";
 
-  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+  async search(
+    filters: JobSearchFilters & { targetCompanies?: string[] }
+  ): Promise<DiscoveredJob[]> {
+    const boards = getBoardSlugs(filters, "JOB_SEARCH_GREENHOUSE_BOARDS", [
+      "openai",
+      "stripe",
+    ]);
+    const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
     const jobs: DiscoveredJob[] = [];
-    for (const title of filters.titles.slice(0, 3)) {
-      try {
-        const boardJobs = await this.searchBoard(title, filters.locations[0]);
-        jobs.push(...boardJobs);
-      } catch {
-        // Board may not exist
+
+    for (const board of boards) {
+      for (const title of filters.titles.slice(0, 3)) {
+        try {
+          const results = await automator.discoverJobs(board, title);
+          jobs.push(...results);
+        } catch {
+          // Board may not exist
+        }
       }
     }
     return jobs;
   }
 
-  private async searchBoard(
-    title: string,
-    location?: string
-  ): Promise<DiscoveredJob[]> {
-    const query = encodeURIComponent(title);
-    const loc = location ? `&location=${encodeURIComponent(location)}` : "";
-    const url = `https://boards-api.greenhouse.io/v1/boards/example/jobs?content=true&query=${query}${loc}`;
-
-    try {
-      const res = await fetch(url, { next: { revalidate: 3600 } });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data.jobs || []).map(
-        (job: {
-          id: number;
-          title: string;
-          absolute_url: string;
-          location?: { name: string };
-          content?: string;
-          updated_at?: string;
-        }) => ({
-          externalId: String(job.id),
-          source: "GREENHOUSE" as const,
-          sourceUrl: job.absolute_url,
-          title: job.title,
-          company: "Unknown",
-          location: job.location?.name,
-          description: job.content || "",
-          postedAt: job.updated_at ? new Date(job.updated_at) : undefined,
-        })
-      );
-    } catch {
-      return [];
-    }
-  }
-
   async getJobDetails(url: string): Promise<DiscoveredJob | null> {
     const match = url.match(/greenhouse\.io\/([^/]+)\/jobs\/(\d+)/);
     if (!match) return null;
-
     try {
       const res = await fetch(
         `https://boards-api.greenhouse.io/v1/boards/${match[1]}/jobs/${match[2]}?content=true`
@@ -84,54 +71,117 @@ export class LeverAdapter {
   source = "LEVER" as const;
   name = "Lever";
 
-  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+  async search(
+    filters: JobSearchFilters & { targetCompanies?: string[] }
+  ): Promise<DiscoveredJob[]> {
+    const companies = getBoardSlugs(filters, "JOB_SEARCH_LEVER_COMPANIES", [
+      "netflix",
+      "palantir",
+    ]);
+    const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
     const jobs: DiscoveredJob[] = [];
-    for (const title of filters.titles.slice(0, 3)) {
-      const results = await this.searchCompany(title);
-      jobs.push(...results);
+
+    for (const company of companies) {
+      for (const title of filters.titles.slice(0, 3)) {
+        try {
+          const results = await automator.discoverJobs(company, title);
+          jobs.push(...results);
+        } catch {
+          // Company may not exist
+        }
+      }
     }
     return jobs;
   }
 
-  private async searchCompany(query: string): Promise<DiscoveredJob[]> {
-    try {
-      const res = await fetch(
-        `https://api.lever.co/v0/postings/example?mode=json`,
-        { next: { revalidate: 3600 } }
-      );
-      if (!res.ok) return [];
-      const postings = await res.json();
-      return (postings as Array<{
-        id: string;
-        text: string;
-        hostedUrl: string;
-        categories: { location?: string; team?: string };
-        descriptionPlain?: string;
-        createdAt?: number;
-      }>)
-        .filter((p) => p.text.toLowerCase().includes(query.toLowerCase()))
-        .map((p) => ({
-          externalId: p.id,
-          source: "LEVER" as const,
-          sourceUrl: p.hostedUrl,
-          title: p.text,
-          company: "Unknown",
-          location: p.categories?.location,
-          description: p.descriptionPlain || "",
-          postedAt: p.createdAt ? new Date(p.createdAt) : undefined,
-        }));
-    } catch {
-      return [];
-    }
-  }
-
   async getJobDetails(url: string): Promise<DiscoveredJob | null> {
+    const match = url.match(/jobs\.lever\.co\/([^/]+)/);
+    if (!match) return null;
     return {
       source: "LEVER",
       sourceUrl: url,
       title: "Job from Lever",
+      company: match[1],
+      description: "",
+    };
+  }
+
+  canAutoApply = true;
+}
+
+export class AshbyAdapter {
+  source = "ASHBY" as const;
+  name = "Ashby";
+
+  async search(
+    filters: JobSearchFilters & { targetCompanies?: string[] }
+  ): Promise<DiscoveredJob[]> {
+    const boards = getBoardSlugs(filters, "JOB_SEARCH_ASHBY_BOARDS", [
+      "linear",
+      "notion",
+    ]);
+    const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
+    const jobs: DiscoveredJob[] = [];
+
+    for (const board of boards) {
+      for (const title of filters.titles.slice(0, 3)) {
+        try {
+          const results = await automator.discoverJobs(board, title);
+          jobs.push(...results);
+        } catch {
+          // Board may not exist
+        }
+      }
+    }
+    return jobs;
+  }
+
+  async getJobDetails(url: string): Promise<DiscoveredJob | null> {
+    return {
+      source: "ASHBY",
+      sourceUrl: url,
+      title: "Job from Ashby",
       company: "Unknown",
       description: "",
+      metadata: { requiresBrowser: true },
+    };
+  }
+
+  canAutoApply = true;
+}
+
+export class WorkdayAdapter {
+  source = "WORKDAY" as const;
+  name = "Workday";
+
+  async search(
+    filters: JobSearchFilters & { targetCompanies?: string[] }
+  ): Promise<DiscoveredJob[]> {
+    const companies = getBoardSlugs(filters, "JOB_SEARCH_WORKDAY_COMPANIES", []);
+    const automator = getAllAutomators().find((a) => a.platform === "WORKDAY")!;
+    const jobs: DiscoveredJob[] = [];
+
+    for (const company of companies) {
+      for (const title of filters.titles.slice(0, 2)) {
+        try {
+          const results = await automator.discoverJobs(company, title);
+          jobs.push(...results);
+        } catch {
+          // Browser search may fail without Playwright
+        }
+      }
+    }
+    return jobs;
+  }
+
+  async getJobDetails(url: string): Promise<DiscoveredJob | null> {
+    return {
+      source: "WORKDAY",
+      sourceUrl: url,
+      title: "Job from Workday",
+      company: "Unknown",
+      description: "Use browser automation to fetch full details.",
+      metadata: { requiresBrowser: true },
     };
   }
 
@@ -146,9 +196,9 @@ export class BrowserJobAdapter {
     return filters.titles.map((title) => ({
       source: "OTHER" as const,
       sourceUrl: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(title)}`,
-      title: `${title} (Browser Search Queued)`,
+      title: `${title} (Browser Search)`,
       company: "Various",
-      description: `Automated browser search queued for: ${title}. Configure browser MCP for live scraping.`,
+      description: `Browser MCP search for: ${title}`,
       metadata: { searchQuery: title, requiresBrowser: true },
     }));
   }

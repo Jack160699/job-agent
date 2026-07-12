@@ -24,6 +24,16 @@ describe("detectJobSource", () => {
     );
   });
 
+  it("detects Ashby", () => {
+    expect(detectJobSource("https://jobs.ashbyhq.com/linear/abc")).toBe("ASHBY");
+  });
+
+  it("detects Workday", () => {
+    expect(
+      detectJobSource("https://company.wd1.myworkdayjobs.com/en-US/careers")
+    ).toBe("WORKDAY");
+  });
+
   it("defaults to company portal", () => {
     expect(detectJobSource("https://careers.example.com/jobs/123")).toBe(
       "COMPANY_PORTAL"

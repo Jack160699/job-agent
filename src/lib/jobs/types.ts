@@ -38,6 +38,7 @@ export const JOB_SOURCES: Record<JobSource, { name: string; canAutoApply: boolea
   GREENHOUSE: { name: "Greenhouse", canAutoApply: true },
   LEVER: { name: "Lever", canAutoApply: true },
   ASHBY: { name: "Ashby", canAutoApply: true },
+  WORKDAY: { name: "Workday", canAutoApply: true },
   COMPANY_PORTAL: { name: "Company Portal", canAutoApply: false },
   OTHER: { name: "Other", canAutoApply: false },
 };
@@ -50,5 +51,6 @@ export function detectJobSource(url: string): JobSource {
   if (url.includes("greenhouse.io") || url.includes("boards.greenhouse.io")) return "GREENHOUSE";
   if (url.includes("lever.co") || url.includes("jobs.lever.co")) return "LEVER";
   if (url.includes("ashbyhq.com") || url.includes("jobs.ashbyhq.com")) return "ASHBY";
+  if (url.includes("myworkdayjobs.com") || url.includes("workday.com")) return "WORKDAY";
   return "COMPANY_PORTAL";
 }

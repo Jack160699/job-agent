@@ -1,5 +1,6 @@
 import { DashboardHeader } from "@/components/dashboard/sidebar";
 import { MatchScoreBadge, StatusBadge, EmptyState } from "@/components/dashboard/shared";
+import { ApplicationActions } from "@/components/dashboard/application-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { getApplications } from "@/lib/data/dashboard";
 import { ClipboardList } from "lucide-react";
@@ -41,6 +42,9 @@ export default async function ApplicationsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
                   Updated
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -67,6 +71,12 @@ export default async function ApplicationsPage() {
                   </td>
                   <td className="px-6 py-4 text-xs text-zinc-500">
                     {formatDate(app.updatedAt)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <ApplicationActions
+                      applicationId={app.id}
+                      status={app.status}
+                    />
                   </td>
                 </tr>
               ))}

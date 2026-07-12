@@ -10,6 +10,7 @@ export type JobType =
   | "SYNC_GMAIL"
   | "SYNC_SHEETS"
   | "SYNC_CALENDAR"
+  | "RUN_AGENT"
   | "RETRY_FAILED";
 
 interface JobPayload {
@@ -70,9 +71,28 @@ export async function processBackgroundJobs() {
           }
           break;
         case "SYNC_GMAIL":
+          if (payload.userId) {
+            const { syncGmail } = await import("@/lib/google/gmail");
+            result = await syncGmail(payload.userId);
+          }
+          break;
         case "SYNC_SHEETS":
+          if (payload.userId) {
+            const { syncApplicationsToSheet } = await import("@/lib/google/sheets");
+            result = await syncApplicationsToSheet(payload.userId);
+          }
+          break;
         case "SYNC_CALENDAR":
-          result = { message: "Integration sync queued - configure Google MCP" };
+          if (payload.userId) {
+            const { syncInterviewsToCalendar } = await import("@/lib/google/calendar");
+            result = await syncInterviewsToCalendar(payload.userId);
+          }
+          break;
+        case "RUN_AGENT":
+          if (payload.userId) {
+            const { runAutonomousAgent } = await import("@/lib/agent/orchestrator");
+            result = await runAutonomousAgent(payload.userId);
+          }
           break;
         case "RETRY_FAILED":
           result = await retryFailedApplications(payload.userId);
@@ -145,6 +165,16 @@ export async function schedulePeriodicJobs() {
   for (const user of users) {
     if (!user.settings) continue;
     await enqueueJob("SEARCH_JOBS", { userId: user.id });
+    await enqueueJob("RUN_AGENT", { userId: user.id });
+    if (user.settings.gmailSyncEnabled) {
+      await enqueueJob("SYNC_GMAIL", { userId: user.id });
+    }
+    if (user.settings.sheetsSyncEnabled) {
+      await enqueueJob("SYNC_SHEETS", { userId: user.id });
+    }
+    if (user.settings.calendarSyncEnabled) {
+      await enqueueJob("SYNC_CALENDAR", { userId: user.id });
+    }
   }
 
   return { scheduled: users.length };

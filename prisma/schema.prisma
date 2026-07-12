@@ -16,6 +16,7 @@ enum JobSource {
   GREENHOUSE
   LEVER
   ASHBY
+  WORKDAY
   COMPANY_PORTAL
   OTHER
 
@@ -357,6 +358,7 @@ model UserSettings {
   calendarSyncEnabled   Boolean  @default(false) @map("calendar_sync_enabled")
   gmailSyncEnabled      Boolean  @default(false) @map("gmail_sync_enabled")
   driveFolderId         String?  @map("drive_folder_id")
+  targetCompanies       String[] @default([]) @map("target_companies")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 

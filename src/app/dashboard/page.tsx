@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { getDashboardStats, getRecentApplications, getUpcomingInterviews } from "@/lib/data/dashboard";
 import { formatRelativeTime } from "@/lib/utils";
+import { AgentRunButton } from "@/components/dashboard/agent-run-button";
 
 export default async function DashboardOverview() {
   const [stats, recentApps, interviews] = await Promise.all([
@@ -29,12 +30,15 @@ export default async function DashboardOverview() {
         title="Overview"
         description="Your job search command center"
         actions={
-          <Link href="/dashboard/jobs">
-            <Button className="gap-2">
-              <Search className="h-4 w-4" />
-              Search Jobs
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <AgentRunButton />
+            <Link href="/dashboard/jobs">
+              <Button variant="outline" className="gap-2">
+                <Search className="h-4 w-4" />
+                Search Jobs
+              </Button>
+            </Link>
+          </div>
         }
       />
 

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
+import { Save, Link2 } from "lucide-react";
 
 interface Settings {
   jobTitles: string[];
@@ -23,6 +23,7 @@ interface Settings {
   gmailSyncEnabled: boolean;
   sheetsSyncEnabled: boolean;
   calendarSyncEnabled: boolean;
+  targetCompanies?: string[];
 }
 
 export function SettingsForm({
@@ -55,6 +56,33 @@ export function SettingsForm({
   const [autoSubmit, setAutoSubmit] = useState(
     initialSettings?.autoSubmitEnabled ?? false
   );
+  const [targetCompanies, setTargetCompanies] = useState(
+    initialSettings?.targetCompanies?.join(", ") || "openai, stripe, linear"
+  );
+  const [gmailSync, setGmailSync] = useState(
+    initialSettings?.gmailSyncEnabled ?? false
+  );
+  const [sheetsSync, setSheetsSync] = useState(
+    initialSettings?.sheetsSyncEnabled ?? false
+  );
+  const [calendarSync, setCalendarSync] = useState(
+    initialSettings?.calendarSyncEnabled ?? false
+  );
+  const [googleConnected, setGoogleConnected] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/google/status")
+      .then((r) => r.json())
+      .then((d) => setGoogleConnected(d.connected))
+      .catch(() => {});
+  }, []);
+
+  const connectGoogle = async () => {
+    const res = await fetch("/api/google/oauth");
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else toast.error("Google OAuth not configured");
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -71,6 +99,13 @@ export function SettingsForm({
           matchThreshold: parseFloat(matchThreshold) || 70,
           requireReview,
           autoSubmitEnabled: autoSubmit,
+          targetCompanies: targetCompanies
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          gmailSyncEnabled: gmailSync,
+          sheetsSyncEnabled: sheetsSync,
+          calendarSyncEnabled: calendarSync,
         }),
       });
       const data = await res.json();
@@ -149,6 +184,17 @@ export function SettingsForm({
                 onChange={(e) => setMatchThreshold(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Target Company Boards (comma-separated slugs)</Label>
+              <Input
+                value={targetCompanies}
+                onChange={(e) => setTargetCompanies(e.target.value)}
+                placeholder="openai, stripe, linear, netflix"
+              />
+              <p className="text-xs text-zinc-500">
+                Greenhouse/Lever/Ashby board slugs for job discovery
+              </p>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
@@ -201,29 +247,59 @@ export function SettingsForm({
             <CardTitle>Integrations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <IntegrationItem
-              name="Gmail"
-              description="Sync recruiter emails"
-              enabled={initialSettings?.gmailSyncEnabled ?? false}
-            />
-            <IntegrationItem
-              name="Google Sheets"
-              description="Export application tracker"
-              enabled={initialSettings?.sheetsSyncEnabled ?? false}
-            />
-            <IntegrationItem
-              name="Google Calendar"
-              description="Sync interview schedule"
-              enabled={initialSettings?.calendarSyncEnabled ?? false}
-            />
-            <IntegrationItem
-              name="Google Drive"
-              description="Store resume and cover letter files"
-              enabled={false}
-            />
-            <p className="text-xs text-zinc-500">
-              Configure Google OAuth credentials in environment variables to enable integrations.
-            </p>
+            <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-4">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Google Account</p>
+                <p className="text-xs text-zinc-500">
+                  Connect for Gmail, Drive, Sheets, and Calendar
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={connectGoogle}
+                className="gap-1"
+              >
+                <Link2 className="h-3 w-3" />
+                {googleConnected ? "Reconnect" : "Connect"}
+              </Button>
+            </div>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={gmailSync}
+                onChange={(e) => setGmailSync(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Gmail sync</p>
+                <p className="text-xs text-zinc-500">Import recruiter emails to inbox</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={sheetsSync}
+                onChange={(e) => setSheetsSync(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Google Sheets sync</p>
+                <p className="text-xs text-zinc-500">Export application tracker</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={calendarSync}
+                onChange={(e) => setCalendarSync(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Google Calendar sync</p>
+                <p className="text-xs text-zinc-500">Sync interview schedule</p>
+              </div>
+            </label>
           </CardContent>
         </Card>
       </TabsContent>
@@ -233,33 +309,5 @@ export function SettingsForm({
         {loading ? "Saving..." : "Save Settings"}
       </Button>
     </Tabs>
-  );
-}
-
-function IntegrationItem({
-  name,
-  description,
-  enabled,
-}: {
-  name: string;
-  description: string;
-  enabled: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-4">
-      <div>
-        <p className="text-sm font-medium text-zinc-200">{name}</p>
-        <p className="text-xs text-zinc-500">{description}</p>
-      </div>
-      <span
-        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-          enabled
-            ? "bg-emerald-500/20 text-emerald-400"
-            : "bg-zinc-800 text-zinc-500"
-        }`}
-      >
-        {enabled ? "Connected" : "Not connected"}
-      </span>
-    </div>
   );
 }

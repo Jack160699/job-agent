@@ -5,7 +5,7 @@ import { tailorResume } from "@/lib/ai/resume-tailor";
 import { generateCoverLetter } from "@/lib/ai/cover-letter";
 import { createAuditLog } from "@/lib/audit";
 import type { JobSource, Prisma } from "@prisma/client";
-import { GreenhouseAdapter, LeverAdapter, BrowserJobAdapter } from "./adapters";
+import { GreenhouseAdapter, LeverAdapter, AshbyAdapter, WorkdayAdapter, BrowserJobAdapter } from "./adapters";
 import type { DiscoveredJob } from "./types";
 
 export async function getOrCreateUser(supabaseId: string, email: string) {
@@ -49,11 +49,14 @@ export async function searchJobs(userId: string) {
     locations: settings.locations,
     experienceYears: settings.experienceYears ?? undefined,
     skills: settings.requiredSkills,
+    targetCompanies: settings.targetCompanies,
   };
 
   const adapters = [
     new GreenhouseAdapter(),
     new LeverAdapter(),
+    new AshbyAdapter(),
+    new WorkdayAdapter(),
     new BrowserJobAdapter(),
   ];
 
@@ -242,7 +245,25 @@ export async function processApplication(userId: string, applicationId: string) 
       : undefined,
   });
 
-  const tailoredResume = await prisma.tailoredResume.create({
+  const coverLetter = await generateCoverLetter({
+    resumeText: tailored.rawText,
+    job: {
+      title: job.title,
+      company: job.company,
+      description: job.description,
+    },
+    highlights: tailored.highlights,
+  });
+
+  const { generateResumePdf } = await import("@/lib/pdf/resume-pdf");
+  const pdf = await generateResumePdf({
+    title: tailored.title,
+    rawText: tailored.rawText,
+    skills: tailored.skills,
+    highlights: tailored.highlights,
+  });
+
+  await prisma.tailoredResume.create({
     data: {
       userId,
       masterResumeId: masterResume.id,
@@ -253,17 +274,13 @@ export async function processApplication(userId: string, applicationId: string) 
       rawText: tailored.rawText,
       matchScore: application.matchScore,
       highlights: tailored.highlights,
+      fileUrl: null,
     },
   });
 
-  const coverLetter = await generateCoverLetter({
-    resumeText: tailored.rawText,
-    job: {
-      title: job.title,
-      company: job.company,
-      description: job.description,
-    },
-    highlights: tailored.highlights,
+  const tailoredResume = await prisma.tailoredResume.findFirst({
+    where: { applicationId: application.id },
+    orderBy: { createdAt: "desc" },
   });
 
   await prisma.coverLetter.create({
