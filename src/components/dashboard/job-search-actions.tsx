@@ -11,10 +11,14 @@ export function JobSearchActions() {
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/jobs/search", { method: "POST" });
+      const res = await fetch("/api/jobs/search?async=true", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success(`Found ${data.total} jobs (${data.new} new)`);
+      if (data.queued) {
+        toast.success("Job search queued — results will appear shortly");
+      } else {
+        toast.success(`Found ${data.total} jobs (${data.new} new)`);
+      }
       window.location.reload();
     } catch (error) {
       toast.error(

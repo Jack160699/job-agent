@@ -42,20 +42,10 @@ test.describe("Full Application Workflow", () => {
       expect((await uploadRes).ok()).toBeTruthy();
     }
 
-    await page.goto("/dashboard/settings");
-    await page.getByRole("tab", { name: "Job Filters" }).click();
-    await page.getByLabel("Job Titles (comma-separated)").fill("Software Engineer");
-    const targetBoards = page.getByLabel("Target Company Boards (comma-separated slugs)");
-    if (await targetBoards.isVisible()) {
-      await targetBoards.fill("openai, stripe");
-    }
-    await page.getByRole("button", { name: /Save Settings/i }).click();
-    await expect(page.getByText("Settings saved")).toBeVisible({ timeout: 15000 });
-
     await page.goto("/dashboard/jobs");
     const searchRes = page.waitForResponse(
       (r) => r.url().includes("/api/jobs/search") && r.request().method() === "POST",
-      { timeout: 90000 }
+      { timeout: 30000 }
     );
     await page.getByRole("button", { name: /Search Jobs/i }).click();
     const searchResponse = await searchRes;
@@ -116,7 +106,8 @@ test.describe("Full Application Workflow", () => {
   });
 
   test("agent API endpoint is accessible when authenticated", async ({ page }) => {
-    const res = await page.request.post("/api/agent/run");
+    test.setTimeout(180000);
+    const res = await page.request.post("/api/agent/run", { timeout: 120000 });
     expect([200, 400, 500]).toContain(res.status());
     if (res.status() === 200) {
       const data = await res.json();

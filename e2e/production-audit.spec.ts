@@ -197,11 +197,13 @@ test.describe("Phase 6: Job Pipeline", () => {
   test("search jobs API works", async ({ page }) => {
     test.setTimeout(120000);
     await page.goto("/dashboard/jobs");
-    const res = await page.request.post("/api/jobs/search", { timeout: 90000 });
+    const res = await page.request.post("/api/jobs/search?async=true", {
+      timeout: 30000,
+    });
     expect([200, 401]).toContain(res.status());
     if (res.status() === 200) {
       const data = await res.json();
-      expect(data).toHaveProperty("total");
+      expect(data).toHaveProperty("queued");
     }
   });
 });

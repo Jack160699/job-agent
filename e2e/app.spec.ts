@@ -48,6 +48,7 @@ test.describe("Dashboard", () => {
 
   test("sidebar navigation works", async ({ page }) => {
     await page.getByRole("link", { name: "Job Search" }).click();
+    await page.waitForURL(/\/dashboard\/jobs/, { timeout: 10000 });
     await expect(page).toHaveURL(/\/dashboard\/jobs/);
   });
 });
