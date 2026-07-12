@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
-import prisma from "@/lib/db";
-import { getOrCreateUser } from "@/lib/jobs/pipeline";
-import { createAuditLog } from "@/lib/audit";
+import { resolveApiUserDev, createAuditLog, prisma } from "@/lib/api/auth";
 
 function extractSkills(text: string): string[] {
   const commonSkills = [
@@ -18,28 +15,26 @@ function extractSkills(text: string): string[] {
   return commonSkills.filter((s) => lower.includes(s.toLowerCase()));
 }
 
+export async function GET() {
+  try {
+    const user = await resolveApiUserDev();
+    const resume = await prisma.masterResume.findUnique({
+      where: { userId: user.id },
+    });
+    return NextResponse.json(resume);
+  } catch {
+    return NextResponse.json(null);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const limited = rateLimit(request);
   if (limited) return limited;
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    let userId: string;
-    if (user) {
-      const dbUser = await getOrCreateUser(user.id, user.email!);
-      userId = dbUser.id;
-    } else if (process.env.NODE_ENV === "development") {
-      const dbUser = await getOrCreateUser("dev-user", "dev@localhost");
-      userId = dbUser.id;
-    } else {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const user = await resolveApiUserDev();
     const { title, rawText } = await request.json();
+
     if (!rawText?.trim()) {
       return NextResponse.json(
         { error: "Resume content is required" },
@@ -50,9 +45,9 @@ export async function POST(request: NextRequest) {
     const skills = extractSkills(rawText);
 
     const resume = await prisma.masterResume.upsert({
-      where: { userId },
+      where: { userId: user.id },
       create: {
-        userId,
+        userId: user.id,
         title: title || "Master Resume",
         content: { sections: [] },
         rawText,
@@ -68,7 +63,7 @@ export async function POST(request: NextRequest) {
     });
 
     await createAuditLog({
-      userId,
+      userId: user.id,
       action: "RESUME_UPLOADED",
       resource: "master_resume",
       resourceId: resume.id,
@@ -78,9 +73,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(resume);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Upload failed";
+    const status = message === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

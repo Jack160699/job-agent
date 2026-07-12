@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
-import prisma from "@/lib/db";
-import { getOrCreateUser } from "@/lib/jobs/pipeline";
-import { createAuditLog } from "@/lib/audit";
+import { resolveApiUserDev, createAuditLog, prisma } from "@/lib/api/auth";
 
 export async function GET() {
   try {
-    const settings = await prisma.userSettings.findFirst();
+    const user = await resolveApiUserDev();
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId: user.id },
+    });
     return NextResponse.json(settings);
   } catch {
     return NextResponse.json(null);
@@ -19,32 +19,17 @@ export async function PUT(request: NextRequest) {
   if (limited) return limited;
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    let userId: string;
-    if (user) {
-      const dbUser = await getOrCreateUser(user.id, user.email!);
-      userId = dbUser.id;
-    } else if (process.env.NODE_ENV === "development") {
-      const dbUser = await getOrCreateUser("dev-user", "dev@localhost");
-      userId = dbUser.id;
-    } else {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const user = await resolveApiUserDev();
     const body = await request.json();
 
     const settings = await prisma.userSettings.upsert({
-      where: { userId },
-      create: { userId, ...body },
+      where: { userId: user.id },
+      create: { userId: user.id, ...body },
       update: body,
     });
 
     await createAuditLog({
-      userId,
+      userId: user.id,
       action: "SETTINGS_UPDATED",
       message: "User settings updated",
       level: "AUDIT",
@@ -52,9 +37,8 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Update failed" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Update failed";
+    const status = message === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -88,6 +88,11 @@ export default function LoginPage() {
               Sign up
             </Link>
           </p>
+          <p className="mt-2 text-center text-sm text-zinc-400">
+            <Link href="/forgot-password" className="text-violet-400 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
