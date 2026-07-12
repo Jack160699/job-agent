@@ -73,11 +73,30 @@ export function hasMinimumPreferences(settings: UserSettings | null): boolean {
   return missing.length === 0;
 }
 
+export type MatchClassification =
+  | "STRONG_MATCH"
+  | "POSSIBLE_MATCH"
+  | "LOW_MATCH"
+  | "REJECTED_BY_PREFERENCES"
+  | "MISSING_INFORMATION";
+
+export interface MatchBreakdown {
+  roleMatch: number;
+  skillMatch: number;
+  locationMatch: number;
+  salaryMatch: number;
+  experienceMatch: number;
+}
+
 export interface JobFilterResult {
   accepted: boolean;
   score: number;
+  classification: MatchClassification;
   reasons: string[];
   exclusions: string[];
+  concerns: string[];
+  breakdown: MatchBreakdown;
+  recommendation: string;
 }
 
 function normalize(text: string): string {
@@ -134,20 +153,57 @@ function locationMatches(
   };
 }
 
+function classifyScore(score: number, accepted: boolean): MatchClassification {
+  if (!accepted) return "REJECTED_BY_PREFERENCES";
+  if (score >= 80) return "STRONG_MATCH";
+  if (score >= 65) return "POSSIBLE_MATCH";
+  return "LOW_MATCH";
+}
+
 export function evaluateJobAgainstPreferences(
   job: DiscoveredJob,
   settings: UserSettings
 ): JobFilterResult {
   const reasons: string[] = [];
   const exclusions: string[] = [];
+  const concerns: string[] = [];
   let score = 50;
+  const breakdown: MatchBreakdown = {
+    roleMatch: 0,
+    skillMatch: 0,
+    locationMatch: 0,
+    salaryMatch: 50,
+    experienceMatch: 50,
+  };
+
+  if (!job.location && !job.description) {
+    return {
+      accepted: false,
+      score: 0,
+      classification: "MISSING_INFORMATION",
+      reasons: [],
+      exclusions: ["Insufficient job information to evaluate"],
+      concerns: [],
+      breakdown,
+      recommendation: "Skipped — missing location and description",
+    };
+  }
 
   const companyNorm = normalize(job.company);
   if (
     settings.excludedCompanies?.some((c) => companyNorm.includes(normalize(c)))
   ) {
     exclusions.push(`Company "${job.company}" is excluded`);
-    return { accepted: false, score: 0, reasons, exclusions };
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Excluded company",
+    };
   }
 
   if (settings.targetCompanies?.length) {
@@ -162,34 +218,86 @@ export function evaluateJobAgainstPreferences(
 
   if (!titleMatches(job.title, settings.jobTitles)) {
     exclusions.push(`Title "${job.title}" does not match desired roles`);
-    return { accepted: false, score: 0, reasons, exclusions };
+    breakdown.roleMatch = 0;
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Role mismatch",
+    };
   }
+  breakdown.roleMatch = 90;
   reasons.push(`Title matches desired role`);
 
   const workMode = detectWorkMode(job);
   if (settings.workModes?.length && !settings.workModes.includes(workMode)) {
     if (workMode !== "UNKNOWN") {
       exclusions.push(`Work mode ${workMode} not in your preferences`);
-      return { accepted: false, score: 0, reasons, exclusions };
+      breakdown.locationMatch = 0;
+      return {
+        accepted: false,
+        score: 0,
+        classification: "REJECTED_BY_PREFERENCES",
+        reasons,
+        exclusions,
+        concerns,
+        breakdown,
+        recommendation: "Work mode mismatch",
+      };
     }
   }
   if (workMode !== "UNKNOWN") reasons.push(`Work mode: ${workMode}`);
 
   const locCheck = locationMatches(job, settings, workMode);
+  breakdown.locationMatch = locCheck.ok ? 85 : 0;
   if (!locCheck.ok) {
     exclusions.push(locCheck.reason || "Location mismatch");
-    return { accepted: false, score: 0, reasons, exclusions };
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Location mismatch",
+    };
   }
   if (locCheck.reason) reasons.push(locCheck.reason);
 
   if (settings.salaryMin && job.salaryMax && job.salaryMax < settings.salaryMin) {
     exclusions.push(`Salary below minimum (${settings.salaryMin})`);
-    return { accepted: false, score: 0, reasons, exclusions };
+    breakdown.salaryMatch = 0;
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Salary below range",
+    };
   }
   if (settings.salaryMax && job.salaryMin && job.salaryMin > settings.salaryMax) {
     exclusions.push(`Salary above maximum (${settings.salaryMax})`);
-    return { accepted: false, score: 0, reasons, exclusions };
+    breakdown.salaryMatch = 0;
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Salary above range",
+    };
   }
+  if (settings.salaryMin || settings.salaryMax) breakdown.salaryMatch = 80;
 
   const jobText = normalize(`${job.title} ${job.description}`);
   const matchedSkills = settings.requiredSkills.filter((s) =>
@@ -197,8 +305,19 @@ export function evaluateJobAgainstPreferences(
   );
   if (matchedSkills.length === 0 && settings.requiredSkills.length > 0) {
     exclusions.push("Missing required skills");
-    return { accepted: false, score: 0, reasons, exclusions };
+    breakdown.skillMatch = 0;
+    return {
+      accepted: false,
+      score: 0,
+      classification: "REJECTED_BY_PREFERENCES",
+      reasons,
+      exclusions,
+      concerns,
+      breakdown,
+      recommendation: "Skill mismatch",
+    };
   }
+  breakdown.skillMatch = Math.min(100, matchedSkills.length * 25);
   score += Math.min(25, matchedSkills.length * 8);
   if (matchedSkills.length) reasons.push(`Skills: ${matchedSkills.join(", ")}`);
 
@@ -210,12 +329,23 @@ export function evaluateJobAgainstPreferences(
 
   if (settings.experienceYears != null) {
     const exp = settings.experienceYears;
+    if (job.experienceMin != null && exp < job.experienceMin) {
+      concerns.push(`Role may require ${job.experienceMin}+ years`);
+      breakdown.experienceMatch = 40;
+    } else {
+      breakdown.experienceMatch = 85;
+      reasons.push(`Experience level ~${exp} years`);
+    }
     if (exp >= 5) score += 5;
-    reasons.push(`Experience level ~${exp} years`);
+  }
+
+  if (settings.visaSponsorshipRequired && job.visaSponsorship === false) {
+    concerns.push("Visa sponsorship may not be available");
   }
 
   score = Math.min(100, Math.max(0, score));
   const accepted = score >= (settings.matchThreshold || 50);
+  const classification = classifyScore(score, accepted);
 
   if (!accepted) {
     exclusions.push(`Match score ${score} below threshold ${settings.matchThreshold}`);
@@ -223,7 +353,25 @@ export function evaluateJobAgainstPreferences(
     reasons.push(`Match score ${score} meets threshold`);
   }
 
-  return { accepted, score, reasons, exclusions };
+  const recommendation =
+    classification === "STRONG_MATCH"
+      ? "Strong match — review and consider applying"
+      : classification === "POSSIBLE_MATCH"
+        ? "Possible match — review concerns before applying"
+        : classification === "LOW_MATCH"
+          ? "Low match — only pursue if you want to broaden search"
+          : "Rejected by your preferences";
+
+  return {
+    accepted,
+    score,
+    classification,
+    reasons,
+    exclusions,
+    concerns,
+    breakdown,
+    recommendation,
+  };
 }
 
 export function buildDiscoveryBoards(settings: UserSettings): {

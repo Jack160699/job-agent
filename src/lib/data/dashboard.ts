@@ -102,6 +102,23 @@ export async function getJobs(filters?: {
   }, []);
 }
 
+export async function getExcludedJobs() {
+  return safe(async () => {
+    const user = await getDbUser();
+    if (!user) return [];
+    return prisma.job.findMany({
+      where: {
+        userId: user.id,
+        status: "ARCHIVED",
+        matchAnalysis: { path: ["excludedByPreferences"], equals: true },
+      },
+      orderBy: { discoveredAt: "desc" },
+      take: 100,
+      include: { applications: true },
+    });
+  }, []);
+}
+
 export async function getApplications(status?: string) {
   return safe(async () => {
     const user = await getDbUser();

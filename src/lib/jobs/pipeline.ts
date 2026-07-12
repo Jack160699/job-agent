@@ -145,18 +145,25 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   }
 
   await progress("filtering", { rawCount: discovered.length });
-  const filtered: Array<DiscoveredJob & { score: number; reasons: string[] }> = [];
-  const excluded: Array<{ title: string; company: string; reason: string }> = [];
+  type ScoredJob = DiscoveredJob & {
+    score: number;
+    reasons: string[];
+    analysis: ReturnType<typeof evaluateJobAgainstPreferences>;
+  };
+  const filtered: ScoredJob[] = [];
+  const excluded: Array<{ title: string; company: string; reason: string; job: DiscoveredJob; analysis: ReturnType<typeof evaluateJobAgainstPreferences> }> = [];
 
   for (const job of discovered) {
     const result = evaluateJobAgainstPreferences(job, settings);
     if (result.accepted) {
-      filtered.push({ ...job, score: result.score, reasons: result.reasons });
+      filtered.push({ ...job, score: result.score, reasons: result.reasons, analysis: result });
     } else {
       excluded.push({
         title: job.title,
         company: job.company,
         reason: result.exclusions[0] || "Did not match preferences",
+        job,
+        analysis: result,
       });
     }
   }
@@ -200,12 +207,16 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
         matchScore: job.score,
         matchAnalysis: {
           reasons: job.reasons,
+          concerns: job.analysis.concerns,
+          classification: job.analysis.classification,
+          breakdown: job.analysis.breakdown,
+          recommendation: job.analysis.recommendation,
           preferenceMatched: true,
-        } as Prisma.InputJsonValue,
+        } as unknown as Prisma.InputJsonValue,
         metadata: {
           ...(job.metadata ?? {}),
           preferenceFiltered: true,
-        } as Prisma.InputJsonValue,
+        } as unknown as Prisma.InputJsonValue,
         applications: {
           create: { userId, status: "DISCOVERED", matchScore: job.score },
         },
@@ -213,6 +224,58 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     });
     newCount++;
     relevantCount++;
+  }
+
+  for (const ex of excluded.slice(0, 50)) {
+    const existing = await prisma.job.findFirst({
+      where: { userId, source: ex.job.source, externalId: ex.job.externalId },
+    });
+    if (existing) {
+      await prisma.job.update({
+        where: { id: existing.id },
+        data: {
+          status: "ARCHIVED",
+          matchScore: ex.analysis.score,
+          matchAnalysis: {
+            classification: ex.analysis.classification,
+            exclusions: ex.analysis.exclusions,
+            concerns: ex.analysis.concerns,
+            breakdown: ex.analysis.breakdown,
+            recommendation: ex.analysis.recommendation,
+            excludedByPreferences: true,
+          } as unknown as Prisma.InputJsonValue,
+        },
+      });
+      continue;
+    }
+
+    await prisma.job.create({
+      data: {
+        userId,
+        externalId: ex.job.externalId,
+        source: ex.job.source,
+        sourceUrl: ex.job.sourceUrl,
+        title: ex.job.title,
+        company: ex.job.company,
+        location: ex.job.location,
+        description: ex.job.description,
+        postedAt: ex.job.postedAt,
+        status: "ARCHIVED",
+        matchScore: ex.analysis.score,
+        matchAnalysis: {
+          classification: ex.analysis.classification,
+          exclusions: ex.analysis.exclusions,
+          concerns: ex.analysis.concerns,
+          breakdown: ex.analysis.breakdown,
+          recommendation: ex.analysis.recommendation,
+          excludedByPreferences: true,
+        } as unknown as Prisma.InputJsonValue,
+        metadata: {
+          excludedView: true,
+          exclusionReason: ex.reason,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
   }
 
   await progress("completed", {

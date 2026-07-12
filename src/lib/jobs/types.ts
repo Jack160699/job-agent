@@ -10,6 +10,9 @@ export interface DiscoveredJob {
   description: string;
   salaryMin?: number;
   salaryMax?: number;
+  experienceMin?: number;
+  experienceMax?: number;
+  visaSponsorship?: boolean | null;
   postedAt?: Date;
   metadata?: Record<string, unknown>;
 }

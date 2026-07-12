@@ -2,16 +2,27 @@ import { DashboardHeader } from "@/components/dashboard/sidebar";
 import { MatchScoreBadge, StatusBadge, EmptyState } from "@/components/dashboard/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getJobs, getUserSettings } from "@/lib/data/dashboard";
+import { getJobs, getExcludedJobs, getUserSettings } from "@/lib/data/dashboard";
 import { Search, ExternalLink, MapPin } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { JobsPageClient } from "@/components/dashboard/jobs-page-client";
 import prisma from "@/lib/db";
 import { getDbUser } from "@/lib/auth/server";
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const { view } = await searchParams;
+  const showExcluded = view === "excluded";
   const user = await getDbUser();
-  const [jobs, settings] = await Promise.all([getJobs(), getUserSettings()]);
+  const [jobs, excludedJobs, settings] = await Promise.all([
+    showExcluded ? Promise.resolve([]) : getJobs(),
+    showExcluded ? getExcludedJobs() : Promise.resolve([]),
+    getUserSettings(),
+  ]);
+  const displayJobs = showExcluded ? excludedJobs : jobs;
 
   let lastSearchAt: string | null = null;
   let lastResultCount = 0;
@@ -43,23 +54,31 @@ export default async function JobsPage() {
         preferencesComplete={settings?.preferencesComplete ?? false}
         lastSearchAt={lastSearchAt}
         lastResultCount={lastResultCount}
+        activeView={showExcluded ? "excluded" : "matches"}
       />
 
       <div id="job-results" className="mt-6">
-        {jobs.length === 0 ? (
+        {displayJobs.length === 0 ? (
           <EmptyState
-            title="No matching jobs yet"
+            title={showExcluded ? "No excluded jobs saved" : "No matching jobs yet"}
             description={
-              settings?.preferencesComplete
-                ? "Run a job search to discover roles that match your preferences."
-                : "Complete your job search preferences, then run a search."
+              showExcluded
+                ? "Jobs filtered out by your preferences appear here with the exclusion reason."
+                : settings?.preferencesComplete
+                  ? "Run a job search to discover roles that match your preferences."
+                  : "Complete your job search preferences, then run a search."
             }
             icon={<Search className="h-8 w-8" />}
           />
         ) : (
           <div className="space-y-4">
-            {jobs.map((job) => {
-              const analysis = job.matchAnalysis as { reasons?: string[] } | null;
+            {displayJobs.map((job) => {
+              const analysis = job.matchAnalysis as {
+                reasons?: string[];
+                exclusions?: string[];
+                classification?: string;
+                recommendation?: string;
+              } | null;
               return (
                 <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
                   <CardContent className="flex items-start justify-between p-4">
@@ -87,7 +106,18 @@ export default async function JobsPage() {
                       </div>
                       {analysis?.reasons && analysis.reasons.length > 0 && (
                         <p className="mt-2 text-xs text-[var(--ink-secondary)]">
-                          Match: {analysis.reasons.slice(0, 2).join(" · ")}
+                          {showExcluded ? "Excluded:" : "Match:"}{" "}
+                          {(showExcluded
+                            ? analysis.exclusions
+                            : analysis.reasons
+                          )
+                            ?.slice(0, 2)
+                            .join(" · ")}
+                        </p>
+                      )}
+                      {analysis?.classification && (
+                        <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ink-tertiary)]">
+                          {analysis.classification.replace(/_/g, " ")}
                         </p>
                       )}
                       {job.requiredSkills.length > 0 && (
@@ -104,7 +134,7 @@ export default async function JobsPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {job.applications[0] && (
+                      {job.applications?.[0] && (
                         <StatusBadge status={job.applications[0].status} />
                       )}
                       <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer">

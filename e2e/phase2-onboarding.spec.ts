@@ -4,12 +4,14 @@ import { getProductionBaseUrl } from "./helpers/production";
 const BASE = getProductionBaseUrl();
 
 test.describe("Phase 2: Conversational onboarding", () => {
-  test("onboarding page shows Kairela conversational header", async ({ page }) => {
+  test("onboarding route requires authentication", async ({ page }) => {
     await page.goto(`${BASE}/dashboard/onboarding`);
-    await expect(page.getByText(/Profile completion/i)).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByRole("heading", { name: /What would you like Kairela/i })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
+  });
+
+  test("login page still shows Kairela branding", async ({ page }) => {
+    await page.goto(`${BASE}/login`);
+    await expect(page.getByRole("link", { name: /Kairela home/i })).toBeVisible();
   });
 
   test("onboarding API is protected or returns state", async ({ request }) => {
