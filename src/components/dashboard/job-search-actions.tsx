@@ -18,8 +18,8 @@ export function JobSearchActions() {
         toast.success("Job search queued — results will appear shortly");
       } else {
         toast.success(`Found ${data.total} jobs (${data.new} new)`);
+        window.location.reload();
       }
-      window.location.reload();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Search failed"

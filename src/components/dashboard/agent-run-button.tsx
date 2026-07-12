@@ -20,8 +20,8 @@ export function AgentRunButton() {
         toast.success(
           `Agent complete: ${data.processed} processed, ${data.prepared} prepared, ${data.submitted} submitted`
         );
+        window.location.reload();
       }
-      window.location.reload();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Agent run failed");
     } finally {

@@ -40,6 +40,7 @@ test.describe("Full Application Workflow", () => {
       );
       await page.getByRole("button", { name: /Upload Resume/i }).click();
       expect((await uploadRes).ok()).toBeTruthy();
+      await page.waitForLoadState("networkidle");
     }
 
     await page.goto("/dashboard/jobs");
@@ -87,7 +88,7 @@ test.describe("Full Application Workflow", () => {
     if (await textarea.isVisible()) {
       await textarea.fill(SAMPLE_RESUME);
       await page.getByRole("button", { name: /Upload Resume/i }).click();
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState("networkidle");
     }
 
     await page.goto("/dashboard/applications", { waitUntil: "domcontentloaded" });
