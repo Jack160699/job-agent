@@ -73,7 +73,7 @@ test.describe("Phase 15: Preferences & Queue", () => {
     }
   });
 
-  test("onboarding page loads", async ({ page }) => {
+  test("onboarding route redirects completed users to jobs", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
     await page.getByLabel("Password").fill("TestPass123!Secure");
@@ -81,7 +81,7 @@ test.describe("Phase 15: Preferences & Queue", () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
     await page.goto("/dashboard/onboarding");
-    await expect(page.getByText("Set up job search")).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/jobs/, { timeout: 15000 });
   });
 
   test("jobs page shows edit preferences action", async ({ page }) => {
