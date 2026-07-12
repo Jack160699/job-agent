@@ -23,7 +23,6 @@ export default async function JobsPage() {
           title="No jobs discovered yet"
           description="Configure your search filters in Settings and run a job search to discover opportunities."
           icon={<Search className="h-8 w-8" />}
-          action={<JobSearchActions />}
         />
       ) : (
         <div className="space-y-4">

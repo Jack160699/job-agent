@@ -44,7 +44,8 @@ test.describe("Full Application Workflow", () => {
 
     await page.goto("/dashboard/jobs");
     const searchRes = page.waitForResponse(
-      (r) => r.url().includes("/api/jobs/search") && r.request().method() === "POST",
+      (r) =>
+        r.url().includes("/api/jobs/search") && r.request().method() === "POST",
       { timeout: 30000 }
     );
     await page.getByRole("button", { name: /Search Jobs/i }).click();
@@ -88,7 +89,10 @@ test.describe("Full Application Workflow", () => {
       await page.waitForTimeout(2000);
     }
 
-    await page.goto("/dashboard/applications");
+    await page.goto("/dashboard/applications", { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("heading", { name: "Application Tracker" })
+    ).toBeVisible({ timeout: 15000 });
     const hasApps = await page.locator("table tbody tr").count();
     if (hasApps > 0) {
       const appId = await page
