@@ -99,27 +99,46 @@ enum JobStatus {
   @@map("job_status")
 }
 
-model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String   @unique
-  fullName      String?  @map("full_name")
-  avatarUrl     String?  @map("avatar_url")
-  supabaseId    String?  @unique @map("supabase_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+enum UserPersona {
+  JOB_SEEKER
+  EMPLOYER
+  RECRUITER
+  AGENCY
+  EXPLORER
 
-  masterResume    MasterResume?
-  tailoredResumes TailoredResume[]
-  coverLetters    CoverLetter[]
-  jobs            Job[]
-  applications    Application[]
-  recruiters      Recruiter[]
-  interviews      Interview[]
-  emails          Email[]
-  settings        UserSettings?
-  logs            AuditLog[]
-  secrets         EncryptedSecret[]
-  browserTasks    BrowserTask[]
+  @@map("user_persona")
+}
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  email           String       @unique
+  fullName        String?      @map("full_name")
+  avatarUrl       String?      @map("avatar_url")
+  supabaseId      String?      @unique @map("supabase_id")
+  persona         UserPersona  @default(JOB_SEEKER)
+  currentLocation String?      @map("current_location")
+  linkedinUrl     String?      @map("linkedin_url")
+  githubUrl       String?      @map("github_url")
+  portfolioUrl    String?      @map("portfolio_url")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  masterResume      MasterResume?
+  tailoredResumes   TailoredResume[]
+  coverLetters      CoverLetter[]
+  jobs              Job[]
+  applications      Application[]
+  recruiters        Recruiter[]
+  interviews        Interview[]
+  emails            Email[]
+  settings          UserSettings?
+  onboardingState   OnboardingState?
+  hiringProfile     HiringProfile?
+  preferenceHistory PreferenceHistory[]
+  consentRecords    ConsentRecord[]
+  logs              AuditLog[]
+  secrets           EncryptedSecret[]
+  browserTasks      BrowserTask[]
 
   @@map("users")
 }
@@ -364,6 +383,8 @@ model UserSettings {
   industries            String[] @default([])
   willingToRelocate     Boolean  @default(false) @map("willing_to_relocate")
   noticePeriodDays      Int?     @map("notice_period_days")
+  currentRole           String?  @map("profile_current_role")
+  currentSalary         Int?     @map("current_salary")
   preferencesComplete   Boolean  @default(false) @map("preferences_complete")
   driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
@@ -463,4 +484,70 @@ model BrowserTask {
   @@index([status, scheduledAt])
   @@index([userId, status])
   @@map("browser_tasks")
+}
+
+model OnboardingState {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  currentStep     String    @default("welcome") @map("current_step")
+  completedSteps  String[]  @default([]) @map("completed_steps")
+  draftData       Json?     @map("draft_data")
+  isComplete      Boolean   @default(false) @map("is_complete")
+  completionPct   Int       @default(0) @map("completion_pct")
+  completedAt     DateTime? @map("completed_at")
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_state")
+}
+
+model HiringProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  companyName       String?  @map("company_name")
+  companySize       String?  @map("company_size")
+  hiringGoal        String?  @map("hiring_goal")
+  userRole          String?  @map("user_role")
+  rolesHired        String[] @default([]) @map("roles_hired")
+  hiringVolume      String?  @map("hiring_volume")
+  locations         String[] @default([])
+  teamMembers       Int?     @map("team_members")
+  preferredSources  String[] @default([]) @map("preferred_sources")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("hiring_profiles")
+}
+
+model PreferenceHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  version       Int
+  snapshot      Json
+  changedFields String[] @default([]) @map("changed_fields")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, version])
+  @@map("preference_history")
+}
+
+model ConsentRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  consentType String   @map("consent_type")
+  granted     Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consentType])
+  @@map("consent_records")
 }

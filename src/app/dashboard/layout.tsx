@@ -1,11 +1,13 @@
 import { AppShell } from "@/components/dashboard/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ensureOnboardingFromPath } from "@/lib/onboarding/gate";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await ensureOnboardingFromPath();
   return (
     <AppShell>
       <ErrorBoundary>{children}</ErrorBoundary>

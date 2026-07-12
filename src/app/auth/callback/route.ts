@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { getOrCreateUser } from "@/lib/jobs/pipeline";
+import prisma from "@/lib/db";
 
 function buildRedirectUrl(request: Request, path: string): string {
   const { origin } = new URL(request.url);
@@ -79,7 +80,14 @@ export async function GET(request: Request) {
 
   if (user?.email) {
     try {
-      await getOrCreateUser(user.id, user.email);
+      const dbUser = await getOrCreateUser(user.id, user.email);
+      const settings = await prisma.userSettings.findUnique({
+        where: { userId: dbUser.id },
+      });
+      const onboardingDone =
+        settings?.onboardingCompletedAt && settings.preferencesComplete;
+      const dest = onboardingDone ? next : "/dashboard/onboarding";
+      return NextResponse.redirect(buildRedirectUrl(request, dest));
     } catch (err) {
       console.error("[auth/callback] getOrCreateUser failed:", err);
     }
