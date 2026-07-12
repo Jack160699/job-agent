@@ -1,21 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  enableGoogleIntegrations,
   getGoogleOAuthClient,
   storeGoogleTokens,
+  syncIntegrationFlags,
+  type GoogleIntegrationFeature,
 } from "@/lib/google/oauth";
 import { verifyGmailProfile } from "@/lib/google/verify";
 import prisma from "@/lib/db";
 
+function parseState(state: string): {
+  userId: string;
+  features: GoogleIntegrationFeature[];
+} | null {
+  try {
+    const json = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+    if (json.userId && Array.isArray(json.features)) return json;
+    return { userId: state, features: ["gmail", "sheets", "calendar"] };
+  } catch {
+    return { userId: state, features: ["gmail"] };
+  }
+}
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const userId = request.nextUrl.searchParams.get("state");
+  const stateRaw = request.nextUrl.searchParams.get("state");
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  if (!code || !userId) {
+  if (!code || !stateRaw) {
     return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=missing_params`);
   }
 
+  const parsed = parseState(stateRaw);
+  if (!parsed) {
+    return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=invalid_state`);
+  }
+
+  const { userId, features } = parsed;
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=invalid_user`);
@@ -29,12 +49,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=no_tokens`);
     }
 
-    await storeGoogleTokens(userId, tokens);
-    await enableGoogleIntegrations(userId);
+    await storeGoogleTokens(userId, tokens, features);
+    await syncIntegrationFlags(userId, features);
 
-    const email = await verifyGmailProfile(userId);
-    if (!email) {
-      return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=gmail_verify`);
+    if (features.includes("gmail")) {
+      const email = await verifyGmailProfile(userId);
+      if (!email) {
+        return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=gmail_verify`);
+      }
     }
 
     return NextResponse.redirect(`${appUrl}/dashboard/settings?google=connected`);

@@ -44,10 +44,10 @@ export function GoogleAuthButton({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
           queryParams: {
-            access_type: "offline",
-            prompt: "consent",
+            access_type: "online",
+            prompt: "select_account",
           },
         },
       });

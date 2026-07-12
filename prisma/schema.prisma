@@ -360,6 +360,13 @@ model UserSettings {
   gmailSyncEnabled      Boolean  @default(false) @map("gmail_sync_enabled")
   driveFolderId         String?  @map("drive_folder_id")
   targetCompanies       String[] @default([]) @map("target_companies")
+  excludedCompanies     String[] @default([]) @map("excluded_companies")
+  industries            String[] @default([])
+  willingToRelocate     Boolean  @default(false) @map("willing_to_relocate")
+  noticePeriodDays      Int?     @map("notice_period_days")
+  preferencesComplete   Boolean  @default(false) @map("preferences_complete")
+  driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -402,20 +409,32 @@ model EncryptedSecret {
 }
 
 model BackgroundJob {
-  id          String    @id @default(uuid()) @db.Uuid
-  type        String
-  payload     Json?
-  status      String    @default("pending")
-  attempts    Int       @default(0)
-  maxAttempts Int       @default(3) @map("max_attempts")
-  error       String?   @db.Text
-  scheduledAt DateTime  @default(now()) @map("scheduled_at")
-  startedAt   DateTime? @map("started_at")
-  completedAt DateTime? @map("completed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  type            String
+  payload         Json?
+  status          String    @default("pending")
+  priority        Int       @default(0)
+  source          String    @default("scheduled")
+  userId          String?   @map("user_id") @db.Uuid
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3) @map("max_attempts")
+  error           String?   @db.Text
+  scheduledAt     DateTime  @default(now()) @map("scheduled_at")
+  queuedAt        DateTime  @default(now()) @map("queued_at")
+  claimedAt       DateTime? @map("claimed_at")
+  startedAt       DateTime? @map("started_at")
+  heartbeatAt     DateTime? @map("heartbeat_at")
+  completedAt     DateTime? @map("completed_at")
+  failedAt        DateTime? @map("failed_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+  progressStage   String?   @map("progress_stage")
+  progressPercent Int       @default(0) @map("progress_percent")
+  progressMeta    Json?     @map("progress_meta")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  @@index([status, scheduledAt])
+  @@index([status, priority, scheduledAt])
   @@index([type])
+  @@index([userId, type, status])
   @@map("background_jobs")
 }
 

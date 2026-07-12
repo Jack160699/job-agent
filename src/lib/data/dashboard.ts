@@ -92,7 +92,7 @@ export async function getJobs(filters?: {
     return prisma.job.findMany({
       where: {
         userId: user.id,
-        ...(filters?.status ? { status: filters.status as "ACTIVE" } : {}),
+        status: "ACTIVE",
         ...(filters?.minScore ? { matchScore: { gte: filters.minScore } } : {}),
         ...(filters?.source ? { source: filters.source as "LINKEDIN" } : {}),
       },

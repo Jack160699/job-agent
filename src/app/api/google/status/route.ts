@@ -32,23 +32,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let integrationSettings = settings;
-    if (
-      settings &&
-      !settings.gmailSyncEnabled &&
-      !settings.sheetsSyncEnabled &&
-      !settings.calendarSyncEnabled
-    ) {
-      integrationSettings = await prisma.userSettings.update({
-        where: { userId: user.id },
-        data: {
-          gmailSyncEnabled: true,
-          sheetsSyncEnabled: true,
-          calendarSyncEnabled: true,
-        },
-      });
-    }
-
     const verify = request.nextUrl.searchParams.get("verify") === "true";
     let email: string | null = null;
     let apis = null;
@@ -68,10 +51,10 @@ export async function GET(request: NextRequest) {
       connected: true,
       email,
       integrations: {
-        gmail: integrationSettings?.gmailSyncEnabled ?? false,
-        drive: Boolean(integrationSettings?.driveFolderId) || connected,
-        sheets: integrationSettings?.sheetsSyncEnabled ?? false,
-        calendar: integrationSettings?.calendarSyncEnabled ?? false,
+        gmail: settings?.gmailSyncEnabled ?? false,
+        drive: settings?.driveBackupEnabled ?? false,
+        sheets: settings?.sheetsSyncEnabled ?? false,
+        calendar: settings?.calendarSyncEnabled ?? false,
       },
       apis,
     });

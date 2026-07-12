@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isUserEmailVerified } from "@/lib/auth/verify";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./config";
 
 export async function updateSession(request: NextRequest) {
@@ -36,6 +37,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
     request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/reset-password") ||
     request.nextUrl.pathname.startsWith("/verify-email") ||
     request.nextUrl.pathname.startsWith("/auth/");
   const isPublicPage =
@@ -53,10 +55,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Block unverified users from dashboard
+  // Block unverified email/password users from dashboard (OAuth users are verified at IdP)
   if (
     user &&
-    !user.email_confirmed_at &&
+    !isUserEmailVerified(user) &&
     request.nextUrl.pathname.startsWith("/dashboard")
   ) {
     const url = request.nextUrl.clone();
@@ -65,7 +67,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && user.email_confirmed_at && isAuthPage && !request.nextUrl.pathname.startsWith("/auth/")) {
+  if (user && isUserEmailVerified(user) && isAuthPage && !request.nextUrl.pathname.startsWith("/auth/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

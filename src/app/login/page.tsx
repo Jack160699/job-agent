@@ -11,6 +11,7 @@ import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
+import { isUserEmailVerified } from "@/lib/auth/verify";
 import { toast } from "sonner";
 
 function LoginForm() {
@@ -43,7 +44,7 @@ function LoginForm() {
         return;
       }
 
-      if (data.user && !data.user.email_confirmed_at) {
+      if (data.user && !isUserEmailVerified(data.user)) {
         await supabase.auth.signOut();
         router.push(`/verify-email?email=${encodeURIComponent(email)}`);
         return;

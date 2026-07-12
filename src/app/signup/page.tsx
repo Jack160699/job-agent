@@ -38,7 +38,12 @@ export default function SignupPage() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        const msg = signUpError.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already exists")) {
+          setError("An account with this email already exists. Try signing in instead.");
+        } else {
+          setError(signUpError.message);
+        }
         return;
       }
 

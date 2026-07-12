@@ -10,14 +10,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const [scheduled, processed] = await Promise.all([
-      schedulePeriodicJobs(),
-      processBackgroundJobs(),
-    ]);
+  const mode = request.nextUrl.searchParams.get("mode") ?? "drain";
 
+  try {
+    if (mode === "schedule") {
+      const scheduled = await schedulePeriodicJobs();
+      return NextResponse.json({ mode, scheduled });
+    }
+
+    const processed = await processBackgroundJobs();
     return NextResponse.json({
-      scheduled,
+      mode: "drain",
       processed: processed.length,
       results: processed,
     });
@@ -30,4 +33,4 @@ export async function GET(request: NextRequest) {
 }
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;

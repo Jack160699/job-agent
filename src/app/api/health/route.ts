@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getQueueStats } from "@/lib/jobs/background";
 import prisma from "@/lib/db";
 
 function envStatus(key: string, optional = false): string {
@@ -12,7 +13,7 @@ function envStatus(key: string, optional = false): string {
 }
 
 export async function GET() {
-  const checks: Record<string, string | boolean | number> = {
+  const checks: Record<string, unknown> = {
     status: "ok",
     supabase: isSupabaseConfigured() ? "configured" : "missing",
     database: "unknown",
@@ -37,6 +38,9 @@ export async function GET() {
       where: { status: "pending" },
     });
     checks.background_jobs_pending = pendingJobs;
+
+    const queueStats = await getQueueStats();
+    checks.queue = queueStats;
   } catch (error) {
     checks.status = "degraded";
     checks.database = error instanceof Error ? error.message : "failed";

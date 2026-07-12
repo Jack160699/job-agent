@@ -4,8 +4,12 @@
   "installCommand": "npm install",
   "crons": [
     {
-      "path": "/api/cron",
-      "schedule": "0 */6 * * *"
+      "path": "/api/cron?mode=drain",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron?mode=schedule",
+      "schedule": "0 6 * * *"
     }
   ]
 }

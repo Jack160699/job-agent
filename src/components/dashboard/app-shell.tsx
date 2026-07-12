@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleLogout = useCallback(async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "global" });
     router.push("/login");
   }, [router]);
 

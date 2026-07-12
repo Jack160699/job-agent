@@ -5,7 +5,13 @@ import { tailorResume } from "@/lib/ai/resume-tailor";
 import { generateCoverLetter } from "@/lib/ai/cover-letter";
 import { createAuditLog } from "@/lib/audit";
 import type { JobSource, Prisma } from "@prisma/client";
-import { GreenhouseAdapter, LeverAdapter, AshbyAdapter, WorkdayAdapter, BrowserJobAdapter } from "./adapters";
+import {
+  buildDiscoveryBoards,
+  evaluateJobAgainstPreferences,
+  hasMinimumPreferences,
+} from "./preferences";
+import { updateJobProgress } from "./job-progress-store";
+import { GreenhouseAdapter, LeverAdapter, AshbyAdapter, WorkdayAdapter } from "./adapters";
 import type { DiscoveredJob } from "./types";
 
 export async function getOrCreateUser(supabaseId: string, email: string) {
@@ -40,16 +46,58 @@ export async function getOrCreateUser(supabaseId: string, email: string) {
   return user;
 }
 
-export async function searchJobs(userId: string) {
+export async function archiveLegacyJobs(userId: string) {
+  const jobs = await prisma.job.findMany({
+    where: { userId, status: "ACTIVE" },
+    select: { id: true, metadata: true },
+  });
+
+  const legacyIds = jobs
+    .filter((j) => {
+      const meta = j.metadata as Record<string, unknown> | null;
+      return !meta?.preferenceFiltered;
+    })
+    .map((j) => j.id);
+
+  if (legacyIds.length === 0) return 0;
+
+  await prisma.job.updateMany({
+    where: { id: { in: legacyIds } },
+    data: {
+      status: "ARCHIVED",
+      metadata: { legacy: true, archivedAt: new Date().toISOString() },
+    },
+  });
+  return legacyIds.length;
+}
+
+export async function searchJobs(userId: string, backgroundJobId?: string) {
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   if (!settings) throw new Error("User settings not found");
 
+  if (!hasMinimumPreferences(settings)) {
+    throw new Error("PREFERENCES_INCOMPLETE");
+  }
+
+  const progress = async (stage: Parameters<typeof updateJobProgress>[1], meta?: Record<string, unknown>) => {
+    if (backgroundJobId) await updateJobProgress(backgroundJobId, stage, meta);
+  };
+
+  await progress("validating_preferences");
+  await createAuditLog({
+    userId,
+    action: "JOB_SEARCH_VALIDATE",
+    message: `Validated preferences: ${settings.jobTitles.join(", ")}`,
+    level: "INFO",
+  });
+
+  const boards = buildDiscoveryBoards(settings);
   const filters = {
-    titles: settings.jobTitles.length > 0 ? settings.jobTitles : ["Software Engineer"],
+    titles: settings.jobTitles,
     locations: settings.locations,
     experienceYears: settings.experienceYears ?? undefined,
     skills: settings.requiredSkills,
-    targetCompanies: settings.targetCompanies,
+    discoveryBoards: boards,
   };
 
   const adapters = [
@@ -57,26 +105,32 @@ export async function searchJobs(userId: string) {
     new LeverAdapter(),
     new AshbyAdapter(),
     new WorkdayAdapter(),
-    new BrowserJobAdapter(),
   ];
 
+  const defaultSources: JobSource[] = ["GREENHOUSE", "LEVER", "ASHBY", "WORKDAY"];
+  const enabled =
+    settings.enabledSources?.length > 0 ? settings.enabledSources : defaultSources;
+
+  await progress("discovering_sources", { boards });
   const discovered: DiscoveredJob[] = [];
+
   for (const adapter of adapters) {
-    if (!settings.enabledSources.includes(adapter.source as JobSource)) continue;
+    if (!enabled.includes(adapter.source as JobSource)) continue;
     try {
+      await progress("fetching_jobs", { ats: adapter.source });
       await createAuditLog({
         userId,
         action: "JOB_SEARCH_PROGRESS",
-        message: `Searching ${adapter.name} (${adapter.source}) for jobs…`,
+        message: `Fetching from ${adapter.name} (${adapter.source})…`,
         level: "INFO",
-        metadata: { ats: adapter.source, adapter: adapter.name },
+        metadata: { ats: adapter.source },
       });
       const jobs = await adapter.search(filters);
       discovered.push(...jobs);
       await createAuditLog({
         userId,
         action: "JOB_SEARCH_ADAPTER_DONE",
-        message: `Found ${jobs.length} jobs from ${adapter.name}`,
+        message: `Fetched ${jobs.length} jobs from ${adapter.name}`,
         level: "INFO",
         metadata: { ats: adapter.source, count: jobs.length },
       });
@@ -84,23 +138,53 @@ export async function searchJobs(userId: string) {
       await createAuditLog({
         userId,
         action: "JOB_SEARCH_ERROR",
-        message: `Failed to search ${adapter.name}: ${error}`,
+        message: `Failed ${adapter.name}: ${error}`,
         level: "ERROR",
-        metadata: { ats: adapter.source },
       });
     }
   }
 
-  let newCount = 0;
+  await progress("filtering", { rawCount: discovered.length });
+  const filtered: Array<DiscoveredJob & { score: number; reasons: string[] }> = [];
+  const excluded: Array<{ title: string; company: string; reason: string }> = [];
+
   for (const job of discovered) {
+    const result = evaluateJobAgainstPreferences(job, settings);
+    if (result.accepted) {
+      filtered.push({ ...job, score: result.score, reasons: result.reasons });
+    } else {
+      excluded.push({
+        title: job.title,
+        company: job.company,
+        reason: result.exclusions[0] || "Did not match preferences",
+      });
+    }
+  }
+
+  await progress("deduplicating", {
+    filtered: filtered.length,
+    excluded: excluded.length,
+  });
+
+  const seen = new Set<string>();
+  const unique = filtered.filter((job) => {
+    const key = `${job.source}:${job.externalId || job.sourceUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  await progress("scoring", { unique: unique.length });
+  let newCount = 0;
+  let relevantCount = 0;
+
+  for (const job of unique) {
     const existing = await prisma.job.findFirst({
-      where: {
-        userId,
-        source: job.source,
-        externalId: job.externalId,
-      },
+      where: { userId, source: job.source, externalId: job.externalId },
     });
     if (existing) continue;
+
+    await progress("saving", { title: job.title, company: job.company });
 
     await prisma.job.create({
       data: {
@@ -113,26 +197,46 @@ export async function searchJobs(userId: string) {
         location: job.location,
         description: job.description,
         postedAt: job.postedAt,
-        metadata: (job.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        matchScore: job.score,
+        matchAnalysis: {
+          reasons: job.reasons,
+          preferenceMatched: true,
+        } as Prisma.InputJsonValue,
+        metadata: {
+          ...(job.metadata ?? {}),
+          preferenceFiltered: true,
+        } as Prisma.InputJsonValue,
         applications: {
-          create: {
-            userId,
-            status: "DISCOVERED",
-          },
+          create: { userId, status: "DISCOVERED", matchScore: job.score },
         },
       },
     });
     newCount++;
+    relevantCount++;
   }
+
+  await progress("completed", {
+    discovered: discovered.length,
+    relevant: relevantCount,
+    new: newCount,
+    excluded: excluded.length,
+  });
 
   await createAuditLog({
     userId,
     action: "JOB_SEARCH_COMPLETE",
-    message: `Discovered ${discovered.length} jobs, ${newCount} new`,
+    message: `Found ${discovered.length} raw, ${relevantCount} relevant, ${newCount} new (${excluded.length} excluded)`,
     level: "INFO",
+    metadata: { excluded: excluded.slice(0, 10) },
   });
 
-  return { total: discovered.length, new: newCount };
+  return {
+    total: discovered.length,
+    relevant: relevantCount,
+    new: newCount,
+    excluded: excluded.length,
+    excludedSample: excluded.slice(0, 5),
+  };
 }
 
 export async function analyzeJob(userId: string, jobId: string) {

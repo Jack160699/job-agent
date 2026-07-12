@@ -20,6 +20,12 @@ export interface JobSearchFilters {
   remote?: boolean;
   experienceYears?: number;
   skills?: string[];
+  discoveryBoards?: {
+    greenhouse?: string[];
+    lever?: string[];
+    ashby?: string[];
+    workday?: string[];
+  };
 }
 
 export interface JobSourceAdapter {

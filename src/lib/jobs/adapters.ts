@@ -1,38 +1,34 @@
 import type { DiscoveredJob, JobSearchFilters } from "./types";
 import { getAllAutomators } from "@/lib/automation/registry";
 
-function getBoardSlugs(
-  filters: JobSearchFilters & { targetCompanies?: string[] },
-  envKey: string,
-  fallback: string[]
-) {
-  const fromSettings = filters.targetCompanies || [];
+function boardsFor(
+  filters: JobSearchFilters,
+  platform: "greenhouse" | "lever" | "ashby" | "workday",
+  envKey: string
+): string[] {
+  const fromDiscovery = filters.discoveryBoards?.[platform] || [];
   const fromEnv = (process.env[envKey] || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return [...new Set([...fromSettings, ...fromEnv, ...fallback])];
+  return [...new Set([...fromDiscovery, ...fromEnv])];
 }
 
 export class GreenhouseAdapter {
   source = "GREENHOUSE" as const;
   name = "Greenhouse";
 
-  async search(
-    filters: JobSearchFilters & { targetCompanies?: string[] }
-  ): Promise<DiscoveredJob[]> {
-    const boards = getBoardSlugs(filters, "JOB_SEARCH_GREENHOUSE_BOARDS", [
-      "openai",
-      "stripe",
-    ]);
+  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+    const boards = boardsFor(filters, "greenhouse", "JOB_SEARCH_GREENHOUSE_BOARDS");
+    if (boards.length === 0) return [];
+
     const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const board of boards.slice(0, 2)) {
-      for (const title of filters.titles.slice(0, 2)) {
+    for (const board of boards.slice(0, 4)) {
+      for (const title of filters.titles.slice(0, 3)) {
         try {
-          const results = await automator.discoverJobs(board, title);
-          jobs.push(...results);
+          jobs.push(...(await automator.discoverJobs(board, title)));
         } catch {
           // Board may not exist
         }
@@ -71,21 +67,17 @@ export class LeverAdapter {
   source = "LEVER" as const;
   name = "Lever";
 
-  async search(
-    filters: JobSearchFilters & { targetCompanies?: string[] }
-  ): Promise<DiscoveredJob[]> {
-    const companies = getBoardSlugs(filters, "JOB_SEARCH_LEVER_COMPANIES", [
-      "netflix",
-      "palantir",
-    ]);
+  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+    const companies = boardsFor(filters, "lever", "JOB_SEARCH_LEVER_COMPANIES");
+    if (companies.length === 0) return [];
+
     const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const company of companies.slice(0, 2)) {
-      for (const title of filters.titles.slice(0, 2)) {
+    for (const company of companies.slice(0, 4)) {
+      for (const title of filters.titles.slice(0, 3)) {
         try {
-          const results = await automator.discoverJobs(company, title);
-          jobs.push(...results);
+          jobs.push(...(await automator.discoverJobs(company, title)));
         } catch {
           // Company may not exist
         }
@@ -113,21 +105,17 @@ export class AshbyAdapter {
   source = "ASHBY" as const;
   name = "Ashby";
 
-  async search(
-    filters: JobSearchFilters & { targetCompanies?: string[] }
-  ): Promise<DiscoveredJob[]> {
-    const boards = getBoardSlugs(filters, "JOB_SEARCH_ASHBY_BOARDS", [
-      "linear",
-      "notion",
-    ]);
+  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+    const boards = boardsFor(filters, "ashby", "JOB_SEARCH_ASHBY_BOARDS");
+    if (boards.length === 0) return [];
+
     const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const board of boards.slice(0, 2)) {
-      for (const title of filters.titles.slice(0, 2)) {
+    for (const board of boards.slice(0, 4)) {
+      for (const title of filters.titles.slice(0, 3)) {
         try {
-          const results = await automator.discoverJobs(board, title);
-          jobs.push(...results);
+          jobs.push(...(await automator.discoverJobs(board, title)));
         } catch {
           // Board may not exist
         }
@@ -154,18 +142,17 @@ export class WorkdayAdapter {
   source = "WORKDAY" as const;
   name = "Workday";
 
-  async search(
-    filters: JobSearchFilters & { targetCompanies?: string[] }
-  ): Promise<DiscoveredJob[]> {
-    const companies = getBoardSlugs(filters, "JOB_SEARCH_WORKDAY_COMPANIES", []);
+  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
+    const companies = boardsFor(filters, "workday", "JOB_SEARCH_WORKDAY_COMPANIES");
+    if (companies.length === 0) return [];
+
     const automator = getAllAutomators().find((a) => a.platform === "WORKDAY")!;
     const jobs: DiscoveredJob[] = [];
 
     for (const company of companies) {
-      for (const title of filters.titles.slice(0, 2)) {
+      for (const title of filters.titles.slice(0, 3)) {
         try {
-          const results = await automator.discoverJobs(company, title);
-          jobs.push(...results);
+          jobs.push(...(await automator.discoverJobs(company, title)));
         } catch {
           // Browser search may fail without Playwright
         }
@@ -186,33 +173,4 @@ export class WorkdayAdapter {
   }
 
   canAutoApply = true;
-}
-
-export class BrowserJobAdapter {
-  source = "OTHER" as const;
-  name = "Browser Automation";
-
-  async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    return filters.titles.map((title) => ({
-      source: "OTHER" as const,
-      sourceUrl: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(title)}`,
-      title: `${title} (Browser Search)`,
-      company: "Various",
-      description: `Browser MCP search for: ${title}`,
-      metadata: { searchQuery: title, requiresBrowser: true },
-    }));
-  }
-
-  async getJobDetails(url: string): Promise<DiscoveredJob | null> {
-    return {
-      source: "OTHER",
-      sourceUrl: url,
-      title: "Job from URL",
-      company: "Unknown",
-      description: "Use browser automation to fetch full details.",
-      metadata: { requiresBrowser: true },
-    };
-  }
-
-  canAutoApply = false;
 }

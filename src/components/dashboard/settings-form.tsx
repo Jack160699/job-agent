@@ -139,10 +139,19 @@ export function SettingsForm({
   }, [searchParams, refreshGoogleStatus, router]);
 
   const connectGoogle = async () => {
-    const res = await fetch("/api/google/oauth");
+    const features: string[] = [];
+    if (gmailSync) features.push("gmail");
+    if (sheetsSync) features.push("sheets");
+    if (calendarSync) features.push("calendar");
+    if (driveSync) features.push("drive");
+    if (features.length === 0) {
+      toast.error("Enable at least one integration toggle before connecting");
+      return;
+    }
+    const res = await fetch(`/api/google/oauth?scopes=${features.join(",")}`);
     const data = await res.json();
     if (data.url) window.location.href = data.url;
-    else toast.error("Google OAuth not configured");
+    else toast.error(data.error || "Google OAuth not configured");
   };
 
   const handleSave = async () => {
@@ -352,6 +361,7 @@ export function SettingsForm({
                 type="checkbox"
                 checked={driveSync}
                 disabled={!googleConnected}
+                onChange={(e) => setDriveSync(e.target.checked)}
                 className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
               />
               <div>
