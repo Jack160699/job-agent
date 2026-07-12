@@ -51,13 +51,14 @@ Before marking a phase complete:
 
 ## Phase 1 — Kairela Rebrand
 
-- [ ] All Signal / Job Agent references replaced
-- [ ] Brand system (colors, typography, logo, favicon, manifest)
-- [ ] `kairela.com` / `www.kairela.com` configuration
-- [ ] Canonical URL handling updated
-- [ ] OAuth redirect URLs updated
-- [ ] Vercel URL remains fallback
-- [ ] SSL, redirects, sitemap, robots.txt verified
+- [x] All Signal / Job Agent references replaced
+- [x] Brand system (colors, typography, logo, favicon, manifest)
+- [x] `kairela.com` / `www.kairela.com` configuration (code + www redirect)
+- [x] Canonical URL handling updated
+- [x] OAuth redirect URLs updated
+- [x] Vercel URL remains fallback
+- [ ] kairela.com DNS attached in Vercel (pending domain verification)
+- [x] robots.txt, sitemap, manifest verified on production
 
 ---
 
