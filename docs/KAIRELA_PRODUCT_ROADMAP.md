@@ -4,7 +4,7 @@
 **Primary domain:** https://kairela.com  
 **Current production:** https://job-agent-mu-steel.vercel.app  
 **Development branch:** `feat/kairela-product-v1`  
-**Last updated:** 2026-07-13 (Phase 0 audit)
+**Last updated:** 2026-07-13 (Phase 15 complete)
 
 ---
 
@@ -20,20 +20,20 @@ Transform the current release candidate (Signal / Job Agent) into **Kairela** â€
 |-------|------|--------|-------|
 | 0 | Safe Release Setup | **Complete** | `de6fee0` master, `dbfd283` feat branch, docs committed |
 | 1 | Complete Kairela Rebrand | **Complete** | `1b50843`, deploy `dpl_Cwm8mhAhJ4yphuhZfpPUujAtcaJW`, 6/6 brand E2E |
-| 2 | Role-Based Conversational Onboarding | Pending | Job seeker, employer, recruiter, agency personas |
-| 3 | Preference-Aware Job Discovery | Partial | Phase 15 added filtering; full pipeline in Phase 3 |
-| 4 | Queue Reliability & Live Search | Partial | Phase 15 added priority, stages, stale recovery |
-| 5 | Merged, Polished Pipeline UI | Partial | `job-search-workflow.tsx` integrated; polish in Phase 5 |
-| 6 | Public Google Authentication | Partial | OAuth login fixed; full audit in Phase 6 |
-| 7 | Email Authentication & Account Safety | Partial | Reset password, verify flow; full launch in Phase 7 |
-| 8 | Mobile UX & Performance Pass | Pending | Lighthouse targets, safe areas, bundle reduction |
-| 9 | Kairela AI Career Consultant | Pending | Context-aware assistant with tool actions |
-| 10 | Proactive Relationship Manager | Pending | Recommendations, notifications, insights |
-| 11 | Subscription & Entitlements | Pending | Plans behind feature flag |
-| 12 | Employer / Recruiter / Agency Foundation | Pending | Feature-flagged foundation only |
-| 13 | Landing, Reviews, Trust & Growth | Pending | Outcome-led landing, legal, SEO |
-| 14 | Observability & Launch Operations | Pending | Admin console, alerts, structured logs |
-| 15 | Final Release Candidate | Pending | Full audit, release gates, tagging |
+| 2 | Role-Based Conversational Onboarding | **Complete** | `7a4461c`, deploy `dpl_86ozndqEqgJBjYw9a95D42pDabk7` |
+| 3 | Preference-Aware Job Discovery | **Complete** | `eb04b35` |
+| 4 | Queue Reliability & Live Search | **Complete** | Dead-letter, admin queue |
+| 5 | Merged, Polished Pipeline UI | **Complete** | Cancelled/stale states, tap targets |
+| 6 | Public Google Authentication | **Complete** | OAuth separation verified |
+| 7 | Email Authentication & Account Safety | **Complete** | Password strength, resend cooldown |
+| 8 | Mobile UX & Performance Pass | **Complete** | Safe areas, consultant mobile sheet |
+| 9 | Kairela AI Career Consultant | **Complete** | FAB + `/api/consultant/chat` |
+| 10 | Proactive Relationship Manager | **Complete** | Recommendations API + dashboard |
+| 11 | Subscription & Entitlements | **Complete** | Schema + entitlements (billing flagged) |
+| 12 | Employer / Recruiter / Agency Foundation | **Complete** | Feature-flagged hiring page |
+| 13 | Landing, Reviews, Trust & Growth | **Complete** | Legal pages, footer links |
+| 14 | Observability & Launch Operations | **Complete** | Admin ops console |
+| 15 | Final Release Candidate | **Complete** | Runbooks, CHANGELOG, E2E |
 
 ---
 

@@ -139,6 +139,10 @@ model User {
   logs              AuditLog[]
   secrets           EncryptedSecret[]
   browserTasks      BrowserTask[]
+  proactiveRecommendations ProactiveRecommendation[]
+  consultantMessages ConsultantMessage[]
+  subscription      Subscription?
+  usageLedger       UsageLedger[]
 
   @@map("users")
 }
@@ -388,6 +392,9 @@ model UserSettings {
   preferencesComplete   Boolean  @default(false) @map("preferences_complete")
   driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  quietHoursStart       String?   @map("quiet_hours_start")
+  quietHoursEnd         String?   @map("quiet_hours_end")
+  proactiveFrequencyHours Int     @default(24) @map("proactive_frequency_hours")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -550,4 +557,84 @@ model ConsentRecord {
 
   @@index([userId, consentType])
   @@map("consent_records")
+}
+
+model ProactiveRecommendation {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  type        String
+  title       String
+  body        String    @db.Text
+  reason      String    @db.Text
+  actionUrl   String?   @map("action_url")
+  dismissed   Boolean   @default(false)
+  snoozedUntil DateTime? @map("snoozed_until")
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dismissed, createdAt])
+  @@map("proactive_recommendations")
+}
+
+model ConsultantMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String
+  content   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("consultant_messages")
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  TEAM
+
+  @@map("subscription_plan")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELLED
+
+  @@map("subscription_status")
+}
+
+model Subscription {
+  id              String             @id @default(uuid()) @db.Uuid
+  userId          String             @unique @map("user_id") @db.Uuid
+  plan            SubscriptionPlan   @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId String?           @map("stripe_customer_id")
+  stripeSubscriptionId String?       @map("stripe_subscription_id")
+  currentPeriodEnd DateTime?         @map("current_period_end")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model UsageLedger {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  feature   String
+  quantity  Int      @default(1)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, feature, createdAt])
+  @@map("usage_ledger")
 }

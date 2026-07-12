@@ -352,22 +352,27 @@ export async function processBackgroundJobs() {
         allResults.push({ id: job.id, status: "completed", result });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        const willFail = job.attempts >= 2;
+        const attemptsAfterFail = job.attempts + 1;
+        const isDeadLetter = attemptsAfterFail >= job.maxAttempts;
+        const willRetry = !isDeadLetter;
 
         await prisma.backgroundJob.update({
           where: { id: job.id },
           data: {
-            status: willFail ? "failed" : "pending",
+            status: isDeadLetter ? "dead_letter" : willRetry ? "pending" : "failed",
             error: errorMsg,
-            failedAt: willFail ? new Date() : null,
+            failedAt: isDeadLetter || !willRetry ? new Date() : null,
             progressStage: "failed",
-            scheduledAt: new Date(Date.now() + 5 * 60 * 1000),
+            scheduledAt: willRetry
+              ? new Date(Date.now() + 5 * 60 * 1000)
+              : new Date(),
             claimedAt: null,
             startedAt: null,
+            heartbeatAt: null,
           },
         });
 
-        logWorker(willFail ? "job_failed" : "job_retry_scheduled", {
+        logWorker(isDeadLetter ? "job_dead_letter" : willRetry ? "job_retry_scheduled" : "job_failed", {
           jobId: job.id,
           type: job.type,
           error: errorMsg,
@@ -375,7 +380,7 @@ export async function processBackgroundJobs() {
 
         allResults.push({
           id: job.id,
-          status: willFail ? "failed" : "retry",
+          status: isDeadLetter ? "dead_letter" : willRetry ? "retry" : "failed",
           error: errorMsg,
         });
       }

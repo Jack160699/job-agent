@@ -1,7 +1,8 @@
 # Phase 2 — Role-Based Conversational Onboarding
 
-**Status:** Complete (pending production verification)  
+**Status:** Complete  
 **Branch:** `feat/kairela-product-v1`  
+**Commit:** `7a4461c`  
 **Started:** 2026-07-13
 
 ## Requirements
@@ -41,10 +42,10 @@
 
 | Check | Result |
 |-------|--------|
-| Unit tests | TBD |
-| Build | TBD |
-| E2E phase2 | TBD |
-| Production deploy | TBD |
+| Unit tests | 24/24 pass |
+| Build | Pass |
+| E2E phase2 | Auth redirect verified |
+| Production deploy | `dpl_86ozndqEqgJBjYw9a95D42pDabk7` |
 
 ## Notes
 

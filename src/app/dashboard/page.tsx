@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getDashboardStats, getRecentApplications, getUpcomingInterviews } from "@/lib/data/dashboard";
 import { formatRelativeTime } from "@/lib/utils";
 import { AgentRunButton } from "@/components/dashboard/agent-run-button";
+import { ProactiveRecommendations } from "@/components/proactive/proactive-recommendations";
 
 export default async function DashboardOverview() {
   const [stats, recentApps, interviews] = await Promise.all([
@@ -32,6 +33,10 @@ export default async function DashboardOverview() {
           </div>
         }
       />
+
+      <div className="mt-4">
+        <ProactiveRecommendations />
+      </div>
 
       {/* Compact metric strip */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

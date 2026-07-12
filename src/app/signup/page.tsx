@@ -12,6 +12,7 @@ import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { isPasswordAcceptable, evaluatePasswordStrength } from "@/lib/auth/password-strength";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -25,6 +26,13 @@ export default function SignupPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (!isPasswordAcceptable(password)) {
+      const { feedback } = evaluatePasswordStrength(password);
+      setError(feedback[0] || "Choose a stronger password (8+ characters, mixed case, number).");
+      setLoading(false);
+      return;
+    }
 
     try {
       const supabase = createClient();

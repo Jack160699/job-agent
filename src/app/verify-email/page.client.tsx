@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { canResendVerification, recordResendVerification } from "@/lib/auth/resend-cooldown";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -24,6 +25,11 @@ export default function VerifyEmailPage() {
       toast.error("Enter your email address");
       return;
     }
+    const cooldown = canResendVerification(email);
+    if (!cooldown.allowed) {
+      toast.error(`Please wait ${cooldown.waitSeconds}s before resending`);
+      return;
+    }
     setResending(true);
     try {
       const supabase = createClient();
@@ -35,6 +41,7 @@ export default function VerifyEmailPage() {
         },
       });
       if (error) throw error;
+      recordResendVerification(email);
       setSent(true);
       toast.success("Verification email sent");
     } catch (err) {

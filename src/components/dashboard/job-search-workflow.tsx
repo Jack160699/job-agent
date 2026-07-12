@@ -89,6 +89,12 @@ export function JobSearchWorkflow({
         setRunning(false);
         setError(p.error || "Search failed");
       }
+      if (p.status === "cancelled" && !doneRef.current) {
+        doneRef.current = true;
+        stopPolling();
+        setRunning(false);
+        setError("Search was cancelled. Start a new search when ready.");
+      }
       if (p.stalled && running) {
         setError("Search is taking longer than expected. You can retry.");
       }
@@ -155,7 +161,7 @@ export function JobSearchWorkflow({
           <Button
             onClick={startRun}
             disabled={running}
-            className="h-10 gap-2"
+            className="h-11 min-h-[44px] gap-2"
           >
             {running ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -164,7 +170,7 @@ export function JobSearchWorkflow({
             )}
             {running ? "Searching…" : "Run Job Search"}
           </Button>
-          <Button variant="outline" className="h-10 gap-2" asChild>
+          <Button variant="outline" className="h-11 min-h-[44px] gap-2" asChild>
             <Link href={preferencesComplete ? "/dashboard/settings" : "/dashboard/onboarding"}>
               <Settings2 className="h-4 w-4" />
               Edit search preferences

@@ -282,6 +282,9 @@ export default function HomePage() {
             © {new Date().getFullYear()} {BRAND.name}
           </p>
           <div className="flex gap-4 text-xs text-[var(--ink-tertiary)]">
+            <Link href="/privacy" className="hover:text-[var(--ink)]">Privacy</Link>
+            <Link href="/terms" className="hover:text-[var(--ink)]">Terms</Link>
+            <Link href="/cookies" className="hover:text-[var(--ink)]">Cookies</Link>
             <Link href="/login" className="hover:text-[var(--ink)]">Sign in</Link>
             <Link href="/signup" className="hover:text-[var(--ink)]">Sign up</Link>
           </div>
