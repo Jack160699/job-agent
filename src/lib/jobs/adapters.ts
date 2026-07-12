@@ -28,8 +28,8 @@ export class GreenhouseAdapter {
     const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const board of boards) {
-      for (const title of filters.titles.slice(0, 3)) {
+    for (const board of boards.slice(0, 2)) {
+      for (const title of filters.titles.slice(0, 2)) {
         try {
           const results = await automator.discoverJobs(board, title);
           jobs.push(...results);
@@ -81,8 +81,8 @@ export class LeverAdapter {
     const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const company of companies) {
-      for (const title of filters.titles.slice(0, 3)) {
+    for (const company of companies.slice(0, 2)) {
+      for (const title of filters.titles.slice(0, 2)) {
         try {
           const results = await automator.discoverJobs(company, title);
           jobs.push(...results);
@@ -123,8 +123,8 @@ export class AshbyAdapter {
     const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
     const jobs: DiscoveredJob[] = [];
 
-    for (const board of boards) {
-      for (const title of filters.titles.slice(0, 3)) {
+    for (const board of boards.slice(0, 2)) {
+      for (const title of filters.titles.slice(0, 2)) {
         try {
           const results = await automator.discoverJobs(board, title);
           jobs.push(...results);
