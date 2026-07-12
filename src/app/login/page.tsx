@@ -1,35 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Bot } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackError = searchParams.get("error");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        toast.error(error.message);
+      if (signInError) {
+        if (signInError.message.toLowerCase().includes("email not confirmed")) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          return;
+        }
+        setError(signInError.message);
+        return;
+      }
+
+      if (data.user && !data.user.email_confirmed_at) {
+        await supabase.auth.signOut();
+        router.push(`/verify-email?email=${encodeURIComponent(email)}`);
         return;
       }
 
@@ -37,64 +53,100 @@ export default function LoginPage() {
       router.push("/dashboard");
       router.refresh();
     } catch {
-      toast.error("Failed to sign in");
+      setError("Failed to sign in. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-900/10 via-zinc-950 to-zinc-950" />
-      <Card className="relative w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600">
-            <Bot className="h-6 w-6 text-white" />
-          </div>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to your Job Agent account</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <AuthLayout title="Welcome back" description="Sign in to your Job Agent account">
+      <Card>
+        <CardContent className="p-6">
+          {callbackError && (
+            <ErrorCallout
+              className="mb-6"
+              title="Sign in failed"
+              what="Google authentication could not be completed."
+              why="The OAuth callback returned an error or expired."
+              fix="Try signing in again, or use email and password."
+            />
+          )}
+
+          <GoogleAuthButton mode="signin" className="h-11 w-full" />
+
+          <AuthDivider />
+
+          {error && (
+            <ErrorCallout
+              className="mb-4"
+              title="Sign in failed"
+              what={error}
+              fix={
+                error.toLowerCase().includes("invalid")
+                  ? "Double-check your email and password."
+                  : "Try again or reset your password."
+              }
+              onRetry={() => setError(null)}
+            />
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="h-11"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-violet-400 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="h-11"
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
+            <Button type="submit" className="h-11 w-full" disabled={loading}>
+              {loading ? "Signing in…" : "Sign In"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-zinc-400">
+
+          <p className="mt-6 text-center text-sm text-zinc-400">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-violet-400 hover:underline">
-              Sign up
-            </Link>
-          </p>
-          <p className="mt-2 text-center text-sm text-zinc-400">
-            <Link href="/forgot-password" className="text-violet-400 hover:underline">
-              Forgot password?
+            <Link href="/signup" className="font-medium text-violet-400 hover:underline">
+              Create one
             </Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-zinc-500">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -64,14 +64,29 @@ export async function searchJobs(userId: string) {
   for (const adapter of adapters) {
     if (!settings.enabledSources.includes(adapter.source as JobSource)) continue;
     try {
+      await createAuditLog({
+        userId,
+        action: "JOB_SEARCH_PROGRESS",
+        message: `Searching ${adapter.name} (${adapter.source}) for jobs…`,
+        level: "INFO",
+        metadata: { ats: adapter.source, adapter: adapter.name },
+      });
       const jobs = await adapter.search(filters);
       discovered.push(...jobs);
+      await createAuditLog({
+        userId,
+        action: "JOB_SEARCH_ADAPTER_DONE",
+        message: `Found ${jobs.length} jobs from ${adapter.name}`,
+        level: "INFO",
+        metadata: { ats: adapter.source, count: jobs.length },
+      });
     } catch (error) {
       await createAuditLog({
         userId,
         action: "JOB_SEARCH_ERROR",
         message: `Failed to search ${adapter.name}: ${error}`,
         level: "ERROR",
+        metadata: { ats: adapter.source },
       });
     }
   }

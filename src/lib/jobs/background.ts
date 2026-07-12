@@ -20,7 +20,7 @@ interface JobPayload {
 }
 
 export async function enqueueJob(type: JobType, payload?: JobPayload) {
-  return prisma.backgroundJob.create({
+  const job = await prisma.backgroundJob.create({
     data: {
       type,
       payload: (payload ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -28,6 +28,24 @@ export async function enqueueJob(type: JobType, payload?: JobPayload) {
       scheduledAt: new Date(),
     },
   });
+
+  // Process immediately in background — don't wait for cron
+  triggerBackgroundProcessing().catch((err) =>
+    console.error("Background processing trigger failed:", err)
+  );
+
+  return job;
+}
+
+let processingPromise: Promise<unknown> | null = null;
+
+export function triggerBackgroundProcessing() {
+  if (!processingPromise) {
+    processingPromise = processBackgroundJobs().finally(() => {
+      processingPromise = null;
+    });
+  }
+  return processingPromise;
 }
 
 export async function processBackgroundJobs() {

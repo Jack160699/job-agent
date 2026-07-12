@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { ErrorCallout } from "@/components/ui/error-callout";
 
 interface Props {
   children: ReactNode;
@@ -27,19 +27,17 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center">
-            <h2 className="text-xl font-semibold text-zinc-100">
-              Something went wrong
-            </h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              {this.state.error?.message || "An unexpected error occurred"}
-            </p>
-            <Button
-              className="mt-4"
-              onClick={() => this.setState({ hasError: false })}
-            >
-              Try again
-            </Button>
+          <div className="p-4 sm:p-8">
+            <ErrorCallout
+              title="Something went wrong"
+              what={this.state.error?.message || "An unexpected error occurred in this section."}
+              why="A component failed to render, possibly due to missing data or a network issue."
+              fix="Try refreshing the page. If the problem persists, check the logs or contact support."
+              onRetry={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+            />
           </div>
         )
       );

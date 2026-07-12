@@ -7,9 +7,11 @@ import { GreenhouseAutomator } from "../../src/lib/automation/greenhouse";
 import { LeverAutomator } from "../../src/lib/automation/lever";
 import { AshbyAutomator } from "../../src/lib/automation/ashby";
 import { WorkdayAutomator } from "../../src/lib/automation/workday";
+import { getProductionBaseUrl } from "../helpers/production";
 
 const FIXTURES = resolve(__dirname, "fixtures");
-const PORT = 9876;
+/** Local fixture server port — serves static HTML only, not the app under test. */
+const FIXTURE_SERVER_PORT = 9876;
 
 function fixtureRoute(path: string) {
   const html = readFileSync(resolve(FIXTURES, path), "utf8");
@@ -30,7 +32,7 @@ test.beforeAll(async () => {
       res.end("Not found");
     }
   });
-  await new Promise<void>((resolve) => server.listen(PORT, resolve));
+  await new Promise<void>((resolve) => server.listen(FIXTURE_SERVER_PORT, resolve));
 });
 
 test.afterAll(async () => {
@@ -67,7 +69,7 @@ async function runPlatformTest(
     const automator = new AutomatorClass();
     const result = await automator.prepareApplication(
       browser,
-      `http://127.0.0.1:${PORT}/${file}`,
+      `http://127.0.0.1:${FIXTURE_SERVER_PORT}/${file}`,
       profile,
       documents,
       { autoSubmit: false }
@@ -108,7 +110,7 @@ test.describe("Platform Browser Automation", () => {
 
 test.describe("MCP Bridge API", () => {
   test("browser status endpoint responds", async ({ request }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+    const base = getProductionBaseUrl();
     const res = await request.get(`${base}/api/browser/status`);
     expect(res.ok()).toBeTruthy();
     const data = await res.json();

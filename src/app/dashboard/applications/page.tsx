@@ -23,66 +23,76 @@ export default async function ApplicationsPage() {
           icon={<ClipboardList className="h-8 w-8" />}
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Position
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Match
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Updated
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {applications.map((app) => (
-                <tr
-                  key={app.id}
-                  className="border-b border-zinc-800/50 transition-colors hover:bg-zinc-900/30"
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-zinc-200">
-                    {app.job.title}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-zinc-400">
-                    {app.job.company}
-                  </td>
-                  <td className="px-6 py-4">
-                    {app.matchScore != null ? (
-                      <MatchScoreBadge score={app.matchScore} size="sm" />
-                    ) : (
-                      <span className="text-xs text-zinc-500">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
+        <>
+          {/* Mobile cards */}
+          <div className="space-y-3 md:hidden">
+            {applications.map((app) => (
+              <Card key={app.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-200 truncate">{app.job.title}</p>
+                      <p className="text-sm text-zinc-500">{app.job.company}</p>
+                    </div>
                     <StatusBadge status={app.status} />
-                  </td>
-                  <td className="px-6 py-4 text-xs text-zinc-500">
-                    {formatDate(app.updatedAt)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <ApplicationActions
-                      applicationId={app.id}
-                      status={app.status}
-                    />
-                  </td>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {app.matchScore != null ? (
+                        <MatchScoreBadge score={app.matchScore} size="sm" />
+                      ) : (
+                        <span className="text-xs text-zinc-500">No score</span>
+                      )}
+                      <span className="text-xs text-zinc-500">{formatDate(app.updatedAt)}</span>
+                    </div>
+                    <ApplicationActions applicationId={app.id} status={app.status} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden overflow-hidden rounded-xl border border-zinc-800 md:block">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Position</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Company</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Match</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Updated</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {applications.map((app) => (
+                  <tr
+                    key={app.id}
+                    className="border-b border-zinc-800/50 transition-colors hover:bg-zinc-900/30"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-zinc-200">{app.job.title}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-400">{app.job.company}</td>
+                    <td className="px-6 py-4">
+                      {app.matchScore != null ? (
+                        <MatchScoreBadge score={app.matchScore} size="sm" />
+                      ) : (
+                        <span className="text-xs text-zinc-500">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={app.status} />
+                    </td>
+                    <td className="px-6 py-4 text-xs text-zinc-500">{formatDate(app.updatedAt)}</td>
+                    <td className="px-6 py-4">
+                      <ApplicationActions applicationId={app.id} status={app.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

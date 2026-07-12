@@ -49,7 +49,7 @@ test.describe("Full Application Workflow", () => {
         r.url().includes("/api/jobs/search") && r.request().method() === "POST",
       { timeout: 30000 }
     );
-    await page.getByRole("button", { name: /Search Jobs/i }).click();
+    await page.getByRole("button", { name: /Run Job Search/i }).click();
     const searchResponse = await searchRes;
     expect(searchResponse.ok()).toBeTruthy();
 

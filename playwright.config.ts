@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import { PRODUCTION_URL } from "./e2e/helpers/production";
 
 const envPath = resolve(__dirname, ".env");
 if (existsSync(envPath)) {
@@ -13,14 +14,19 @@ if (existsSync(envPath)) {
   }
 }
 
-const baseURL =
-  process.env.PLAYWRIGHT_BASE_URL || "https://job-agent-mu-steel.vercel.app";
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || PRODUCTION_URL;
+
+if (baseURL.includes("localhost") || baseURL.includes("127.0.0.1")) {
+  throw new Error(
+    `Playwright must target production (${PRODUCTION_URL}). Current: ${baseURL}`
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 2,
+  retries: process.env.RC_AUDIT === "1" ? 0 : 2,
   workers: 1,
   reporter: [["html", { open: "never" }], ["list"]],
   timeout: 60000,

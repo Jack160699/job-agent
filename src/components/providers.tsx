@@ -9,7 +9,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {children}
       <Toaster
         theme="dark"
-        position="bottom-right"
+        position="top-center"
         toastOptions={{
           style: {
             background: "#18181b",
@@ -17,6 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             color: "#fafafa",
           },
         }}
+        className="sm:!bottom-4 sm:!right-4 sm:!top-auto"
       />
     </ThemeProvider>
   );

@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "2mb",
     },
   },
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
+  poweredByHeader: false,
 };
 
 export default nextConfig;

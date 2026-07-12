@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -16,63 +18,74 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { full_name: fullName },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         },
       });
 
-      if (error) {
-        toast.error(error.message);
+      if (signUpError) {
+        setError(signUpError.message);
         return;
       }
 
+      // Never auto-login — require email verification
       if (data.session) {
-        toast.success("Account created!");
-        router.push("/dashboard");
-        router.refresh();
-        return;
+        await supabase.auth.signOut();
       }
 
-      toast.success("Account created! Check your email to verify, then sign in.");
-      router.push("/login");
+      toast.success("Check your email to verify your account");
+      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch {
-      toast.error("Failed to create account");
+      setError("Failed to create account. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-900/10 via-zinc-950 to-zinc-950" />
-      <Card className="relative w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600">
-            <Bot className="h-6 w-6 text-white" />
-          </div>
-          <CardTitle>Create your account</CardTitle>
-          <CardDescription>Start your AI-powered job search</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <AuthLayout
+      title="Create your account"
+      description="Start your AI-powered job search — verification required"
+    >
+      <Card>
+        <CardContent className="p-6">
+          <GoogleAuthButton mode="signup" className="h-11 w-full" />
+
+          <AuthDivider />
+
+          {error && (
+            <ErrorCallout
+              className="mb-4"
+              title="Signup failed"
+              what={error}
+              fix="Use a valid email and a password with at least 8 characters."
+            />
+          )}
+
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
                 id="fullName"
+                autoComplete="name"
                 placeholder="John Doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                className="h-11"
                 required
               />
             </div>
@@ -81,9 +94,11 @@ export default function SignupPage() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="h-11"
                 required
               />
             </div>
@@ -92,25 +107,29 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="h-11"
                 minLength={8}
                 required
               />
+              <p className="text-xs text-zinc-500">Minimum 8 characters</p>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Create Account"}
+            <Button type="submit" className="h-11 w-full" disabled={loading}>
+              {loading ? "Creating account…" : "Create Account"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-zinc-400">
+
+          <p className="mt-6 text-center text-sm text-zinc-400">
             Already have an account?{" "}
-            <Link href="/login" className="text-violet-400 hover:underline">
+            <Link href="/login" className="font-medium text-violet-400 hover:underline">
               Sign in
             </Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

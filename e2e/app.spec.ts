@@ -10,23 +10,37 @@ test.describe("Landing Page", () => {
 
   test("has navigation links", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Sign In" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Get Started" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign In" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Get Started" }).first()).toBeVisible();
+  });
+
+  test("has feature and FAQ sections", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Quality over volume" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Frequently asked questions" })).toBeVisible();
   });
 });
 
 test.describe("Auth Pages", () => {
-  test("login page renders", async ({ page }) => {
+  test("login page renders with Google auth", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByText("Welcome back")).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   });
 
-  test("signup page renders", async ({ page }) => {
+  test("signup page renders with Google auth", async ({ page }) => {
     await page.goto("/signup");
     await expect(page.getByText("Create your account")).toBeVisible();
     await expect(page.getByLabel("Full Name")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  });
+
+  test("verify email page renders", async ({ page }) => {
+    await page.goto("/verify-email?email=test@example.com");
+    await expect(page.getByText("Verify your email")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Resend verification/i })).toBeVisible();
   });
 });
 
@@ -40,9 +54,7 @@ test.describe("Dashboard", () => {
   });
 
   test("dashboard overview renders", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { name: "Overview" })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Run AI Agent/i })).toBeVisible();
   });
 
@@ -50,6 +62,11 @@ test.describe("Dashboard", () => {
     await page.getByRole("link", { name: "Job Search" }).click();
     await page.waitForURL(/\/dashboard\/jobs/, { timeout: 10000 });
     await expect(page).toHaveURL(/\/dashboard\/jobs/);
+  });
+
+  test("job search page has run button", async ({ page }) => {
+    await page.goto("/dashboard/jobs");
+    await expect(page.getByRole("button", { name: /Run Job Search/i })).toBeVisible();
   });
 });
 
@@ -59,5 +76,10 @@ test.describe("API Health", () => {
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
     expect(data.status).toBe("ok");
+  });
+
+  test("jobs progress endpoint requires auth", async ({ request }) => {
+    const response = await request.get("/api/jobs/progress");
+    expect(response.status()).toBeGreaterThanOrEqual(400);
   });
 });

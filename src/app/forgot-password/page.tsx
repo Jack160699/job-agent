@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bot } from "lucide-react";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { Mail, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
       });
 
       if (error) {
@@ -40,49 +41,63 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="relative w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600">
-            <Bot className="h-6 w-6 text-white" />
-          </div>
-          <CardTitle>Reset password</CardTitle>
-          <CardDescription>
-            {sent
-              ? "Check your email for a reset link"
-              : "Enter your email to receive a reset link"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!sent ? (
+    <AuthLayout
+      title="Reset password"
+      description={
+        sent
+          ? "Check your email for a reset link"
+          : "Enter your email to receive a reset link"
+      }
+    >
+      <Card>
+        <CardContent className="p-6">
+          {sent ? (
+            <div className="space-y-6 text-center">
+              <div className="flex justify-center">
+                <div className="rounded-full bg-emerald-500/10 p-4">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                </div>
+              </div>
+              <p className="text-sm text-zinc-400">
+                We sent a password reset link to <strong className="text-zinc-300">{email}</strong>
+              </p>
+              <Link href="/login">
+                <Button className="h-11 w-full">Back to Sign In</Button>
+              </Link>
+            </div>
+          ) : (
             <form onSubmit={handleReset} className="space-y-4">
+              <div className="flex justify-center pb-2">
+                <div className="rounded-full bg-violet-500/10 p-4">
+                  <Mail className="h-8 w-8 text-violet-400" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="h-11"
                   required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Sending..." : "Send Reset Link"}
+              <Button type="submit" className="h-11 w-full" disabled={loading}>
+                {loading ? "Sending…" : "Send Reset Link"}
               </Button>
             </form>
-          ) : (
-            <Link href="/login">
-              <Button className="w-full">Back to Sign In</Button>
-            </Link>
           )}
-          <p className="mt-4 text-center text-sm text-zinc-400">
+
+          <p className="mt-6 text-center text-sm text-zinc-400">
             <Link href="/login" className="text-violet-400 hover:underline">
               Back to login
             </Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

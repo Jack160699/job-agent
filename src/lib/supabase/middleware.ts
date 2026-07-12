@@ -35,7 +35,9 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
-    request.nextUrl.pathname.startsWith("/forgot-password");
+    request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/verify-email") ||
+    request.nextUrl.pathname.startsWith("/auth/");
   const isPublicPage =
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/api/health");
@@ -51,7 +53,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // Block unverified users from dashboard
+  if (
+    user &&
+    !user.email_confirmed_at &&
+    request.nextUrl.pathname.startsWith("/dashboard")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/verify-email";
+    url.searchParams.set("email", user.email || "");
+    return NextResponse.redirect(url);
+  }
+
+  if (user && user.email_confirmed_at && isAuthPage && !request.nextUrl.pathname.startsWith("/auth/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

@@ -2,10 +2,12 @@ import { test, expect } from "@playwright/test";
 import { SAMPLE_RESUME, TEST_USER } from "./fixtures";
 import {
   createConfirmedUser,
+  confirmUserByEmail,
   deleteUserByEmail,
 } from "./helpers/auth";
+import { getProductionBaseUrl } from "./helpers/production";
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const BASE = getProductionBaseUrl();
 
 test.describe("Phase 1: Deployment Health", () => {
   test("health endpoint returns ok with database connected", async ({
@@ -17,6 +19,15 @@ test.describe("Phase 1: Deployment Health", () => {
     expect(data.status).toBe("ok");
     expect(data.supabase).toBe("configured");
     expect(data.database).toBe("connected");
+    expect(data.openai).toBe("configured");
+    expect(data.encryption).toBe("configured");
+    expect(data.cron).toBe("configured");
+    expect(typeof data.background_jobs_pending).toBe("number");
+  });
+
+  test("all tests target production deployment", async () => {
+    expect(BASE).toBe("https://job-agent-mu-steel.vercel.app");
+    expect(BASE).not.toMatch(/localhost|127\.0\.0\.1/);
   });
 
   test("landing page loads without errors", async ({ page }) => {
@@ -62,7 +73,7 @@ test.describe("Phase 2: Authentication", () => {
     }
   });
 
-  test("signup form creates account", async ({ page }) => {
+  test("signup form creates account and requires verification", async ({ page }) => {
     const user = {
       ...TEST_USER,
       email: `qa.signup.${Date.now()}@jobagent-e2e.test`,
@@ -75,14 +86,13 @@ test.describe("Phase 2: Authentication", () => {
       await page.getByLabel("Password").fill(user.password);
       await page.getByRole("button", { name: "Create Account" }).click();
 
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
-      await expect(
-        page.getByRole("heading", { name: "Overview" })
-      ).toBeVisible();
+      await expect(page).toHaveURL(/\/verify-email/, { timeout: 20000 });
+      await expect(page.getByText("Verify your email")).toBeVisible();
 
-      await page.getByRole("button", { name: "Sign Out" }).click();
-      await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+      // Confirm existing signup user via admin API for login test
+      await confirmUserByEmail(user.email);
 
+      await page.goto("/login");
       await page.getByLabel("Email").fill(user.email);
       await page.getByLabel("Password").fill(user.password);
       await page.getByRole("button", { name: "Sign In" }).click();
@@ -226,5 +236,50 @@ test.describe("Phase 12: Security", () => {
   test("rate limiting headers present on API", async ({ request }) => {
     const res = await request.get(`${BASE}/api/health`);
     expect(res.ok()).toBeTruthy();
+  });
+});
+
+test.describe("Phase 13: Integrations RC", () => {
+  test("Supabase auth is reachable", async ({ request }) => {
+    const res = await request.get(`${BASE}/api/health`);
+    const data = await res.json();
+    expect(data.supabase).toBe("configured");
+  });
+
+  test("OpenAI is configured in production", async ({ request }) => {
+    const res = await request.get(`${BASE}/api/health`);
+    const data = await res.json();
+    expect(data.openai).toBe("configured");
+  });
+
+  test("Google OAuth status endpoint works", async ({ request }) => {
+    const res = await request.get(`${BASE}/api/google/status`);
+    expect(res.ok()).toBeTruthy();
+    const data = await res.json();
+    expect(data).toHaveProperty("connected");
+  });
+
+  test("browser automation status endpoint works", async ({ request }) => {
+    const res = await request.get(`${BASE}/api/browser/status`);
+    expect(res.ok()).toBeTruthy();
+    const data = await res.json();
+    expect(data.status).toBe("ok");
+    expect(data.mode).toBeTruthy();
+  });
+
+  test("job progress endpoint requires auth", async ({ request }) => {
+    const res = await request.get(`${BASE}/api/jobs/progress`);
+    expect(res.status()).toBeGreaterThanOrEqual(400);
+  });
+
+  test("ATS adapters registry is valid", async () => {
+    const { getAllAutomators } = await import("../src/lib/automation/registry");
+    const automators = getAllAutomators();
+    expect(automators.length).toBeGreaterThanOrEqual(4);
+    const platforms = automators.map((a) => a.platform);
+    expect(platforms).toContain("GREENHOUSE");
+    expect(platforms).toContain("LEVER");
+    expect(platforms).toContain("ASHBY");
+    expect(platforms).toContain("WORKDAY");
   });
 });
