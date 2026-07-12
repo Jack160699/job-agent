@@ -81,3 +81,22 @@ export async function disconnectGoogle(userId: string) {
     where: { userId, key: TOKEN_KEY },
   });
 }
+
+export async function enableGoogleIntegrations(userId: string) {
+  await prisma.userSettings.upsert({
+    where: { userId },
+    create: {
+      userId,
+      jobTitles: ["Software Engineer"],
+      locations: ["Remote"],
+      gmailSyncEnabled: true,
+      sheetsSyncEnabled: true,
+      calendarSyncEnabled: true,
+    },
+    update: {
+      gmailSyncEnabled: true,
+      sheetsSyncEnabled: true,
+      calendarSyncEnabled: true,
+    },
+  });
+}

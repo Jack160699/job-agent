@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Save, Link2 } from "lucide-react";
+import { Save, Link2, CheckCircle2 } from "lucide-react";
 
 interface Settings {
   jobTitles: string[];
@@ -26,11 +27,24 @@ interface Settings {
   targetCompanies?: string[];
 }
 
+type GoogleStatus = {
+  connected: boolean;
+  email: string | null;
+  integrations: {
+    gmail: boolean;
+    drive: boolean;
+    sheets: boolean;
+    calendar: boolean;
+  };
+};
+
 export function SettingsForm({
   initialSettings,
 }: {
   initialSettings: Settings | null;
 }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [jobTitles, setJobTitles] = useState(
     initialSettings?.jobTitles?.join(", ") || "Software Engineer"
@@ -69,13 +83,58 @@ export function SettingsForm({
     initialSettings?.calendarSyncEnabled ?? false
   );
   const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+
+  const applyGoogleStatus = useCallback((status: GoogleStatus) => {
+    setGoogleConnected(status.connected);
+    setGoogleEmail(status.email);
+    if (status.connected) {
+      setGmailSync(status.integrations.gmail);
+      setSheetsSync(status.integrations.sheets);
+      setCalendarSync(status.integrations.calendar);
+    }
+  }, []);
+
+  const refreshGoogleStatus = useCallback(async () => {
+    const res = await fetch("/api/google/status");
+    const data = (await res.json()) as GoogleStatus;
+    applyGoogleStatus(data);
+    return data;
+  }, [applyGoogleStatus]);
 
   useEffect(() => {
-    fetch("/api/google/status")
-      .then((r) => r.json())
-      .then((d) => setGoogleConnected(d.connected))
-      .catch(() => {});
-  }, []);
+    refreshGoogleStatus().catch(() => {});
+  }, [refreshGoogleStatus]);
+
+  useEffect(() => {
+    const googleParam = searchParams.get("google");
+    if (!googleParam) return;
+
+    if (googleParam === "connected") {
+      refreshGoogleStatus()
+        .then((status) => {
+          if (status.connected) {
+            toast.success(
+              status.email
+                ? `Google connected: ${status.email}`
+                : "Google account connected"
+            );
+          } else {
+            toast.error("Google connected but status could not be verified");
+          }
+        })
+        .catch(() => toast.error("Failed to refresh Google connection status"));
+
+      router.replace("/dashboard/settings", { scroll: false });
+      return;
+    }
+
+    if (googleParam === "error") {
+      const reason = searchParams.get("reason") || "unknown";
+      toast.error(`Google connection failed (${reason})`);
+      router.replace("/dashboard/settings", { scroll: false });
+    }
+  }, [searchParams, refreshGoogleStatus, router]);
 
   const connectGoogle = async () => {
     const res = await fetch("/api/google/oauth");
@@ -103,9 +162,9 @@ export function SettingsForm({
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
-          gmailSyncEnabled: gmailSync,
-          sheetsSyncEnabled: sheetsSync,
-          calendarSyncEnabled: calendarSync,
+          gmailSyncEnabled: googleConnected ? gmailSync : false,
+          sheetsSyncEnabled: googleConnected ? sheetsSync : false,
+          calendarSyncEnabled: googleConnected ? calendarSync : false,
         }),
       });
       const data = await res.json();
@@ -251,25 +310,35 @@ export function SettingsForm({
               <div>
                 <p className="text-sm font-medium text-zinc-200">Google Account</p>
                 <p className="text-xs text-zinc-500">
-                  Connect for Gmail, Drive, Sheets, and Calendar
+                  {googleConnected
+                    ? `Connected${googleEmail ? ` as ${googleEmail}` : ""}`
+                    : "Connect for Gmail, Drive, Sheets, and Calendar"}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={connectGoogle}
-                className="gap-1"
-              >
-                <Link2 className="h-3 w-3" />
-                {googleConnected ? "Reconnect" : "Connect"}
-              </Button>
+              {googleConnected ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950 px-3 py-1 text-xs font-medium text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Connected
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={connectGoogle}
+                  className="gap-1"
+                >
+                  <Link2 className="h-3 w-3" />
+                  Connect
+                </Button>
+              )}
             </div>
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={gmailSync}
+                disabled={!googleConnected}
                 onChange={(e) => setGmailSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
               />
               <div>
                 <p className="text-sm font-medium text-zinc-200">Gmail sync</p>
@@ -279,9 +348,22 @@ export function SettingsForm({
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
+                checked={googleConnected}
+                disabled
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
+              />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Google Drive</p>
+                <p className="text-xs text-zinc-500">Store tailored resume PDFs</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
                 checked={sheetsSync}
+                disabled={!googleConnected}
                 onChange={(e) => setSheetsSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
               />
               <div>
                 <p className="text-sm font-medium text-zinc-200">Google Sheets sync</p>
@@ -292,8 +374,9 @@ export function SettingsForm({
               <input
                 type="checkbox"
                 checked={calendarSync}
+                disabled={!googleConnected}
                 onChange={(e) => setCalendarSync(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600"
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
               />
               <div>
                 <p className="text-sm font-medium text-zinc-200">Google Calendar sync</p>
