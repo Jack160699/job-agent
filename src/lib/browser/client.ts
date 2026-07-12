@@ -4,6 +4,7 @@ import type {
   BrowserSnapshot,
   FillField,
 } from "./types";
+import { ResilientBrowserClient } from "./resilient-client";
 
 function parseSnapshotYaml(yaml: string): BrowserSnapshot {
   const lines = yaml.split("\n");
@@ -102,7 +103,7 @@ export class PlaywrightBrowserClient implements BrowserAutomationClient {
       }
       if (field.label) {
         const locator = page.getByLabel(field.label, { exact: false });
-        await locator.fill(field.value);
+        await locator.fill(field.value, { timeout: 5000 });
         continue;
       }
       if (field.name) {
@@ -128,7 +129,24 @@ export class PlaywrightBrowserClient implements BrowserAutomationClient {
 
   async waitForSelector(selector: string, timeoutMs = 15000) {
     const page = await this.ensurePage();
-    await page.waitForSelector(selector, { timeout: timeoutMs });
+    try {
+      await page.waitForSelector(selector, { timeout: timeoutMs });
+      return;
+    } catch {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const snap = await this.snapshot();
+        if (
+          snap.elements.some((e) =>
+            e.name.toLowerCase().includes(selector.toLowerCase())
+          )
+        ) {
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      throw new Error(`Selector not found: ${selector}`);
+    }
   }
 
   async screenshot(): Promise<Buffer> {
@@ -211,16 +229,27 @@ export class MCPBrowserBridge implements BrowserAutomationClient {
 }
 
 export async function createBrowserClient(): Promise<BrowserAutomationClient> {
+  let client: BrowserAutomationClient;
   if (process.env.BROWSER_MCP_BRIDGE_URL) {
     const bridgeUrl = process.env.BROWSER_MCP_BRIDGE_URL;
-    return new MCPBrowserBridge(async (tool, args) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (process.env.BROWSER_WORKER_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.BROWSER_WORKER_TOKEN}`;
+    }
+    client = new MCPBrowserBridge(async (tool, args) => {
       const res = await fetch(`${bridgeUrl}/${tool}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(args),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Bridge error: ${res.status}`);
+      }
       return res.json();
     });
+  } else {
+    client = new PlaywrightBrowserClient();
   }
-  return new PlaywrightBrowserClient();
+  return new ResilientBrowserClient(client);
 }

@@ -62,7 +62,7 @@ export class AshbyAutomator implements PlatformAutomator {
     options?: { autoSubmit?: boolean }
   ): Promise<SubmissionResult> {
     await browser.navigate(jobUrl);
-    await browser.waitForSelector("Apply", 20000);
+    await browser.waitForSelector("Apply", 25000);
 
     const snap = await browser.snapshot();
     const applyBtn = findElement(snap, [/apply/i, /start application/i]);

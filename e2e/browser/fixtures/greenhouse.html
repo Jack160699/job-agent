@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Software Engineer - Demo Co</title></head>
+<body>
+  <h1>Software Engineer</h1>
+  <button type="button">Apply for this job</button>
+  <form id="application-form" style="display:none">
+    <label>First Name<input name="first_name" /></label>
+    <label>Last Name<input name="last_name" /></label>
+    <label>Email<input name="email" type="email" /></label>
+    <label>Phone<input name="phone" /></label>
+    <label>LinkedIn<input name="linkedin" /></label>
+    <label>Location<input name="location" /></label>
+    <label>Resume<textarea name="resume" placeholder="Paste resume"></textarea></label>
+    <label>Cover Letter<textarea name="cover_letter"></textarea></label>
+    <label>Are you authorized to work in the US?<select name="authorized"><option>Yes</option><option>No</option></select></label>
+    <input type="file" name="resume_file" accept=".pdf" />
+    <button type="submit">Submit Application</button>
+  </form>
+  <script>
+    document.querySelector('button').addEventListener('click', () => {
+      document.getElementById('application-form').style.display = 'block';
+    });
+  </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import type {
   SubmissionResult,
 } from "@/lib/browser/types";
 import type { DiscoveredJob } from "@/lib/jobs/types";
+import { findElementWithFallbacks } from "./resilient";
 
 export interface PlatformAutomator {
   platform: string;
@@ -20,26 +21,39 @@ export interface PlatformAutomator {
 }
 
 export function findElement(
-  snapshot: { elements: Array<{ ref: string; role: string; name: string }> },
-  patterns: RegExp[]
+  snapshot: { elements: Array<{ ref: string; role: string; name: string; tag?: string; type?: string }> },
+  patterns: RegExp[],
+  fallbacks: RegExp[] = []
 ) {
-  return snapshot.elements.find((el) =>
-    patterns.some((p) => p.test(el.name) || p.test(el.role))
-  );
+  return findElementWithFallbacks(snapshot, patterns, fallbacks);
 }
 
 export async function fillCommonFields(
   browser: BrowserAutomationClient,
   profile: ApplicationProfile
 ) {
-  const fields = [
-    { label: "First Name", value: profile.fullName.split(" ")[0] || profile.fullName },
-    { label: "Last Name", value: profile.fullName.split(" ").slice(1).join(" ") || "-" },
-    { label: "Email", value: profile.email },
-    { label: "Phone", value: profile.phone || "" },
-    { label: "LinkedIn", value: profile.linkedinUrl || "" },
-    { label: "Location", value: profile.location || "" },
-  ].filter((f) => f.value);
+  const snap = await browser.snapshot();
+  const first = profile.fullName.split(" ")[0] || profile.fullName;
+  const last = profile.fullName.split(" ").slice(1).join(" ") || "-";
 
-  await browser.fill(fields);
+  const mappings: Array<{ patterns: RegExp[]; value: string }> = [
+    { patterns: [/first name/i], value: first },
+    { patterns: [/last name/i], value: last },
+    { patterns: [/email/i], value: profile.email },
+    { patterns: [/phone/i], value: profile.phone || "" },
+    { patterns: [/linkedin/i], value: profile.linkedinUrl || "" },
+    { patterns: [/location/i], value: profile.location || "" },
+  ];
+
+  for (const { patterns, value } of mappings) {
+    if (!value) continue;
+    const el = findElementWithFallbacks(snap, patterns);
+    if (el) {
+      try {
+        await browser.type(el.ref, value);
+      } catch {
+        await browser.fill([{ ref: el.ref, value }]);
+      }
+    }
+  }
 }

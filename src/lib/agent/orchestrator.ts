@@ -1,6 +1,11 @@
 import prisma from "@/lib/db";
 import { createAuditLog } from "@/lib/audit";
 import { createBrowserClient } from "@/lib/browser/client";
+import {
+  enqueueBrowserTask,
+  shouldUseBrowserQueue,
+  isBrowserBridgeAvailable,
+} from "@/lib/browser/queue";
 import { getAutomatorForUrl } from "@/lib/automation/registry";
 import { generateResumePdf } from "@/lib/pdf/resume-pdf";
 import { uploadToDrive, ensureDriveFolder } from "@/lib/google/drive";
@@ -237,6 +242,36 @@ export async function prepareApplicationSubmission(
       success: true,
       status: "pending_review" as const,
       message: "Documents generated — manual submission required for this platform",
+    };
+  }
+
+  if (shouldUseBrowserQueue() && !isBrowserBridgeAvailable()) {
+    const task = await enqueueBrowserTask({
+      userId,
+      applicationId,
+      type: "PREPARE_APPLICATION",
+      platform: automator.platform,
+      payload: {
+        autoSubmit: options?.autoSubmit ?? false,
+        applicationId,
+      },
+    });
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: "PENDING_REVIEW",
+        documents: {
+          resumePdfPath: pdfPath,
+          coverLetter: application.coverLetter?.content,
+          browserTaskId: task.id,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    return {
+      success: true,
+      status: "pending_review" as const,
+      message: `Browser automation queued (task ${task.id})`,
+      formData: { browserTaskId: task.id },
     };
   }
 

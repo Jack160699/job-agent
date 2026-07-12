@@ -119,6 +119,7 @@ model User {
   settings        UserSettings?
   logs            AuditLog[]
   secrets         EncryptedSecret[]
+  browserTasks    BrowserTask[]
 
   @@map("users")
 }
@@ -416,4 +417,31 @@ model BackgroundJob {
   @@index([status, scheduledAt])
   @@index([type])
   @@map("background_jobs")
+}
+
+model BrowserTask {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  applicationId   String?   @map("application_id") @db.Uuid
+  type            String
+  platform        String?
+  status          String    @default("pending")
+  progress        Int       @default(0)
+  payload         Json?
+  result          Json?
+  error           String?   @db.Text
+  screenshotPaths String[]  @default([]) @map("screenshot_paths")
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3) @map("max_attempts")
+  cancelledAt     DateTime? @map("cancelled_at")
+  scheduledAt     DateTime  @default(now()) @map("scheduled_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([userId, status])
+  @@map("browser_tasks")
 }

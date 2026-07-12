@@ -11,6 +11,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:prod": "playwright test --config=playwright.config.ts",
+    "browser-worker": "npx tsx browser-worker/index.ts",
+    "browser-worker:bridge": "npx tsx browser-worker/automation/mcp-bridge-server.ts",
+    "db:migrate:browser": "node scripts/apply-migration.js supabase/migrations/20260712160000_browser_tasks.sql",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
@@ -51,6 +54,7 @@
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.1",
     "uuid": "^11.1.0",
+    "dotenv": "^16.6.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -69,6 +73,7 @@
     "jsdom": "^26.1.0",
     "prisma": "^6.11.1",
     "tailwindcss": "^4",
+    "tsx": "^4.20.3",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }
