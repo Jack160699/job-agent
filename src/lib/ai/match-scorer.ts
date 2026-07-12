@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai-client";
 
 export const matchAnalysisSchema = z.object({
   overallScore: z.number().min(0).max(100),
@@ -49,6 +45,9 @@ export async function calculateMatchScore(
   if (!process.env.OPENAI_API_KEY) {
     return calculateMatchScoreFallback(input);
   }
+
+  const openai = getOpenAIClient();
+  if (!openai) return calculateMatchScoreFallback(input);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",

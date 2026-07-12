@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai-client";
 
 export const resumeImprovementSchema = z.object({
   suggestions: z.array(
@@ -41,6 +37,15 @@ export async function suggestResumeImprovements(
           rationale: "ATS systems scan for keyword matches",
         },
       ],
+      missingKeywords: [],
+      overallAssessment: "Configure OpenAI API key for detailed resume analysis.",
+    };
+  }
+
+  const openai = getOpenAIClient();
+  if (!openai) {
+    return {
+      suggestions: [],
       missingKeywords: [],
       overallAssessment: "Configure OpenAI API key for detailed resume analysis.",
     };

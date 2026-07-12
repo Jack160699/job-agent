@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai-client";
 
 export const tailoredResumeSchema = z.object({
   title: z.string(),
@@ -64,6 +60,9 @@ export async function tailorResume(
   if (!process.env.OPENAI_API_KEY) {
     return tailorResumeFallback(input);
   }
+
+  const openai = getOpenAIClient();
+  if (!openai) return tailorResumeFallback(input);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",

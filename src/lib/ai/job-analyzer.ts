@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai-client";
 
 export const jobSkillsSchema = z.object({
   requiredSkills: z.array(z.string()),
@@ -33,6 +29,9 @@ export async function extractJobSkills(
   if (!process.env.OPENAI_API_KEY) {
     return extractJobSkillsFallback(jobDescription);
   }
+
+  const openai = getOpenAIClient();
+  if (!openai) return extractJobSkillsFallback(jobDescription);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",

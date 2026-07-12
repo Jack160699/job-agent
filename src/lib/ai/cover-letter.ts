@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai-client";
 
 export const coverLetterSchema = z.object({
   title: z.string(),
@@ -30,6 +26,9 @@ export async function generateCoverLetter(
   if (!process.env.OPENAI_API_KEY) {
     return generateCoverLetterFallback(input);
   }
+
+  const openai = getOpenAIClient();
+  if (!openai) return generateCoverLetterFallback(input);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -95,6 +94,11 @@ export async function answerApplicationQuestion(
   jobContext: string
 ): Promise<string> {
   if (!process.env.OPENAI_API_KEY) {
+    return "Please refer to my resume for details about my qualifications.";
+  }
+
+  const openai = getOpenAIClient();
+  if (!openai) {
     return "Please refer to my resume for details about my qualifications.";
   }
 
