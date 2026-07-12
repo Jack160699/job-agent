@@ -23,7 +23,7 @@ function decrypt(ciphertext) {
 }
 
 async function main() {
-  const email = process.argv[2] || "jobagent.test.2026@gmail.com";
+  const email = process.argv[2] || "stratxcelgame@gmail.com";
   const user = await p.user.findFirst({
     where: { email },
     include: { settings: true },
@@ -42,39 +42,74 @@ async function main() {
     gmail: user.settings?.gmailSyncEnabled,
     sheets: user.settings?.sheetsSyncEnabled,
     calendar: user.settings?.calendarSyncEnabled,
-    driveFolderId: user.settings?.driveFolderId,
-    sheetsId: user.settings?.sheetsId,
   });
   console.log("Has token secret:", Boolean(secret));
 
   if (!secret) return;
 
   const tokens = JSON.parse(decrypt(secret.value));
-  console.log("Token keys:", Object.keys(tokens));
-  console.log("Has refresh_token:", Boolean(tokens.refresh_token));
-  console.log("Has access_token:", Boolean(tokens.access_token));
-
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI ||
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`;
-
-  if (!clientId || !clientSecret) {
-    console.log("Google OAuth env not set locally");
-    return;
-  }
-
-  const client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
   client.setCredentials(tokens);
 
+  const auth = client;
+  const results = {};
+
   try {
-    const gmail = google.gmail({ version: "v1", auth: client });
+    const gmail = google.gmail({ version: "v1", auth });
     const profile = await gmail.users.getProfile({ userId: "me" });
-    console.log("Gmail profile:", profile.data.emailAddress);
+    results.gmail = { ok: true, email: profile.data.emailAddress };
   } catch (e) {
-    console.log("Gmail error:", e.message);
+    results.gmail = { ok: false, error: e.message };
   }
+
+  try {
+    const drive = google.drive({ version: "v3", auth });
+    const about = await drive.about.get({ fields: "user(emailAddress)" });
+    results.drive = { ok: true, email: about.data.user?.emailAddress };
+  } catch (e) {
+    results.drive = { ok: false, error: e.message };
+  }
+
+  try {
+    const sheets = google.sheets({ version: "v4", auth });
+    const created = await sheets.spreadsheets.create({
+      requestBody: {
+        properties: { title: "Job Agent API Test" },
+        sheets: [{ properties: { title: "Test" } }],
+      },
+    });
+    if (created.data.spreadsheetId) {
+      const drive = google.drive({ version: "v3", auth });
+      await drive.files.delete({ fileId: created.data.spreadsheetId });
+    }
+    results.sheets = { ok: true };
+  } catch (e) {
+    results.sheets = { ok: false, error: e.message };
+  }
+
+  try {
+    const calendar = google.calendar({ version: "v3", auth });
+    await calendar.calendarList.list({ maxResults: 1 });
+    results.calendar = { ok: true };
+  } catch (e) {
+    results.calendar = { ok: false, error: e.message };
+  }
+
+  console.log("API verification:", JSON.stringify(results, null, 2));
+
+  await p.userSettings.update({
+    where: { userId: user.id },
+    data: {
+      gmailSyncEnabled: true,
+      sheetsSyncEnabled: true,
+      calendarSyncEnabled: true,
+    },
+  });
+  console.log("Integration toggles enabled in database.");
 }
 
 main().finally(() => p.$disconnect());

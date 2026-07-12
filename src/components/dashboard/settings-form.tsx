@@ -82,6 +82,7 @@ export function SettingsForm({
   const [calendarSync, setCalendarSync] = useState(
     initialSettings?.calendarSyncEnabled ?? false
   );
+  const [driveSync, setDriveSync] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
 
@@ -92,6 +93,7 @@ export function SettingsForm({
       setGmailSync(status.integrations.gmail);
       setSheetsSync(status.integrations.sheets);
       setCalendarSync(status.integrations.calendar);
+      setDriveSync(status.integrations.drive);
     }
   }, []);
 
@@ -348,8 +350,8 @@ export function SettingsForm({
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={googleConnected}
-                disabled
+                checked={driveSync}
+                disabled={!googleConnected}
                 className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 disabled:opacity-50"
               />
               <div>

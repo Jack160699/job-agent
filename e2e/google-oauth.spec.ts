@@ -76,12 +76,18 @@ test.describe("Google OAuth Integrations", () => {
       await expect(page.getByText("Connected", { exact: true })).toBeVisible({
         timeout: 10000,
       });
-      await expect(page.getByText("connected.user@gmail.com")).toBeVisible();
+      await expect(page.getByText("Connected as connected.user@gmail.com")).toBeVisible();
 
-      const gmailCheckbox = page.getByRole("checkbox").nth(0);
-      const driveCheckbox = page.getByRole("checkbox").nth(1);
-      const sheetsCheckbox = page.getByRole("checkbox").nth(2);
-      const calendarCheckbox = page.getByRole("checkbox").nth(3);
+      await page.screenshot({
+        path: "test-results/google-integrations-connected.png",
+        fullPage: true,
+      });
+
+      const integrationsPanel = page.getByRole("tabpanel");
+      const gmailCheckbox = integrationsPanel.getByRole("checkbox").nth(0);
+      const driveCheckbox = integrationsPanel.getByRole("checkbox").nth(1);
+      const sheetsCheckbox = integrationsPanel.getByRole("checkbox").nth(2);
+      const calendarCheckbox = integrationsPanel.getByRole("checkbox").nth(3);
 
       await expect(gmailCheckbox).toBeChecked();
       await expect(driveCheckbox).toBeChecked();
