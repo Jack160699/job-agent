@@ -1,9 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isUserEmailVerified } from "@/lib/auth/verify";
+import { shouldRedirectWwwToApex } from "@/lib/brand/urls";
+import { BRAND } from "@/lib/brand";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./config";
 
 export async function updateSession(request: NextRequest) {
+  const host = request.headers.get("host") ?? "";
+  if (shouldRedirectWwwToApex(host)) {
+    const url = request.nextUrl.clone();
+    url.host = BRAND.domain;
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {

@@ -8,8 +8,8 @@ Use this checklist at the end of each phase and for the final release candidate 
 
 - [x] Confirm branch, Git status, production commit, deployment health
 - [x] Record rollback target (`1c4a546` / `dpl_AUKdL3Y8tmpNPAg9mdPxNgoN4JZr`)
-- [ ] Commit and push uncommitted Phase 14–15 work
-- [ ] Create branch `feat/kairela-product-v1`
+- [x] Commit and push uncommitted Phase 14–15 work (`de6fee0` on `master`)
+- [x] Create branch `feat/kairela-product-v1` (`dbfd283`)
 - [x] Create `docs/KAIRELA_PRODUCT_ROADMAP.md`
 - [x] Create `docs/KAIRELA_ARCHITECTURE.md`
 - [x] Create `docs/KAIRELA_RELEASE_CHECKLIST.md`

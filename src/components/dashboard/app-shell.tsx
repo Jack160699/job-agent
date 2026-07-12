@@ -16,9 +16,10 @@ import {
   Settings,
   ScrollText,
   LogOut,
-  Sparkles,
   X,
 } from "lucide-react";
+import { KairelaLogo } from "@/components/brand/kairela-logo";
+import { KairelaMark } from "@/components/brand/kairela-mark";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -88,13 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Main navigation"
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-[var(--line)] px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent)]">
-            <Sparkles className="h-4 w-4 text-white" strokeWidth={2} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[var(--ink)] leading-none">Signal</p>
-            <p className="text-[10px] text-[var(--ink-tertiary)] mt-0.5">Job Agent</p>
-          </div>
+          <KairelaLogo href="/dashboard" size="md" subtitle="Career OS" />
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -137,8 +132,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         style={{ paddingTop: "var(--safe-top)" }}
       >
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] bg-[var(--accent)]">
-            <Sparkles className="h-3.5 w-3.5 text-white" />
+          <div className="h-7 w-7 shrink-0">
+            <KairelaMark />
           </div>
           <h1 className="text-sm font-semibold text-[var(--ink)]">{pageTitle}</h1>
         </div>

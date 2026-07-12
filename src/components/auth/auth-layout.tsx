@@ -1,5 +1,5 @@
-import { Sparkles } from "lucide-react";
-import Link from "next/link";
+import { KairelaLogo } from "@/components/brand/kairela-logo";
+import { BRAND } from "@/lib/brand";
 
 export function AuthLayout({
   children,
@@ -13,12 +13,7 @@ export function AuthLayout({
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--canvas)]">
       <header className="flex h-14 items-center border-b border-[var(--line)] px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent)]">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-sm font-semibold text-[var(--ink)]">Signal</span>
-        </Link>
+        <KairelaLogo href="/" size="md" subtitle={null} />
       </header>
       <main className="flex flex-1 items-center justify-center px-4 py-8">
         <div className="w-full max-w-sm">

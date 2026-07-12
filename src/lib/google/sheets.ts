@@ -22,7 +22,7 @@ export async function syncApplicationsToSheet(userId: string) {
   if (!spreadsheetId) {
     const created = await sheets.spreadsheets.create({
       requestBody: {
-        properties: { title: "Job Agent Applications" },
+        properties: { title: "Kairela Applications" },
         sheets: [{ properties: { title: "Applications" } }],
       },
     });

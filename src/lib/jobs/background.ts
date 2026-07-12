@@ -1,6 +1,7 @@
 import prisma from "@/lib/db";
 import { searchJobs } from "@/lib/jobs/pipeline";
 import { createAuditLog } from "@/lib/audit";
+import { getAppBaseUrl } from "@/lib/brand/urls";
 import type { Prisma } from "@prisma/client";
 
 export type JobType =
@@ -34,16 +35,6 @@ function logWorker(event: string, data: Record<string, unknown> = {}): void {
       ...data,
     })
   );
-}
-
-function getAppBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return "http://localhost:3000";
 }
 
 export function triggerWorkerRemote(): void {

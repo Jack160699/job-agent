@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
+import { BRAND } from "@/lib/brand";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
@@ -61,7 +62,7 @@ function LoginForm() {
   };
 
   return (
-    <AuthLayout title="Welcome back" description="Sign in to your Job Agent account">
+    <AuthLayout title="Welcome back" description={`Sign in to your ${BRAND.name} account`}>
       <Card>
         <CardContent className="p-6">
           {callbackError && (

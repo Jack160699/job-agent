@@ -6,6 +6,7 @@ import {
   type GoogleIntegrationFeature,
 } from "@/lib/google/oauth";
 import { verifyGmailProfile } from "@/lib/google/verify";
+import { getAppBaseUrl } from "@/lib/brand/urls";
 import prisma from "@/lib/db";
 
 function parseState(state: string): {
@@ -24,7 +25,7 @@ function parseState(state: string): {
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const stateRaw = request.nextUrl.searchParams.get("state");
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = getAppBaseUrl();
 
   if (!code || !stateRaw) {
     return NextResponse.redirect(`${appUrl}/dashboard/settings?google=error&reason=missing_params`);

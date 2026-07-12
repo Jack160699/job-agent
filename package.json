@@ -1,6 +1,6 @@
 {
-  "name": "job-agent",
-  "version": "0.2.0-rc.1",
+  "name": "kairela",
+  "version": "0.3.0-phase1",
   "private": true,
   "scripts": {
     "dev": "next dev",

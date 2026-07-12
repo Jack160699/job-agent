@@ -35,6 +35,7 @@ test.describe("Phase 1: Deployment Health", () => {
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Kairela/);
     expect(errors).toEqual([]);
   });
 });

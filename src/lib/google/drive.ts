@@ -29,7 +29,7 @@ export async function uploadToDrive(
   };
 }
 
-export async function ensureDriveFolder(userId: string, folderName = "Job Agent") {
+export async function ensureDriveFolder(userId: string, folderName = "Kairela") {
   const auth = await getAuthenticatedClient(userId);
   const drive = google.drive({ version: "v3", auth });
 

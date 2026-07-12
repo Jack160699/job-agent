@@ -53,7 +53,7 @@ export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerific
     const sheets = google.sheets({ version: "v4", auth });
     const created = await sheets.spreadsheets.create({
       requestBody: {
-        properties: { title: "Job Agent Connection Test" },
+        properties: { title: "Kairela Connection Test" },
         sheets: [{ properties: { title: "Test" } }],
       },
     });

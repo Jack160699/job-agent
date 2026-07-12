@@ -18,7 +18,7 @@ Transform the current release candidate (Signal / Job Agent) into **Kairela** â€
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| 0 | Safe Release Setup | **In progress** | Audit, branch, docs, rollback baseline |
+| 0 | Safe Release Setup | **Complete** | `de6fee0` master, `dbfd283` feat branch, docs committed |
 | 1 | Complete Kairela Rebrand | Pending | Signal/Job Agent â†’ Kairela, brand system, domain prep |
 | 2 | Role-Based Conversational Onboarding | Pending | Job seeker, employer, recruiter, agency personas |
 | 3 | Preference-Aware Job Discovery | Partial | Phase 15 added filtering; full pipeline in Phase 3 |

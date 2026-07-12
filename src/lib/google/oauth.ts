@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import prisma from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/security/encryption";
+import { getGoogleOAuthRedirectUri } from "@/lib/brand/urls";
 
 /** Identity-only scopes are handled by Supabase Auth — not this module. */
 export const GOOGLE_INTEGRATION_SCOPES = {
@@ -21,9 +22,7 @@ const SCOPES_KEY = "google_oauth_scopes";
 export function getGoogleOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI ||
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`;
+  const redirectUri = getGoogleOAuthRedirectUri();
 
   if (!clientId || !clientSecret) {
     throw new Error("Google OAuth not configured");

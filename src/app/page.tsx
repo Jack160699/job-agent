@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Sparkles,
   ArrowRight,
   Check,
   Search,
@@ -12,6 +11,8 @@ import {
   Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { KairelaLogo } from "@/components/brand/kairela-logo";
+import { BRAND } from "@/lib/brand";
 
 const logos = ["Stripe", "Notion", "Linear", "Figma", "Vercel", "Ramp"];
 
@@ -48,13 +49,15 @@ const steps = [
 const quotes = [
   {
     text: "I went from spending 2 hours per application to reviewing 10 prepared applications in 30 minutes.",
-    name: "Sarah K.",
-    role: "Software Engineer",
+    name: "Illustrative scenario",
+    role: "Software engineer · Beta feedback format",
+    label: "Illustrative",
   },
   {
     text: "The honest match scores saved me from applying to roles I'd never get. Quality over volume actually works.",
-    name: "Marcus T.",
-    role: "Product Manager",
+    name: "Illustrative scenario",
+    role: "Product manager · Beta feedback format",
+    label: "Illustrative",
   },
 ];
 
@@ -64,12 +67,7 @@ export default function HomePage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent)]">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-[var(--ink)]">Signal</span>
-          </Link>
+          <KairelaLogo href="/" size="md" subtitle={null} />
           <nav className="hidden items-center gap-6 text-sm text-[var(--ink-secondary)] md:flex">
             <a href="#features" className="hover:text-[var(--ink)] transition-colors">Features</a>
             <a href="#how" className="hover:text-[var(--ink)] transition-colors">How it works</a>
@@ -92,15 +90,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-5xl px-4 py-16 md:py-24">
             <div className="max-w-2xl">
               <p className="text-xs font-medium uppercase tracking-widest text-[var(--accent)]">
-                Job search, automated
+                Career operating system
               </p>
               <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-[var(--ink)] md:text-5xl md:leading-[1.1]">
-                Apply to the right jobs.
-                <br />
-                <span className="text-[var(--ink-secondary)]">Skip the rest.</span>
+                {BRAND.name} manages your job search.
               </h1>
               <p className="mt-4 max-w-lg text-balance text-sm leading-relaxed text-[var(--ink-secondary)] md:text-base">
-                Signal discovers relevant roles, scores matches honestly, tailors your resume truthfully,
+                {BRAND.name} discovers relevant roles, scores matches honestly, tailors your resume truthfully,
                 and tracks every application — so you can focus on interviews, not forms.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -127,7 +123,7 @@ export default function HomePage() {
                 <div className="h-2.5 w-2.5 rounded-full bg-[var(--line-strong)]" />
                 <div className="h-2.5 w-2.5 rounded-full bg-[var(--line-strong)]" />
                 <div className="h-2.5 w-2.5 rounded-full bg-[var(--line-strong)]" />
-                <span className="ml-2 text-[10px] text-[var(--ink-tertiary)]">signal.app/dashboard</span>
+                <span className="ml-2 text-[10px] text-[var(--ink-tertiary)]">kairela.com/dashboard</span>
               </div>
               <div className="grid grid-cols-4 gap-px bg-[var(--line)]">
                 {[
@@ -229,7 +225,10 @@ export default function HomePage() {
                     ))}
                   </div>
                   <p className="mt-3 text-sm leading-relaxed text-[var(--ink)]">&ldquo;{q.text}&rdquo;</p>
-                  <p className="mt-3 text-xs font-medium text-[var(--ink)]">{q.name}</p>
+                  <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-[var(--accent)]">
+                    {q.label}
+                  </p>
+                  <p className="mt-2 text-xs font-medium text-[var(--ink)]">{q.name}</p>
                   <p className="text-[10px] text-[var(--ink-tertiary)]">{q.role}</p>
                 </div>
               ))}
@@ -278,14 +277,9 @@ export default function HomePage() {
 
       <footer className="border-t border-[var(--line)] py-8">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] bg-[var(--accent)]">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="text-sm font-semibold">Signal</span>
-          </div>
+          <KairelaLogo href="/" size="sm" subtitle={null} />
           <p className="text-xs text-[var(--ink-tertiary)]">
-            © {new Date().getFullYear()} Signal Job Agent
+            © {new Date().getFullYear()} {BRAND.name}
           </p>
           <div className="flex gap-4 text-xs text-[var(--ink-tertiary)]">
             <Link href="/login" className="hover:text-[var(--ink)]">Sign in</Link>
