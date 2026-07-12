@@ -76,6 +76,11 @@ async function runPlatformTest(
     expect(["pending_review", "submitted"]).toContain(result.status);
     const shot = await browser.screenshot();
     expect(shot.length).toBeGreaterThan(1000);
+    const { writeFileSync, mkdirSync } = await import("fs");
+    const { resolve } = await import("path");
+    const dir = resolve(__dirname, "../../test-results/browser-screenshots");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(resolve(dir, `${file.replace(".html", "")}-filled.png`), shot);
   } finally {
     await browser.close();
   }
