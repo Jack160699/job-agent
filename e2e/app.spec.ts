@@ -31,15 +31,24 @@ test.describe("Auth Pages", () => {
 });
 
 test.describe("Dashboard", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
+    await page.getByLabel("Password").fill("TestPass123!Secure");
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+  });
+
   test("dashboard overview renders", async ({ page }) => {
-    await page.goto("/dashboard");
-    await expect(page.getByText("Overview")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Overview" })
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Run AI Agent/i })).toBeVisible();
   });
 
   test("sidebar navigation works", async ({ page }) => {
-    await page.goto("/dashboard");
     await page.getByRole("link", { name: "Job Search" }).click();
-    await expect(page).toHaveURL("/dashboard/jobs");
+    await expect(page).toHaveURL(/\/dashboard\/jobs/);
   });
 });
 

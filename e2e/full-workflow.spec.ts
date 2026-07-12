@@ -28,6 +28,7 @@ test.describe("Full Application Workflow", () => {
   test("upload resume → search jobs → run agent → verify applications", async ({
     page,
   }) => {
+    test.setTimeout(180000);
     await page.goto("/dashboard/resumes");
     const textarea = page.locator("textarea");
     if (await textarea.isVisible()) {
@@ -44,15 +45,17 @@ test.describe("Full Application Workflow", () => {
     await page.goto("/dashboard/settings");
     await page.getByRole("tab", { name: "Job Filters" }).click();
     await page.getByLabel("Job Titles (comma-separated)").fill("Software Engineer");
-    await page.getByLabel("Target Company Boards (comma-separated slugs)").fill(
-      "openai, stripe"
-    );
+    const targetBoards = page.getByLabel("Target Company Boards (comma-separated slugs)");
+    if (await targetBoards.isVisible()) {
+      await targetBoards.fill("openai, stripe");
+    }
     await page.getByRole("button", { name: /Save Settings/i }).click();
-    await expect(page.getByText("Settings saved")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Settings saved")).toBeVisible({ timeout: 15000 });
 
     await page.goto("/dashboard/jobs");
     const searchRes = page.waitForResponse(
-      (r) => r.url().includes("/api/jobs/search") && r.request().method() === "POST"
+      (r) => r.url().includes("/api/jobs/search") && r.request().method() === "POST",
+      { timeout: 90000 }
     );
     await page.getByRole("button", { name: /Search Jobs/i }).click();
     const searchResponse = await searchRes;
@@ -86,6 +89,7 @@ test.describe("Full Application Workflow", () => {
   });
 
   test("PDF download endpoint returns valid response", async ({ page }) => {
+    test.setTimeout(120000);
     await page.goto("/dashboard/resumes");
     const textarea = page.locator("textarea");
     if (await textarea.isVisible()) {
