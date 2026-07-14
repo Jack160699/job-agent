@@ -106,3 +106,16 @@
 - Typecheck: passed.
 - Lint: passed with 8 pre-existing warnings.
 - Production build: passed (52 routes).
+
+## 2026-07-15 — Workstream 4 conversation completion
+
+- Added `consultant_conversations` and `agent_action_proposals` models/migration.
+- Consultant chat binds messages to conversations with latest-50 history.
+- Proposal tools for start search and prepare application require UI confirmation.
+- Confirm route executes single-use proposals and never trusts model `confirmed` flags.
+- FAB supports new conversation + confirm action cards.
+- Added dashboard loading skeleton.
+
+### Verification
+- Unit tests: 82 passed.
+- Typecheck: passed.
