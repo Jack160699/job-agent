@@ -47,7 +47,15 @@ export default async function ApplicationsPage() {
                       )}
                       <span className="text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</span>
                     </div>
-                    <ApplicationActions applicationId={app.id} status={app.status} />
+                    <ApplicationActions
+                      applicationId={app.id}
+                      status={app.status}
+                      failureReason={app.failureReason}
+                      browserTaskId={
+                        ((app.documents as { browserTaskId?: string } | null)
+                          ?.browserTaskId) ?? null
+                      }
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -87,7 +95,15 @@ export default async function ApplicationsPage() {
                     </td>
                     <td className="px-6 py-4 text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</td>
                     <td className="px-6 py-4">
-                      <ApplicationActions applicationId={app.id} status={app.status} />
+                      <ApplicationActions
+                        applicationId={app.id}
+                        status={app.status}
+                        failureReason={app.failureReason}
+                        browserTaskId={
+                          ((app.documents as { browserTaskId?: string } | null)
+                            ?.browserTaskId) ?? null
+                        }
+                      />
                     </td>
                   </tr>
                 ))}

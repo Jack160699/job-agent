@@ -117,11 +117,16 @@ export function StatusBadge({ status }: { status: string }) {
     MATCHED: "bg-[var(--success-muted)] text-[var(--success)] border-green-200",
     SKIPPED: "bg-[var(--surface-sunken)] text-[var(--ink-tertiary)] border-[var(--line)]",
     PENDING_REVIEW: "bg-[var(--warning-muted)] text-[var(--warning)] border-amber-200",
+    SUBMITTING: "bg-[var(--accent-muted)] text-[var(--accent)] border-teal-200",
     SUBMITTED: "bg-[var(--accent-muted)] text-[var(--accent)] border-teal-200",
     FAILED: "bg-[var(--error-muted)] text-[var(--error)] border-red-200",
+    WITHDRAWN: "bg-[var(--surface-sunken)] text-[var(--ink-tertiary)] border-[var(--line)]",
     INTERVIEWING: "bg-purple-50 text-purple-700 border-purple-200",
     OFFERED: "bg-[var(--success-muted)] text-[var(--success)] border-green-200",
     REJECTED: "bg-[var(--error-muted)] text-[var(--error)] border-red-200",
+    ACCEPTED: "bg-[var(--success-muted)] text-[var(--success)] border-green-200",
+    RESUME_GENERATED: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    COVER_LETTER_GENERATED: "bg-cyan-50 text-cyan-700 border-cyan-200",
   };
 
   return (

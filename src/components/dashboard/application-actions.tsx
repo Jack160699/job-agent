@@ -1,20 +1,62 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { FileDown, Send } from "lucide-react";
+import { FileDown, Send, Square } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function ApplicationActions({
   applicationId,
   status,
+  failureReason,
+  browserTaskId,
 }: {
   applicationId: string;
   status: string;
+  failureReason?: string | null;
+  browserTaskId?: string | null;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const router = useRouter();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!browserTaskId || (status !== "SUBMITTING" && status !== "PENDING_REVIEW")) {
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/browser/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "status", taskId: browserTaskId }),
+        });
+        const data = await response.json();
+        if (!response.ok) return;
+        setTaskStatus(data.task?.status ?? null);
+        if (
+          data.task?.status === "completed" ||
+          data.task?.status === "failed" ||
+          data.task?.status === "cancelled"
+        ) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          router.refresh();
+        }
+      } catch {
+        // Transient poll failures are safe to ignore.
+      }
+    };
+
+    void poll();
+    pollRef.current = setInterval(poll, 2000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [browserTaskId, router, status]);
 
   const downloadPdf = async () => {
     setLoading("pdf");
@@ -31,6 +73,30 @@ export function ApplicationActions({
       toast.success("Resume PDF downloaded");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Download failed");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const cancelTask = async () => {
+    if (!browserTaskId) return;
+    setLoading("cancel");
+    try {
+      const response = await fetch("/api/browser/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", taskId: browserTaskId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Cancellation failed");
+      toast.success(
+        data.cancelled
+          ? "Automation cancelled. Documents already prepared remain available."
+          : "No active automation was found."
+      );
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Cancellation failed");
     } finally {
       setLoading(null);
     }
@@ -62,42 +128,72 @@ export function ApplicationActions({
     }
   };
 
+  const actionable = [
+    "PENDING_REVIEW",
+    "RESUME_GENERATED",
+    "COVER_LETTER_GENERATED",
+    "MATCHED",
+    "FAILED",
+  ].includes(status);
+
   return (
-    <div className="flex gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={downloadPdf}
-        disabled={!!loading}
-        className="gap-1"
-      >
-        <FileDown className="h-3 w-3" />
-        PDF
-      </Button>
-      {["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "MATCHED"].includes(
-        status
-      ) && (
-        <>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={downloadPdf}
+          disabled={!!loading}
+          className="gap-1"
+        >
+          <FileDown className="h-3 w-3" />
+          PDF
+        </Button>
+        {status === "SUBMITTING" && browserTaskId && (
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => prepareSubmit(false)}
-            disabled={!!loading}
+            variant="ghost"
             className="gap-1"
-          >
-            <Send className="h-3 w-3" />
-            {loading === "prepare" ? "Preparing…" : "Prepare"}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => prepareSubmit(true)}
             disabled={!!loading}
-            className="gap-1"
+            onClick={() => void cancelTask()}
           >
-            <Send className="h-3 w-3" />
-            {loading === "submit" ? "Submitting…" : "Submit"}
+            <Square className="h-3 w-3" />
+            {loading === "cancel" ? "Cancelling…" : "Cancel"}
           </Button>
-        </>
+        )}
+        {actionable && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void prepareSubmit(false)}
+              disabled={!!loading}
+              className="gap-1"
+            >
+              <Send className="h-3 w-3" />
+              {loading === "prepare" ? "Preparing…" : "Prepare"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void prepareSubmit(true)}
+              disabled={!!loading}
+              className="gap-1"
+            >
+              <Send className="h-3 w-3" />
+              {loading === "submit" ? "Submitting…" : "Submit"}
+            </Button>
+          </>
+        )}
+      </div>
+      {(status === "SUBMITTING" || taskStatus) && (
+        <p className="max-w-[220px] text-right text-[10px] text-[var(--ink-tertiary)]">
+          Automation {taskStatus || "queued"}. Leave this page if needed.
+        </p>
+      )}
+      {failureReason && (
+        <p className="max-w-[220px] text-right text-[10px] text-[var(--warning)]">
+          {failureReason.replaceAll("_", " ")}
+        </p>
       )}
     </div>
   );

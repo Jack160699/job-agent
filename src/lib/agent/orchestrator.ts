@@ -19,7 +19,8 @@ import {
   matchJob,
   processApplication,
 } from "@/lib/jobs/pipeline";
-import type { ApplicationStatus, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-policy";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -259,7 +260,8 @@ export async function prepareApplicationSubmission(
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: "PENDING_REVIEW",
+        status: options?.autoSubmit ? "SUBMITTING" : "PENDING_REVIEW",
+        lastAttemptAt: new Date(),
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
@@ -296,31 +298,32 @@ export async function prepareApplicationSubmission(
       { autoSubmit: options?.autoSubmit }
     );
 
-    const newStatus: ApplicationStatus =
-      submission.status === "submitted"
-        ? "SUBMITTED"
-        : submission.status === "pending_review"
-          ? "PENDING_REVIEW"
-          : submission.status === "failed"
-            ? "FAILED"
-            : "PENDING_REVIEW";
+    const mapped = mapSubmissionToApplicationStatus(
+      submission,
+      Boolean(options?.autoSubmit)
+    );
 
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: newStatus,
-        submittedAt: newStatus === "SUBMITTED" ? new Date() : undefined,
+        status: mapped.status,
+        submittedAt: mapped.status === "SUBMITTED" ? new Date() : undefined,
         formData: submission.formData as Prisma.InputJsonValue,
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
         } as Prisma.InputJsonValue,
-        failureReason: submission.success ? null : submission.message,
-        requiresReview: !options?.autoSubmit,
+        failureReason: mapped.failureReason,
+        lastAttemptAt: new Date(),
+        requiresReview: !options?.autoSubmit || mapped.status === "PENDING_REVIEW",
       },
     });
 
-    return submission;
+    return {
+      ...submission,
+      message: mapped.message,
+      success: mapped.status === "SUBMITTED" || mapped.status === "PENDING_REVIEW",
+    };
   } finally {
     await browser.close();
   }
