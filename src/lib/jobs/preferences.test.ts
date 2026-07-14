@@ -132,4 +132,34 @@ describe("preference-aware discovery", () => {
     expect(puneOnSf.accepted).toBe(false);
     expect(remoteOnRemote.accepted).toBe(true);
   });
+
+  it("ranks fresh postings above otherwise identical stale postings", () => {
+    const settings = baseSettings({ matchThreshold: 50 });
+    const fresh = evaluateJobAgainstPreferences(
+      sampleJob({ postedAt: new Date() }),
+      settings
+    );
+    const stale = evaluateJobAgainstPreferences(
+      sampleJob({
+        postedAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
+      }),
+      settings
+    );
+
+    expect(fresh.score).toBeGreaterThan(stale.score);
+    expect(fresh.breakdown.freshnessScore).toBe(100);
+    expect(stale.concerns.some((concern) => concern.includes("120 days"))).toBe(
+      true
+    );
+  });
+
+  it("surfaces uncertainty when a posting date is unavailable", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({ postedAt: undefined }),
+      baseSettings({ matchThreshold: 50 })
+    );
+
+    expect(result.concerns).toContain("Posting date is unavailable");
+    expect(result.breakdown.freshnessScore).toBe(50);
+  });
 });

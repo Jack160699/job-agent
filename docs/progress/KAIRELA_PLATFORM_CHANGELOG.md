@@ -55,3 +55,17 @@
 - Typecheck: passed.
 - Lint: passed with 8 pre-existing warnings.
 - Production build: passed (51 routes).
+
+## 2026-07-15 — Workstream 7
+
+- Replaced Lever, Ashby, and Workday detail placeholders with public API extraction.
+- Replaced browser-snapshot Workday discovery with the public CXS search API.
+- Added posting freshness to transparent match scoring and surfaced unknown-date uncertainty.
+- Added per-job relevance feedback with reason codes, authenticated API ownership, RLS, and dashboard controls.
+- Applied bounded feedback adjustments to later searches without overriding hard preference rejections.
+
+### Verification
+- Unit tests: 65 passed, including ATS extraction, source failure, freshness, and feedback ranking.
+- Typecheck: passed.
+- Lint: passed with 8 pre-existing warnings.
+- Production build: passed (52 routes).

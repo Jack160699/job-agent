@@ -20,8 +20,8 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 4 | Live Kairela AI career agent | Partial — read-only tool layer, page context, suggested prompts and streaming route exist; conversation CRUD and confirmed write tools remain |
 | 5 | Proactive career relationship manager | **Complete** — grounded rules, evidence, priority, expiry, queue generation and user controls |
 | 6 | Complete job-seeker journey | Partial — recovery/security slice complete; document, ATS and auth journeys depend on WS8/9/10 |
-| 7 | Search quality and relevance | **Current** |
-| 8 | Resume and document intelligence | Pending |
+| 7 | Search quality and relevance | **Complete** — freshness, feedback learning and real ATS extraction |
+| 8 | Resume and document intelligence | **Current** |
 | 9 | Application agent and ATS automation | Pending |
 | 10 | Authentication and Google integrations | Partial |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
@@ -37,7 +37,6 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 
 - RLS `WITH CHECK` hardening on remaining legacy policies
 - Entitlement enforcement on search/agent/resume APIs
-- Lever/Ashby/Workday adapter real extraction
 - Application status enum expansion
 - PDF/DOCX resume upload pipeline
 - Security headers in next.config.ts

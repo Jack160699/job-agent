@@ -9,6 +9,7 @@ import { JobsPageClient } from "@/components/dashboard/jobs-page-client";
 import prisma from "@/lib/db";
 import { getDbUser } from "@/lib/auth/server";
 import { JobLinkImportButton } from "@/components/jobs/job-link-import";
+import { JobFeedbackControl } from "@/components/jobs/job-feedback";
 
 export default async function JobsPage({
   searchParams,
@@ -135,7 +136,8 @@ export default async function JobsPage({
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
                       {job.applications?.[0] && (
                         <StatusBadge status={job.applications[0].status} />
                       )}
@@ -144,6 +146,18 @@ export default async function JobsPage({
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </a>
+                      </div>
+                      <JobFeedbackControl
+                        jobId={job.id}
+                        initialFeedback={
+                          job.feedback[0]
+                            ? {
+                                relevant: job.feedback[0].relevant,
+                                reason: job.feedback[0].reason,
+                              }
+                            : null
+                        }
+                      />
                     </div>
                   </CardContent>
                 </Card>

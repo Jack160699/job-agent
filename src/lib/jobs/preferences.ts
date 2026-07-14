@@ -86,6 +86,7 @@ export interface MatchBreakdown {
   locationMatch: number;
   salaryMatch: number;
   experienceMatch: number;
+  freshnessScore: number;
 }
 
 export interface JobFilterResult {
@@ -174,6 +175,7 @@ export function evaluateJobAgainstPreferences(
     locationMatch: 0,
     salaryMatch: 50,
     experienceMatch: 50,
+    freshnessScore: 50,
   };
 
   if (!job.location && !job.description) {
@@ -341,6 +343,28 @@ export function evaluateJobAgainstPreferences(
 
   if (settings.visaSponsorshipRequired && job.visaSponsorship === false) {
     concerns.push("Visa sponsorship may not be available");
+  }
+
+  if (job.postedAt) {
+    const ageDays = Math.max(
+      0,
+      Math.floor((Date.now() - job.postedAt.getTime()) / (24 * 60 * 60 * 1000))
+    );
+    if (ageDays <= 7) {
+      breakdown.freshnessScore = 100;
+      score += 10;
+      reasons.push(`Posted ${ageDays === 0 ? "today" : `${ageDays} days ago`}`);
+    } else if (ageDays <= 30) {
+      breakdown.freshnessScore = 75;
+      score += 5;
+      reasons.push(`Posted ${ageDays} days ago`);
+    } else if (ageDays > 90) {
+      breakdown.freshnessScore = 20;
+      score -= 10;
+      concerns.push(`Posting is ${ageDays} days old and may no longer be active`);
+    }
+  } else {
+    concerns.push("Posting date is unavailable");
   }
 
   score = Math.min(100, Math.max(0, score));

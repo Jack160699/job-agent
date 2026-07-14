@@ -13,6 +13,7 @@ import {
 import { updateJobProgress } from "./job-progress-store";
 import { GreenhouseAdapter, LeverAdapter, AshbyAdapter, WorkdayAdapter } from "./adapters";
 import type { DiscoveredJob } from "./types";
+import { applyFeedbackProfile, buildFeedbackProfile } from "./feedback";
 
 export async function getOrCreateUser(supabaseId: string, email: string) {
   let user = await prisma.user.findUnique({ where: { supabaseId } });
@@ -78,6 +79,19 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   if (!hasMinimumPreferences(settings)) {
     throw new Error("PREFERENCES_INCOMPLETE");
   }
+
+  const feedbackProfile = buildFeedbackProfile(
+    await prisma.jobFeedback.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+      select: {
+        relevant: true,
+        reason: true,
+        job: { select: { title: true, company: true } },
+      },
+    })
+  );
 
   const progress = async (stage: Parameters<typeof updateJobProgress>[1], meta?: Record<string, unknown>) => {
     if (backgroundJobId) {
@@ -163,7 +177,12 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   const excluded: Array<{ title: string; company: string; reason: string; job: DiscoveredJob; analysis: ReturnType<typeof evaluateJobAgainstPreferences> }> = [];
 
   for (const job of discovered) {
-    const result = evaluateJobAgainstPreferences(job, settings);
+    const result = applyFeedbackProfile(
+      evaluateJobAgainstPreferences(job, settings),
+      job,
+      feedbackProfile,
+      settings.matchThreshold
+    );
     if (result.accepted) {
       filtered.push({ ...job, score: result.score, reasons: result.reasons, analysis: result });
     } else {

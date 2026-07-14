@@ -97,7 +97,10 @@ export async function getJobs(filters?: {
         ...(filters?.source ? { source: filters.source as "LINKEDIN" } : {}),
       },
       orderBy: { discoveredAt: "desc" },
-      include: { applications: true },
+      include: {
+        applications: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+      },
     });
   }, []);
 }
@@ -114,7 +117,10 @@ export async function getExcludedJobs() {
       },
       orderBy: { discoveredAt: "desc" },
       take: 100,
-      include: { applications: true },
+      include: {
+        applications: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+      },
     });
   }, []);
 }

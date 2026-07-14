@@ -1,15 +1,16 @@
 {
   "status": "in_progress",
-  "currentWorkstream": 7,
-  "lastCompletedWorkstream": 5,
+  "currentWorkstream": 8,
+  "lastCompletedWorkstream": 7,
   "completedWorkstreams": [
     "0 — Complete product audit",
     "1 — P0 security and reliability",
     "2 — CI, release and operational foundation",
     "3 — Public job-link intake",
-    "5 — Proactive career relationship manager"
+    "5 — Proactive career relationship manager",
+    "7 — Search quality and relevance"
   ],
-  "currentCheckpoint": "WS6 recovery/security slice validated: fail-closed APIs, explicit submission authorization, idempotent browser tasks, cooperative search cancellation, and non-reloading resume/application actions. Full journey remains dependent on WS8/9/10.",
+  "currentCheckpoint": "WS7 validated: freshness-aware scoring, bounded user-feedback learning, real Lever/Ashby/Workday extraction, and no fabricated detail fallbacks. Starting WS8 documents.",
   "failedChecks": [],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
@@ -20,7 +21,7 @@
   "manualActions": [
     "Set BROWSER_WORKER_TOKEN in production and worker runtime.",
     "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
-    "Apply migrations 20260715100000_rate_limits.sql, 20260715113000_proactive_recommendations_v2.sql, and 20260715120000_browser_task_idempotency.sql to production database."
+    "Apply pending platform migrations through 20260715130000_job_feedback.sql to the production database."
   ],
   "lastSuccessfulCommit": "31c0160",
   "lastPreviewDeployment": "No platform-branch preview found; latest project deployment dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j is product-v1 commit 9631599.",
