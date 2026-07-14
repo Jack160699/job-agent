@@ -29,5 +29,7 @@ AWS, Docker, Kubernetes, Git, GraphQL, REST, CI/CD, Agile, System Design
 export const TEST_USER = {
   fullName: "QA Test User",
   email: `qa.jobagent.${Date.now()}@gmail.com`,
-  password: "QATestPass123!Secure",
+  password:
+    process.env.E2E_EPHEMERAL_PASSWORD ||
+    `QaEphemeral_${Date.now()}_${Math.random().toString(36).slice(2, 10)}!`,
 };

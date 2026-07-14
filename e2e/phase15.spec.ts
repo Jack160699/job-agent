@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { TEST_USER } from "./fixtures";
-import { createConfirmedUser, deleteUserByEmail } from "./helpers/auth";
+import { createConfirmedUser, deleteUserByEmail, loginWithSharedAccount } from "./helpers/auth";
 import { getProductionBaseUrl } from "./helpers/production";
 
 const BASE = getProductionBaseUrl();
@@ -74,22 +74,14 @@ test.describe("Phase 15: Preferences & Queue", () => {
   });
 
   test("onboarding route redirects completed users to jobs", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
 
     await page.goto("/dashboard/onboarding");
     await expect(page).toHaveURL(/\/dashboard\/jobs/, { timeout: 15000 });
   });
 
   test("jobs page shows edit preferences action", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
 
     await page.goto("/dashboard/jobs");
     await expect(page.getByRole("link", { name: /Edit search preferences/i })).toBeVisible();
@@ -98,11 +90,7 @@ test.describe("Phase 15: Preferences & Queue", () => {
 
   test("duplicate search clicks are idempotent", async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
 
     await page.request.put("/api/preferences", {
       data: {
@@ -145,11 +133,7 @@ test.describe("Phase 15: Google OAuth separation", () => {
   });
 
   test("integration oauth accepts scope query", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
 
     const res = await page.request.get("/api/google/oauth?scopes=gmail");
     if (res.status() === 200) {

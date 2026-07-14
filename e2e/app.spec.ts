@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { loginWithSharedAccount } from "./helpers/auth";
 
 test.describe("Landing Page", () => {
   test("renders hero section", async ({ page }) => {
@@ -48,11 +49,7 @@ test.describe("Auth Pages", () => {
 
 test.describe("Dashboard", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: /Sign In/i }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
   });
 
   test("dashboard overview renders", async ({ page }) => {

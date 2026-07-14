@@ -7,21 +7,29 @@ Branch: `feat/kairela-product-v1`
 
 ## Current checkpoint
 
-- Workstream 1 audit is recorded in `docs/PRODUCT_COMPLETENESS_AUDIT.md`.
-- Workstream 2 job-link intake is implemented locally: `POST /api/jobs/import-link`, `JobImport` model, SSRF-safe fetch/extraction, manual fallback UI, and 6 unit tests.
-- Supabase migration `20260714191000_job_link_intake` is applied.
-- Stale landing hero Playwright assertions updated to Kairela copy.
-- Local lint, typecheck, 37 unit tests, and production build pass.
-- Commit and production deploy for WS2 are in progress.
-- Zero-retry production Playwright still blocked for authenticated flows by Supabase `exceed_egress_quota`.
-- Domain attachment and final human acceptance testing remain explicitly deferred.
+- Workstream 1 completeness audit recorded in `docs/PRODUCT_COMPLETENESS_AUDIT.md`.
+- Parallel static audits (architecture map + tests/security) agree: substantial RC codebase, not production-complete; hiring/billing are placeholders; OAuth state, rate limits, observability, and CI remain open. Live production-journey audit failed to run (MCP tooling unavailable).
+- Browser-task RLS and permissive `background_jobs` policy already patched in `305de26` / migration `20260714183600`.
+- Workstream 2 deployed: commit `9631599`, deployment `dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j`.
+- Hard-coded E2E shared credentials removed from the repo; authenticated Playwright now requires `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` (rotate the old shared account password in Supabase).
+- Lint/typecheck for WS2 import-link code is green after DNS/JSON-LD typing fixes.
+- Authenticated production E2E still blocked by Supabase `exceed_egress_quota`.
+- Domain attachment and final human acceptance testing remain deferred.
+
+## Open P0 / P1 carryovers (from audits)
+
+- Sign/verify Google integration OAuth state and bind to session.
+- Browser worker: fail closed without token; tighten URL allowlists; drop `--no-sandbox` / run non-root where possible.
+- Fix incorrect RLS identity comparisons (`auth.uid()` vs `users.supabase_id`) on phase-2/9 policies.
+- Settings API mass-assignment; health/browser status must not leak internals publicly.
+- Distributed rate limiting; CI workflows; durable document storage for generated PDFs.
+- Rotate leaked test account credentials if that account still exists in production Auth.
 
 ## Remaining workstreams
 
 1. Product-wide completeness audit — complete
-2. Job link intake — complete (pending deploy verification)
+2. Job link intake — complete
 3. Live Kairela AI assistant — next
-3. Live Kairela AI assistant
 4. Proactive career relationship manager
 5. Job-seeker experience completion
 6. Search quality and discovery
@@ -44,15 +52,17 @@ Branch: `feat/kairela-product-v1`
 
 ## Deployment evidence
 
+### Job-link intake deployment
+
+- Commit: `9631599f1bbc51e7d194b6f48c7702ac8fd7d869`
+- Deployment: `dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j`
+- Production URL: https://job-agent-mu-steel.vercel.app
+- Build: passed
+- Migration: `20260714191000_job_link_intake` applied
+- Unit tests: 37 passed
+
 ### Audit baseline deployment
 
 - Commit: `305de26d8df2522830a40e9899120053643c9cde`
 - Deployment: `dpl_DsgGZFJvV4YQDHccBYbeUJK6daMx`
-- Production URL: https://job-agent-mu-steel.vercel.app
-- Build: passed
-- Runtime error scan: clean for the first post-deployment hour
-- Playwright: 57 passed, 33 failed, 2 did not run
-- Screenshots: Playwright failure screenshots under `test-results/`; public visual captures under `screenshots/visual/`
-- Primary failure: Supabase Auth restricted by `exceed_egress_quota`
-- Fixes included: browser-task RLS, removal of permissive queue policy, pinned function search path, race-safe user provisioning, lint/typecheck cleanup
-- Next workstream: secure job-link intake
+- Playwright: 57 passed, 33 failed, 2 did not run (egress quota + stale hero copy; hero now fixed)

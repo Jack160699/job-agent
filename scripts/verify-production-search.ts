@@ -7,7 +7,8 @@ import {
 } from "../src/lib/jobs/background";
 
 async function main() {
-  const email = "jobagent.test.2026@gmail.com";
+  const email = process.env.E2E_TEST_EMAIL;
+  if (!email) throw new Error("Set E2E_TEST_EMAIL for verify-production-search");
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new Error("Test user not found");
 

@@ -1,12 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { SAMPLE_RESUME } from "./fixtures";
-import { createConfirmedUser, deleteUserByEmail } from "./helpers/auth";
+import {
+  createConfirmedUser,
+  deleteUserByEmail,
+} from "./helpers/auth";
 
 test.describe("Full Application Workflow", () => {
   const user = {
     fullName: "Workflow Test User",
     email: `qa.workflow.${Date.now()}@jobagent-e2e.test`,
-    password: "QATestPass123!Secure",
+    password:
+      process.env.E2E_EPHEMERAL_PASSWORD ||
+      `QaEphemeral_${Date.now()}_${Math.random().toString(36).slice(2, 10)}!`,
   };
 
   test.beforeAll(async () => {

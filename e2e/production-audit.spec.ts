@@ -4,6 +4,8 @@ import {
   createConfirmedUser,
   confirmUserByEmail,
   deleteUserByEmail,
+  getSharedE2ECredentials,
+  loginWithSharedAccount,
 } from "./helpers/auth";
 import { getProductionBaseUrl } from "./helpers/production";
 
@@ -114,10 +116,11 @@ test.describe("Phase 2: Authentication", () => {
   });
 
   test("duplicate email shows error", async ({ page }) => {
+    const { email, password } = getSharedE2ECredentials();
     await page.goto("/signup");
     await page.getByLabel("Full Name").fill("Dup User");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Create Account" }).click();
     await expect(
       page.getByText(/already registered|already exists|User already/i)
@@ -128,11 +131,7 @@ test.describe("Phase 2: Authentication", () => {
 
 test.describe("Phase 3: Dashboard Pages", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
   });
 
   const pages = [
@@ -165,11 +164,7 @@ test.describe("Phase 3: Dashboard Pages", () => {
 
 test.describe("Phase 4: Resume Pipeline", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
   });
 
   test("upload master resume", async ({ page }) => {
@@ -198,11 +193,7 @@ test.describe("Phase 4: Resume Pipeline", () => {
 
 test.describe("Phase 6: Job Pipeline", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill("jobagent.test.2026@gmail.com");
-    await page.getByLabel("Password").fill("TestPass123!Secure");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+    await loginWithSharedAccount(page);
   });
 
   test("search jobs API works", async ({ page }) => {

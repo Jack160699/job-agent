@@ -6,7 +6,7 @@ async function main() {
     const user = await p.user.create({
       data: {
         supabaseId: "f18280df-7557-432f-b23d-b8e2670b046b",
-        email: "jobagent.test.2026@gmail.com",
+        email: process.env.E2E_TEST_EMAIL || `qa.manual.${Date.now()}@jobagent-e2e.test`,
         fullName: "Test User",
         settings: {
           create: {

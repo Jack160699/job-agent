@@ -1,4 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
+
+/** Shared production fixture account — credentials must come from env, never the repo. */
+export function getSharedE2ECredentials() {
+  const email = process.env.E2E_TEST_EMAIL;
+  const password = process.env.E2E_TEST_PASSWORD;
+  if (!email || !password) {
+    throw new Error(
+      "Set E2E_TEST_EMAIL and E2E_TEST_PASSWORD for authenticated Playwright runs."
+    );
+  }
+  return { email, password };
+}
+
+export async function loginWithSharedAccount(page: Page) {
+  const { email, password } = getSharedE2ECredentials();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: /Sign In/i }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+}
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

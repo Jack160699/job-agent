@@ -15,7 +15,7 @@ if (existsSync(envPath)) {
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-async function signup(email) {
+async function signup(email, password) {
   const res = await fetch(`${url}/auth/v1/signup`, {
     method: "POST",
     headers: {
@@ -24,7 +24,7 @@ async function signup(email) {
     },
     body: JSON.stringify({
       email,
-      password: "QATestPass123!Secure",
+      password,
       data: { full_name: "QA Test User" },
     }),
   });
@@ -33,8 +33,14 @@ async function signup(email) {
 }
 
 async function main() {
-  await signup(`qa.jobagent.${Date.now()}@jobagent-e2e.test`);
-  await signup("jobagent.test.2026@gmail.com");
+  const password =
+    process.env.E2E_EPHEMERAL_PASSWORD ||
+    `QaEphemeral_${Date.now()}_${Math.random().toString(36).slice(2, 10)}!`;
+  await signup(`qa.jobagent.${Date.now()}@jobagent-e2e.test`, password);
+
+  if (process.env.E2E_TEST_EMAIL && process.env.E2E_TEST_PASSWORD) {
+    await signup(process.env.E2E_TEST_EMAIL, process.env.E2E_TEST_PASSWORD);
+  }
 }
 
 main();
