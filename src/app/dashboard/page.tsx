@@ -8,6 +8,7 @@ import { getDashboardStats, getRecentApplications, getUpcomingInterviews } from 
 import { formatRelativeTime } from "@/lib/utils";
 import { AgentRunButton } from "@/components/dashboard/agent-run-button";
 import { ProactiveRecommendations } from "@/components/proactive/proactive-recommendations";
+import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 
 export default async function DashboardOverview() {
   const [stats, recentApps, interviews] = await Promise.all([
@@ -24,6 +25,7 @@ export default async function DashboardOverview() {
         actions={
           <div className="flex gap-2">
             <AgentRunButton />
+            <JobLinkImportButton compact />
             <Link href="/dashboard/jobs">
               <Button variant="outline" size="sm" className="gap-1.5">
                 <Search className="h-3.5 w-3.5" />

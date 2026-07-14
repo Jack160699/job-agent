@@ -6,6 +6,7 @@ import { MessageCircle, X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 
 interface ChatMessage {
   id: string;
@@ -21,6 +22,16 @@ export function ConsultantFab() {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string }>).detail;
+      setOpen(true);
+      if (detail?.prompt) setInput(detail.prompt);
+    };
+    window.addEventListener("kairela:open", handleOpen);
+    return () => window.removeEventListener("kairela:open", handleOpen);
+  }, []);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -99,11 +110,14 @@ export function ConsultantFab() {
             "md:inset-auto md:bottom-24 md:right-6 md:h-[480px] md:w-[380px] md:rounded-[var(--radius)]"
           )}
         >
-          <div className="border-b border-[var(--line)] px-4 py-3">
-            <h2 className="text-sm font-semibold">Kairela Career Consultant</h2>
-            <p className="text-xs text-[var(--ink-tertiary)]">
-              Ask about your search, preferences, or next steps
-            </p>
+          <div className="flex items-start justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">Kairela Career Consultant</h2>
+              <p className="text-xs text-[var(--ink-tertiary)]">
+                Ask about your search, preferences, or next steps
+              </p>
+            </div>
+            <JobLinkImportButton compact />
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">

@@ -1,18 +1,22 @@
 {
   "status": "in_progress",
-  "currentWorkstream": "1 — Product-wide completeness audit",
-  "completedWorkstreams": [],
+  "currentWorkstream": "3 — Live Kairela AI assistant",
+  "completedWorkstreams": [
+    "1 — Product-wide completeness audit",
+    "2 — Job link intake"
+  ],
   "failedChecks": [
-    "Production still runs deployment dpl_DqrLhkbbmKXyd9pkVsX4Xv5sb7SX and does not yet include the account-provisioning race fix.",
-    "Production E2E and browser audit are pending for the audit-fix deployment."
+    "Zero-retry production Playwright: 57 passed, 33 failed, 2 did not run. Most authenticated failures are caused by Supabase project restriction exceed_egress_quota.",
+    "Landing hero E2E assertion fixed locally; re-verify after next production Playwright run."
   ],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
     "Final human acceptance testing only after explicit approval.",
-    "Supabase leaked-password protection and additional MFA methods require dashboard configuration."
+    "Supabase leaked-password protection and additional MFA methods require dashboard configuration.",
+    "Supabase Auth is restricted by exceed_egress_quota; authenticated production verification requires upgrading the project or removing its spend cap."
   ],
-  "lastSuccessfulCommit": "7514afd67fed9d2bbb74173a0e49a7eb2d8a03cc",
-  "lastDeploymentId": "dpl_DqrLhkbbmKXyd9pkVsX4Xv5sb7SX",
+  "lastSuccessfulCommit": "pending_push",
+  "lastDeploymentId": "pending_deploy",
   "lastVerifiedProductionUrl": "https://job-agent-mu-steel.vercel.app",
-  "updatedAt": "2026-07-14T18:45:00.000Z"
+  "updatedAt": "2026-07-15T00:58:00.000Z"
 }

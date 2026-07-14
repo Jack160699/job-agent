@@ -4,7 +4,7 @@ test.describe("Landing Page", () => {
   test("renders hero section", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "Apply to the right jobs"
+      "Kairela manages your job search"
     );
   });
 

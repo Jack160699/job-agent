@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getApplications } from "@/lib/data/dashboard";
 import { ClipboardList } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 
 export default async function ApplicationsPage() {
   const applications = await getApplications();
@@ -14,6 +15,7 @@ export default async function ApplicationsPage() {
       <DashboardHeader
         title="Application Tracker"
         description="Track every job application and its status"
+        actions={<JobLinkImportButton compact />}
       />
 
       {applications.length === 0 ? (

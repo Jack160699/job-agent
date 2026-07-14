@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { JobsPageClient } from "@/components/dashboard/jobs-page-client";
 import prisma from "@/lib/db";
 import { getDbUser } from "@/lib/auth/server";
+import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 
 export default async function JobsPage({
   searchParams,
@@ -48,6 +49,7 @@ export default async function JobsPage({
       <DashboardHeader
         title="Job Search"
         description="Jobs matched to your preferences"
+        actions={<JobLinkImportButton />}
       />
 
       <JobsPageClient
