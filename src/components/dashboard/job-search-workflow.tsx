@@ -10,7 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Settings2,
-  RefreshCw,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -135,6 +135,30 @@ export function JobSearchWorkflow({
     }
   };
 
+  const cancelRun = async () => {
+    try {
+      const response = await fetch("/api/jobs/search", { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Search cancellation failed");
+      }
+      doneRef.current = true;
+      stopPolling();
+      setRunning(false);
+      setError(
+        data.cancelled
+          ? "Search cancelled. Results already saved remain available."
+          : "No active search was found."
+      );
+    } catch (cancelError) {
+      toast.error(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "Search cancellation failed"
+      );
+    }
+  };
+
   useEffect(() => () => stopPolling(), [stopPolling]);
 
   useEffect(() => {
@@ -234,6 +258,16 @@ export function JobSearchWorkflow({
             <Button
               type="button"
               variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1 text-[var(--ink-tertiary)]"
+              onClick={() => void cancelRun()}
+            >
+              <Square className="h-3 w-3" />
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
               size="icon"
               className="h-8 w-8 shrink-0"
               onClick={() => setExpanded((e) => !e)}
@@ -265,9 +299,13 @@ export function JobSearchWorkflow({
 
       {error && (
         <ErrorCallout
-          title="Search stalled"
+          title={error.startsWith("Search cancelled") ? "Search stopped" : "Search stalled"}
           what={error}
-          fix="Check your preferences and try again. The queue may be recovering."
+          fix={
+            error.startsWith("Search cancelled")
+              ? "Start a new search whenever you are ready."
+              : "Check your preferences and try again. The queue may be recovering."
+          }
           onRetry={startRun}
           retrying={running}
         />

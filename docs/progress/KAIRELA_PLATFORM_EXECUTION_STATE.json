@@ -1,6 +1,6 @@
 {
   "status": "in_progress",
-  "currentWorkstream": 6,
+  "currentWorkstream": 7,
   "lastCompletedWorkstream": 5,
   "completedWorkstreams": [
     "0 — Complete product audit",
@@ -9,7 +9,7 @@
     "3 — Public job-link intake",
     "5 — Proactive career relationship manager"
   ],
-  "currentCheckpoint": "WS5 validated and committed. Starting WS6 job-seeker journey recovery audit. WS4 tool-enabled assistant foundation exists but conversation management and confirmed write tools remain.",
+  "currentCheckpoint": "WS6 recovery/security slice validated: fail-closed APIs, explicit submission authorization, idempotent browser tasks, cooperative search cancellation, and non-reloading resume/application actions. Full journey remains dependent on WS8/9/10.",
   "failedChecks": [],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
@@ -20,7 +20,7 @@
   "manualActions": [
     "Set BROWSER_WORKER_TOKEN in production and worker runtime.",
     "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
-    "Apply migration 20260715100000_rate_limits.sql to production database."
+    "Apply migrations 20260715100000_rate_limits.sql, 20260715113000_proactive_recommendations_v2.sql, and 20260715120000_browser_task_idempotency.sql to production database."
   ],
   "lastSuccessfulCommit": "31c0160",
   "lastPreviewDeployment": "No platform-branch preview found; latest project deployment dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j is product-v1 commit 9631599.",

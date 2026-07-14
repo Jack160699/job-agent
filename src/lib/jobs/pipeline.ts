@@ -80,7 +80,16 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   }
 
   const progress = async (stage: Parameters<typeof updateJobProgress>[1], meta?: Record<string, unknown>) => {
-    if (backgroundJobId) await updateJobProgress(backgroundJobId, stage, meta);
+    if (backgroundJobId) {
+      const active = await prisma.backgroundJob.findUnique({
+        where: { id: backgroundJobId },
+        select: { status: true },
+      });
+      if (active?.status === "cancelled") {
+        throw new Error("JOB_CANCELLED");
+      }
+      await updateJobProgress(backgroundJobId, stage, meta);
+    }
   };
 
   await progress("validating_preferences");

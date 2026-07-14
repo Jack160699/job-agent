@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function ResumeUploadForm() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("Master Resume");
   const [content, setContent] = useState("");
@@ -29,7 +31,8 @@ export function ResumeUploadForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       toast.success("Resume uploaded successfully");
-      window.location.reload();
+      setContent("");
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {

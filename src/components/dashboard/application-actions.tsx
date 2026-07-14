@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FileDown, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function ApplicationActions({
   applicationId,
@@ -13,6 +14,7 @@ export function ApplicationActions({
   status: string;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
+  const router = useRouter();
 
   const downloadPdf = async () => {
     setLoading("pdf");
@@ -35,17 +37,24 @@ export function ApplicationActions({
   };
 
   const prepareSubmit = async (autoSubmit: boolean) => {
+    const confirmed =
+      !autoSubmit ||
+      window.confirm(
+        "Submit this application now?\n\nConfirm only after reviewing every answer and document. Kairela will not invent missing information or bypass login and CAPTCHA steps."
+      );
+    if (!confirmed) return;
+
     setLoading(autoSubmit ? "submit" : "prepare");
     try {
       const res = await fetch(`/api/applications/${applicationId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoSubmit }),
+        body: JSON.stringify({ autoSubmit, confirmed }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
       toast.success(data.message || "Application prepared");
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Action failed");
     } finally {
@@ -77,7 +86,7 @@ export function ApplicationActions({
             className="gap-1"
           >
             <Send className="h-3 w-3" />
-            Prepare
+            {loading === "prepare" ? "Preparing…" : "Prepare"}
           </Button>
           <Button
             size="sm"
@@ -86,7 +95,7 @@ export function ApplicationActions({
             className="gap-1"
           >
             <Send className="h-3 w-3" />
-            Submit
+            {loading === "submit" ? "Submitting…" : "Submit"}
           </Button>
         </>
       )}

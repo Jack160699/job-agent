@@ -10,16 +10,4 @@ export async function resolveApiUser() {
   return user;
 }
 
-export async function resolveApiUserDev() {
-  try {
-    return await resolveApiUser();
-  } catch {
-    if (process.env.NODE_ENV === "development") {
-      const { getOrCreateUser } = await import("@/lib/jobs/pipeline");
-      return getOrCreateUser("dev-user", "dev@localhost");
-    }
-    throw new Error("Unauthorized");
-  }
-}
-
 export { createAuditLog, prisma };

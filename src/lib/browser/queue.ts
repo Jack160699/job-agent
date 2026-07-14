@@ -14,6 +14,19 @@ export async function enqueueBrowserTask(input: {
   platform?: string;
   payload?: Record<string, unknown>;
 }) {
+  if (input.applicationId) {
+    const existing = await prisma.browserTask.findFirst({
+      where: {
+        userId: input.userId,
+        applicationId: input.applicationId,
+        type: input.type,
+        status: { in: ["pending", "running"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) return existing;
+  }
+
   return prisma.browserTask.create({
     data: {
       userId: input.userId,

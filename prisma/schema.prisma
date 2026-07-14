@@ -524,6 +524,7 @@ model BrowserTask {
 
   @@index([status, scheduledAt])
   @@index([userId, status])
+  @@index([userId, applicationId, type, status])
   @@map("browser_tasks")
 }
 

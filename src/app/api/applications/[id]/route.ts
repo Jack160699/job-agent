@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
-import { resolveApiUserDev, prisma } from "@/lib/api/auth";
+import { resolveApiUser, prisma } from "@/lib/api/auth";
 import { prepareApplicationSubmission } from "@/lib/agent/orchestrator";
+import { validateSubmissionAuthorization } from "@/lib/applications/action-policy";
+
+const actionSchema = z.object({
+  autoSubmit: z.boolean().default(false),
+  confirmed: z.boolean().default(false),
+});
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const { id } = await params;
     const application = await prisma.application.findFirst({
       where: { id, userId: user.id },
@@ -24,7 +31,10 @@ export async function GET(
     return NextResponse.json(application);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Unauthorized" ? 401 : 500 }
+    );
   }
 }
 
@@ -36,15 +46,42 @@ export async function POST(
   if (limited) return limited;
 
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const { id } = await params;
-    const body = await request.json();
+    const parsed = actionSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid application action." },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
+    const authorization = validateSubmissionAuthorization(body);
+    if (!authorization.allowed) {
+      return NextResponse.json(
+        {
+          error: authorization.message,
+          code: authorization.code,
+        },
+        { status: 409 }
+      );
+    }
     const result = await prepareApplicationSubmission(user.id, id, {
-      autoSubmit: body.autoSubmit === true,
+      autoSubmit: body.autoSubmit,
     });
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Submit failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      {
+        status:
+          message === "Unauthorized"
+            ? 401
+            : message === "Application not found"
+              ? 404
+              : 500,
+      }
+    );
   }
 }

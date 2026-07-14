@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiUserDev, prisma } from "@/lib/api/auth";
+import { resolveApiUser, prisma } from "@/lib/api/auth";
 import { generateResumePdf } from "@/lib/pdf/resume-pdf";
 
 export async function GET(
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const { id } = await params;
 
     const application = await prisma.application.findFirst({

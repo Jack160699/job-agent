@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
-import { resolveApiUserDev, createAuditLog, prisma } from "@/lib/api/auth";
+import { resolveApiUser, createAuditLog, prisma } from "@/lib/api/auth";
+
+const resumeSchema = z.object({
+  title: z.string().trim().min(1).max(120).default("Master Resume"),
+  rawText: z.string().trim().min(80).max(200_000),
+});
 
 function extractSkills(text: string): string[] {
   const commonSkills = [
@@ -17,13 +23,13 @@ function extractSkills(text: string): string[] {
 
 export async function GET() {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const resume = await prisma.masterResume.findUnique({
       where: { userId: user.id },
     });
     return NextResponse.json(resume);
   } catch {
-    return NextResponse.json(null);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 
@@ -32,15 +38,19 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
 
   try {
-    const user = await resolveApiUserDev();
-    const { title, rawText } = await request.json();
-
-    if (!rawText?.trim()) {
+    const user = await resolveApiUser();
+    const parsed = resumeSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Resume content is required" },
+        {
+          error:
+            parsed.error.issues[0]?.message ??
+            "Resume content must contain at least 80 characters.",
+        },
         { status: 400 }
       );
     }
+    const { title, rawText } = parsed.data;
 
     const skills = extractSkills(rawText);
 
@@ -48,14 +58,14 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id },
       create: {
         userId: user.id,
-        title: title || "Master Resume",
+        title,
         content: { sections: [] },
         rawText,
         skills,
         version: 1,
       },
       update: {
-        title: title || "Master Resume",
+        title,
         rawText,
         skills,
         version: { increment: 1 },

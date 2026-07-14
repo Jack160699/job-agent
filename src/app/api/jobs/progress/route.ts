@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { resolveApiUser } from "@/lib/api/auth";
 import { getJobRunProgress } from "@/lib/jobs/progress";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const type = request.nextUrl.searchParams.get("type") as
       | "SEARCH_JOBS"
       | "RUN_AGENT"

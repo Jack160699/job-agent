@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { resolveApiUser } from "@/lib/api/auth";
 import { runAutonomousAgent } from "@/lib/agent/orchestrator";
 import { enqueueJob } from "@/lib/jobs/background";
 
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
 
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const asyncMode =
       request.nextUrl.searchParams.get("async") === "true" ||
       request.headers.get("x-async-agent") === "true";
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent run failed";
     if (message === "Agent timed out") {
-      const user = await resolveApiUserDev().catch(() => null);
+      const user = await resolveApiUser().catch(() => null);
       if (user) await enqueueJob("RUN_AGENT", { userId: user.id });
       return NextResponse.json({ queued: true, status: "pending", message });
     }

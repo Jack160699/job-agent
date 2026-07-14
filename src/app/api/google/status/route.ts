@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { resolveApiUser } from "@/lib/api/auth";
 import {
   disconnectGoogle,
   isGoogleConnected,
@@ -13,7 +13,7 @@ import prisma from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const connected = await isGoogleConnected(user.id);
     const settings = await prisma.userSettings.findUnique({
       where: { userId: user.id },
@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
       },
       apis,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json({
       connected: false,
       email: null,
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const body = await request.json();
     const { action } = body;
 
@@ -86,6 +89,7 @@ export async function POST(request: Request) {
           gmailSyncEnabled: false,
           sheetsSyncEnabled: false,
           calendarSyncEnabled: false,
+          driveBackupEnabled: false,
         },
       });
       return NextResponse.json({ connected: false });
@@ -108,6 +112,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Unauthorized" ? 401 : 500 }
+    );
   }
 }

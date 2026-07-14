@@ -39,3 +39,19 @@
 - Typecheck: passed.
 - Lint: passed with 9 pre-existing warnings.
 - Production build: passed (51 routes).
+
+## 2026-07-15 — Workstream 6 recovery checkpoint
+
+- Removed the development fallback user from every product API; authenticated APIs now fail closed.
+- Added explicit confirmation enforcement before application submission.
+- Added per-user/application browser-task deduplication and removed task IDs from user-facing messages.
+- Added cooperative job-search cancellation without discarding results already saved.
+- Replaced full-page reloads in resume and application actions with route refreshes.
+- Added strict resume payload validation and consistent unauthorized responses.
+- Added security tests for submission authorization and Playwright coverage for unauthenticated workflow APIs.
+
+### Verification
+- Unit tests: 55 passed.
+- Typecheck: passed.
+- Lint: passed with 8 pre-existing warnings.
+- Production build: passed (51 routes).

@@ -231,7 +231,7 @@ export async function prepareApplicationSubmission(
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: "PENDING_REVIEW",
+        status: options?.autoSubmit ? "SUBMITTING" : "PENDING_REVIEW",
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
@@ -269,8 +269,12 @@ export async function prepareApplicationSubmission(
     });
     return {
       success: true,
-      status: "pending_review" as const,
-      message: `Browser automation queued (task ${task.id})`,
+      status: options?.autoSubmit
+        ? ("submitting" as const)
+        : ("pending_review" as const),
+      message: options?.autoSubmit
+        ? "Authorized submission queued. You can leave this page and track progress here."
+        : "Application preparation queued. Kairela will stop for your review.",
       formData: { browserTaskId: task.id },
     };
   }
