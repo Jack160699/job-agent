@@ -1,9 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { isAdminUser } from "@/lib/auth/admin";
 import { recoverStaleJobs } from "@/lib/jobs/background";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.admin,
+    keyPrefix: "admin-queue",
+  });
+  if (limited) return limited;
+
   if (!(await isAdminUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -58,7 +65,13 @@ export async function GET() {
   });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.admin,
+    keyPrefix: "admin-queue",
+  });
+  if (limited) return limited;
+
   if (!(await isAdminUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

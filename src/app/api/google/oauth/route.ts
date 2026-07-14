@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { resolveApiUser } from "@/lib/api/auth";
 import {
   getAuthUrl,
   type GoogleIntegrationFeature,
 } from "@/lib/google/oauth";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.auth,
+    keyPrefix: "google-oauth",
+  });
+  if (limited) return limited;
+
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const scopesParam = request.nextUrl.searchParams.get("scopes") || "gmail";
     const features = scopesParam
       .split(",")
@@ -18,6 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ url, features });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

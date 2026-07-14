@@ -1,11 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/auth/server";
 import {
   generateProactiveRecommendations,
   getActiveRecommendations,
 } from "@/lib/proactive/service";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.default,
+    keyPrefix: "recommendations",
+  });
+  if (limited) return limited;
+
   const user = await getDbUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

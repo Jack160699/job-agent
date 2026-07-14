@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { getOrCreateUser } from "@/lib/jobs/pipeline";
+import { isSafeInternalRedirect } from "@/lib/security/oauth-state";
 import prisma from "@/lib/db";
 
 function buildRedirectUrl(request: Request, path: string): string {
@@ -22,7 +23,8 @@ function buildRedirectUrl(request: Request, path: string): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const nextParam = searchParams.get("next") ?? "/dashboard";
+  const next = isSafeInternalRedirect(nextParam) ? nextParam : "/dashboard";
   const oauthError = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 

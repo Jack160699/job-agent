@@ -1,0 +1,26 @@
+{
+  "status": "in_progress",
+  "currentWorkstream": 1,
+  "lastCompletedWorkstream": 0,
+  "completedWorkstreams": [
+    "0 — Complete product audit"
+  ],
+  "currentCheckpoint": "P0 security fixes implemented; running validation",
+  "failedChecks": [],
+  "externalBlockers": [
+    "Attach and configure kairela.com only after explicit approval.",
+    "Final human acceptance testing only after explicit approval.",
+    "Supabase exceed_egress_quota blocks authenticated production E2E.",
+    "Rotate previous shared E2E account password in Supabase Auth."
+  ],
+  "manualActions": [
+    "Set BROWSER_WORKER_TOKEN in production and worker runtime.",
+    "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
+    "Apply migration 20260715100000_rate_limits.sql to production database."
+  ],
+  "lastSuccessfulCommit": "",
+  "lastPreviewDeployment": "",
+  "landingPageBranch": "feat/kairela-product-v1 (uncommitted landing work in main worktree)",
+  "landingPageIntegrationStatus": "pending",
+  "updatedAt": "2026-07-15T02:10:00.000Z"
+}

@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import prisma from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/security/encryption";
+import { createSignedOAuthState } from "@/lib/security/oauth-state";
 import { getGoogleOAuthRedirectUri } from "@/lib/brand/urls";
 
 /** Identity-only scopes are handled by Supabase Auth — not this module. */
@@ -46,9 +47,7 @@ export function getAuthUrl(userId: string, features: GoogleIntegrationFeature[])
   }
 
   const client = getGoogleOAuthClient();
-  const state = Buffer.from(
-    JSON.stringify({ userId, features })
-  ).toString("base64url");
+  const state = createSignedOAuthState({ userId, features });
 
   return client.generateAuthUrl({
     access_type: "offline",

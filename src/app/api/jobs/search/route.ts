@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { searchJobs } from "@/lib/jobs/pipeline";
 import { resolveApiUserDev } from "@/lib/api/auth";
 import {
@@ -13,7 +13,7 @@ import prisma from "@/lib/db";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  const limited = rateLimit(request);
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
   if (limited) return limited;
 
   try {

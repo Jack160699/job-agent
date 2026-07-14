@@ -1,9 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/auth/server";
 import { chatWithConsultant } from "@/lib/consultant/service";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.aiChat,
+    keyPrefix: "consultant-chat",
+  });
+  if (limited) return limited;
+
   const user = await getDbUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

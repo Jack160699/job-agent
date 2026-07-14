@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveApiUser } from "@/lib/api/auth";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import {
   importJobLink,
   JobImportError,
@@ -21,7 +21,7 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const limited = rateLimit(request);
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobImport);
   if (limited) return limited;
 
   try {

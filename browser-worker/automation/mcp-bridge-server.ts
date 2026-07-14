@@ -1,9 +1,20 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { PlaywrightEngine } from "../playwright/engine";
+import {
+  getBrowserMcpBindHost,
+  requireBrowserWorkerToken,
+  verifyBrowserWorkerBearer,
+} from "../../src/lib/security/browser-worker-auth";
 
 const engine = new PlaywrightEngine();
 const PORT = Number(process.env.BROWSER_MCP_PORT || 3847);
-const AUTH_TOKEN = process.env.BROWSER_WORKER_TOKEN || "";
+
+try {
+  requireBrowserWorkerToken();
+} catch (error) {
+  console.error("[MCP Bridge] startup blocked:", error instanceof Error ? error.message : error);
+  process.exit(1);
+}
 
 type Handler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -118,12 +129,9 @@ export function startMcpBridgeServer() {
       return;
     }
 
-    if (AUTH_TOKEN) {
-      const auth = req.headers.authorization?.replace("Bearer ", "");
-      if (auth !== AUTH_TOKEN) {
-        send(res, 401, { error: "Unauthorized" });
-        return;
-      }
+    if (!verifyBrowserWorkerBearer(req.headers.authorization || null)) {
+      send(res, 401, { error: "Unauthorized" });
+      return;
     }
 
     const url = new URL(req.url || "/", `http://localhost:${PORT}`);
@@ -156,8 +164,9 @@ export function startMcpBridgeServer() {
     }
   });
 
-  server.listen(PORT, () => {
-    console.log(`[MCP Bridge] listening on http://0.0.0.0:${PORT}`);
+  const bindHost = getBrowserMcpBindHost();
+  server.listen(PORT, bindHost, () => {
+    console.log(`[MCP Bridge] listening on http://${bindHost}:${PORT}`);
     console.log(`[MCP Bridge] Actions: ${Object.keys(routes).join(", ")}`);
   });
 

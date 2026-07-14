@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUserDev, createAuditLog, prisma } from "@/lib/api/auth";
 
 export async function GET() {
@@ -15,7 +15,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const limited = rateLimit(request);
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.default);
   if (limited) return limited;
 
   try {
