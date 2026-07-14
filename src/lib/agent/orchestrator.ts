@@ -181,23 +181,26 @@ export async function prepareApplicationSubmission(
   });
 
   if (!application) throw new Error("Application not found");
+  if (!application.tailoredResume || !application.coverLetter) {
+    throw new Error(
+      "Generate tailored resume and cover letter before preparing this application"
+    );
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  const resumeText =
-    application.tailoredResume?.rawText ||
-    (await prisma.masterResume.findUnique({ where: { userId } }))?.rawText ||
-    "";
+  const resumeText = application.tailoredResume.rawText;
 
   const pdf = await generateResumePdf({
-    title: application.tailoredResume?.title || "Resume",
+    title: application.tailoredResume.title || "Resume",
     rawText: resumeText,
-    skills: application.tailoredResume
-      ? undefined
-      : (await prisma.masterResume.findUnique({ where: { userId } }))?.skills,
-    highlights: application.tailoredResume?.highlights,
+    highlights: application.tailoredResume.highlights,
   });
 
+  // Prefer Drive URL if available; never treat OS temp paths as durable artifacts.
   let fileUrl = application.tailoredResume?.fileUrl;
+  if (fileUrl && (fileUrl.includes(tmpdir()) || fileUrl.startsWith("/tmp"))) {
+    fileUrl = null;
+  }
   const tmpDir = join(tmpdir(), "job-agent");
   await mkdir(tmpDir, { recursive: true });
   const pdfPath = join(
@@ -209,9 +212,8 @@ export async function prepareApplicationSubmission(
   if (application.tailoredResume) {
     await prisma.tailoredResume.update({
       where: { id: application.tailoredResume.id },
-      data: { fileUrl: pdfPath },
+      data: { fileUrl: fileUrl ?? null },
     });
-    fileUrl = pdfPath;
   }
 
   if (await isGoogleConnected(userId)) {

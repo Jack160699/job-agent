@@ -19,7 +19,7 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 3 | Public job-link intake | Complete (inherited) |
 | 4 | Live Kairela AI career agent | **Complete (code)** — conversations, proposals, confirm route; streaming endpoint exists |
 | 5 | Proactive career relationship manager | **Complete** |
-| 6 | Complete job-seeker journey | Partial — recovery, docs, ATS and Google slices landed; end-to-end journey still needs RC validation |
+| 6 | Complete job-seeker journey | **Complete (core loop)** — Generate docs, prepare gate, browser poll, agent resume; inbox/interview manual create remain polish |
 | 7 | Search quality and relevance | **Complete** |
 | 8 | Resume and document intelligence | **Complete** |
 | 9 | Application agent and ATS automation | **Complete** — policy + no invented answers + no scheduled auto-submit |

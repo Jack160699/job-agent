@@ -427,10 +427,18 @@ export async function matchJob(userId: string, jobId: string) {
   return { analysis, status };
 }
 
-export async function processApplication(userId: string, applicationId: string) {
+export async function processApplication(
+  userId: string,
+  applicationId: string,
+  options?: { force?: boolean }
+) {
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
-    include: { job: true },
+    include: {
+      job: true,
+      tailoredResume: true,
+      coverLetter: true,
+    },
   });
   if (!application) throw new Error("Application not found");
 
@@ -438,6 +446,22 @@ export async function processApplication(userId: string, applicationId: string) 
     where: { userId },
   });
   if (!masterResume) throw new Error("Master resume required");
+
+  if (
+    !options?.force &&
+    application.tailoredResume &&
+    application.coverLetter &&
+    ["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "SUBMITTING", "SUBMITTED"].includes(
+      application.status
+    )
+  ) {
+    return {
+      tailoredResume: application.tailoredResume,
+      coverLetter: application.coverLetter,
+      status: application.status,
+      reused: true,
+    };
+  }
 
   await assertCanUseFeature(userId, "resume_tailor");
 
@@ -478,16 +502,9 @@ export async function processApplication(userId: string, applicationId: string) 
     highlights: tailored.highlights,
   });
 
-  const { generateResumePdf } = await import("@/lib/pdf/resume-pdf");
-  const pdf = await generateResumePdf({
-    title: tailored.title,
-    rawText: tailored.rawText,
-    skills: tailored.skills,
-    highlights: tailored.highlights,
-  });
-
-  await prisma.tailoredResume.create({
-    data: {
+  const tailoredResume = await prisma.tailoredResume.upsert({
+    where: { applicationId: application.id },
+    create: {
       userId,
       masterResumeId: masterResume.id,
       jobId: job.id,
@@ -499,21 +516,32 @@ export async function processApplication(userId: string, applicationId: string) 
       highlights: tailored.highlights,
       fileUrl: null,
     },
+    update: {
+      title: tailored.title,
+      content: tailored as Prisma.InputJsonValue,
+      rawText: tailored.rawText,
+      matchScore: application.matchScore,
+      highlights: tailored.highlights,
+      fileUrl: null,
+    },
   });
 
-  const tailoredResume = await prisma.tailoredResume.findFirst({
+  const savedCoverLetter = await prisma.coverLetter.upsert({
     where: { applicationId: application.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  await prisma.coverLetter.create({
-    data: {
+    create: {
       userId,
       jobId: job.id,
       applicationId: application.id,
       title: coverLetter.title,
       content: coverLetter.content,
       tone: coverLetter.tone,
+      version: 1,
+    },
+    update: {
+      title: coverLetter.title,
+      content: coverLetter.content,
+      tone: coverLetter.tone,
+      version: { increment: 1 },
     },
   });
 
@@ -523,7 +551,10 @@ export async function processApplication(userId: string, applicationId: string) 
 
   await prisma.application.update({
     where: { id: applicationId },
-    data: { status: newStatus },
+    data: {
+      status: newStatus,
+      failureReason: null,
+    },
   });
 
   await createAuditLog({
@@ -536,10 +567,17 @@ export async function processApplication(userId: string, applicationId: string) 
   });
 
   await recordUsage(userId, "resume_tailor", 1, {
-    idempotencyKey: `resume_tailor:${applicationId}`,
+    idempotencyKey: options?.force
+      ? `resume_tailor:${applicationId}:v${savedCoverLetter.version}`
+      : `resume_tailor:${applicationId}`,
   });
 
-  return { tailoredResume, coverLetter, status: newStatus };
+  return {
+    tailoredResume,
+    coverLetter: savedCoverLetter,
+    status: newStatus,
+    reused: false,
+  };
 }
 
 export async function runFullPipeline(userId: string, jobId: string) {

@@ -170,7 +170,7 @@ export function ConsultantFab() {
         <div
           className={cn(
             "fixed z-50 flex flex-col border border-[var(--line)] bg-[var(--surface)] shadow-xl",
-            "inset-x-0 bottom-0 max-h-[70dvh] rounded-t-[var(--radius)]",
+            "inset-x-0 bottom-[calc(var(--bottom-nav-height,56px)+env(safe-area-inset-bottom))] max-h-[70dvh] rounded-t-[var(--radius)]",
             "md:inset-auto md:bottom-24 md:right-6 md:h-[480px] md:w-[380px] md:rounded-[var(--radius)]"
           )}
         >

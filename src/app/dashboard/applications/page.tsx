@@ -51,6 +51,7 @@ export default async function ApplicationsPage() {
                       applicationId={app.id}
                       status={app.status}
                       failureReason={app.failureReason}
+                      hasDocuments={Boolean(app.tailoredResume && app.coverLetter)}
                       browserTaskId={
                         ((app.documents as { browserTaskId?: string } | null)
                           ?.browserTaskId) ?? null
@@ -99,6 +100,7 @@ export default async function ApplicationsPage() {
                         applicationId={app.id}
                         status={app.status}
                         failureReason={app.failureReason}
+                        hasDocuments={Boolean(app.tailoredResume && app.coverLetter)}
                         browserTaskId={
                           ((app.documents as { browserTaskId?: string } | null)
                             ?.browserTaskId) ?? null

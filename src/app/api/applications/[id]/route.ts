@@ -92,7 +92,9 @@ export async function POST(
             ? 401
             : message === "Application not found"
               ? 404
-              : 500,
+              : message.includes("Generate tailored")
+                ? 422
+                : 500,
       }
     );
   }

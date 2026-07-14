@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { FileDown, Send, Square } from "lucide-react";
+import { FileDown, FileText, Send, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,11 +11,13 @@ export function ApplicationActions({
   status,
   failureReason,
   browserTaskId,
+  hasDocuments = false,
 }: {
   applicationId: string;
   status: string;
   failureReason?: string | null;
   browserTaskId?: string | null;
+  hasDocuments?: boolean;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
@@ -102,7 +104,41 @@ export function ApplicationActions({
     }
   };
 
+  const generateDocs = async (force = false) => {
+    setLoading(force ? "regenerate" : "generate");
+    try {
+      const res = await fetch("/api/jobs/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "process",
+          applicationId,
+          force,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Document generation failed");
+      toast.success(
+        data.reused
+          ? "Existing tailored documents are ready for review"
+          : force
+            ? "Documents regenerated"
+            : "Tailored resume and cover letter generated"
+      );
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Generation failed");
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const prepareSubmit = async (autoSubmit: boolean) => {
+    if (!hasDocuments) {
+      toast.error("Generate tailored documents before preparing or submitting.");
+      return;
+    }
+
     const confirmed =
       !autoSubmit ||
       window.confirm(
@@ -128,13 +164,15 @@ export function ApplicationActions({
     }
   };
 
-  const actionable = [
-    "PENDING_REVIEW",
-    "RESUME_GENERATED",
-    "COVER_LETTER_GENERATED",
-    "MATCHED",
-    "FAILED",
-  ].includes(status);
+  const terminal = ["SUBMITTING", "SUBMITTED", "WITHDRAWN", "ACCEPTED"].includes(
+    status
+  );
+  const showGenerate = !terminal;
+  const canPrepare =
+    hasDocuments &&
+    ["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "FAILED"].includes(
+      status
+    );
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -143,7 +181,7 @@ export function ApplicationActions({
           size="sm"
           variant="outline"
           onClick={downloadPdf}
-          disabled={!!loading}
+          disabled={!!loading || !hasDocuments}
           className="gap-1"
         >
           <FileDown className="h-3 w-3" />
@@ -161,7 +199,23 @@ export function ApplicationActions({
             {loading === "cancel" ? "Cancelling…" : "Cancel"}
           </Button>
         )}
-        {actionable && (
+        {showGenerate && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void generateDocs(hasDocuments)}
+            disabled={!!loading}
+            className="gap-1"
+          >
+            <FileText className="h-3 w-3" />
+            {loading === "generate" || loading === "regenerate"
+              ? "Generating…"
+              : hasDocuments
+                ? "Regenerate docs"
+                : "Generate docs"}
+          </Button>
+        )}
+        {canPrepare && (
           <>
             <Button
               size="sm"
@@ -188,6 +242,11 @@ export function ApplicationActions({
       {(status === "SUBMITTING" || taskStatus) && (
         <p className="max-w-[220px] text-right text-[10px] text-[var(--ink-tertiary)]">
           Automation {taskStatus || "queued"}. Leave this page if needed.
+        </p>
+      )}
+      {!hasDocuments && (
+        <p className="max-w-[220px] text-right text-[10px] text-[var(--ink-tertiary)]">
+          Generate tailored documents before prepare/submit.
         </p>
       )}
       {failureReason && (
