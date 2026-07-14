@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { resolveApiUserDev } from "@/lib/api/auth";
-import { listBrowserTasks } from "@/lib/browser/queue";
 
 export async function GET() {
   try {

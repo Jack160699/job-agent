@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Operational scripts are intentionally CommonJS for direct Node execution.
+    "scripts/**/*.js",
   ]),
 ]);
 

@@ -50,7 +50,7 @@ export function AdminQueueClient() {
   }, []);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => void load());
   }, [load]);
 
   const adminAction = async (action: string, jobId?: string) => {

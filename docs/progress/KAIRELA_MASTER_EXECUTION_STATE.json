@@ -1,0 +1,18 @@
+{
+  "status": "in_progress",
+  "currentWorkstream": "1 — Product-wide completeness audit",
+  "completedWorkstreams": [],
+  "failedChecks": [
+    "Production still runs deployment dpl_DqrLhkbbmKXyd9pkVsX4Xv5sb7SX and does not yet include the account-provisioning race fix.",
+    "Production E2E and browser audit are pending for the audit-fix deployment."
+  ],
+  "externalBlockers": [
+    "Attach and configure kairela.com only after explicit approval.",
+    "Final human acceptance testing only after explicit approval.",
+    "Supabase leaked-password protection and additional MFA methods require dashboard configuration."
+  ],
+  "lastSuccessfulCommit": "7514afd67fed9d2bbb74173a0e49a7eb2d8a03cc",
+  "lastDeploymentId": "dpl_DqrLhkbbmKXyd9pkVsX4Xv5sb7SX",
+  "lastVerifiedProductionUrl": "https://job-agent-mu-steel.vercel.app",
+  "updatedAt": "2026-07-14T18:45:00.000Z"
+}

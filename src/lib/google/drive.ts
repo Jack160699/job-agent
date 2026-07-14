@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { Readable } from "stream";
 import { getAuthenticatedClient } from "./oauth";
 import prisma from "@/lib/db";
 
@@ -60,7 +61,6 @@ export async function ensureDriveFolder(userId: string, folderName = "Kairela") 
 }
 
 function ReadableFromBuffer(buffer: Buffer) {
-  const { Readable } = require("stream") as typeof import("stream");
   const readable = new Readable();
   readable.push(buffer);
   readable.push(null);

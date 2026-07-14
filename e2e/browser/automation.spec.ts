@@ -52,14 +52,17 @@ const documents = {
   coverLetterText: "I am excited to apply for this role and contribute to your team.",
 };
 
+type ApplicantProfile = typeof profile;
+type ApplicationDocuments = typeof documents;
+
 async function runPlatformTest(
   file: string,
   AutomatorClass: new () => {
     prepareApplication: (
       browser: PlaywrightBrowserClient,
       jobUrl: string,
-      profile: typeof profile,
-      documents: typeof documents,
+      profile: ApplicantProfile,
+      documents: ApplicationDocuments,
       options?: { autoSubmit?: boolean }
     ) => Promise<{ success: boolean; status: string }>;
   }

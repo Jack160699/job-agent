@@ -35,7 +35,7 @@ export function ConsultantFab() {
   }, []);
 
   useEffect(() => {
-    if (open) loadHistory();
+    if (open) queueMicrotask(() => void loadHistory());
   }, [open, loadHistory]);
 
   useEffect(() => {

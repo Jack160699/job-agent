@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/security/rate-limit";
-import { resolveApiUserDev, createAuditLog, prisma } from "@/lib/api/auth";
+import { resolveApiUserDev } from "@/lib/api/auth";
 import {
   analyzeJob,
   matchJob,

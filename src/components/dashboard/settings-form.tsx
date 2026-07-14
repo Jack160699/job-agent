@@ -105,7 +105,7 @@ export function SettingsForm({
   }, [applyGoogleStatus]);
 
   useEffect(() => {
-    refreshGoogleStatus().catch(() => {});
+    queueMicrotask(() => void refreshGoogleStatus().catch(() => {}));
   }, [refreshGoogleStatus]);
 
   useEffect(() => {
@@ -113,21 +113,23 @@ export function SettingsForm({
     if (!googleParam) return;
 
     if (googleParam === "connected") {
-      refreshGoogleStatus()
-        .then((status) => {
-          if (status.connected) {
-            toast.success(
-              status.email
-                ? `Google connected: ${status.email}`
-                : "Google account connected"
-            );
-          } else {
-            toast.error("Google connected but status could not be verified");
-          }
-        })
-        .catch(() => toast.error("Failed to refresh Google connection status"));
+      queueMicrotask(() => {
+        void refreshGoogleStatus()
+          .then((status) => {
+            if (status.connected) {
+              toast.success(
+                status.email
+                  ? `Google connected: ${status.email}`
+                  : "Google account connected"
+              );
+            } else {
+              toast.error("Google connected but status could not be verified");
+            }
+          })
+          .catch(() => toast.error("Failed to refresh Google connection status"));
 
-      router.replace("/dashboard/settings", { scroll: false });
+        router.replace("/dashboard/settings", { scroll: false });
+      });
       return;
     }
 

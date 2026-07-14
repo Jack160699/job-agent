@@ -64,8 +64,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  useEffect(() => setMoreOpen(false), [pathname]);
-
   useEffect(() => {
     document.body.style.overflow = moreOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -215,6 +213,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setMoreOpen(false)}
                     className={cn(
                       "tap-active flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2.5 text-sm font-medium",
                       active

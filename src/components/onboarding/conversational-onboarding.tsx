@@ -55,9 +55,11 @@ export function ConversationalOnboarding() {
   }, [router]);
 
   useEffect(() => {
-    load().catch(() => {
-      toast.error("Could not load onboarding");
-      setLoading(false);
+    queueMicrotask(() => {
+      void load().catch(() => {
+        toast.error("Could not load onboarding");
+        setLoading(false);
+      });
     });
   }, [load]);
 

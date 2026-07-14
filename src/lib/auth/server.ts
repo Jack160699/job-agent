@@ -18,27 +18,34 @@ export async function getDbUser() {
     const authUser = await getAuthUser();
     if (!authUser?.email) return null;
 
-    let user = await prisma.user.findUnique({
+    const existingByIdentity = await prisma.user.findUnique({
       where: { supabaseId: authUser.id },
       include: { settings: true },
     });
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          supabaseId: authUser.id,
-          email: authUser.email,
-          fullName: (authUser.user_metadata?.full_name as string) || null,
-          settings: {
-            create: {
-              jobTitles: ["Software Engineer"],
-              locations: ["Remote"],
-            },
+    if (existingByIdentity) return existingByIdentity;
+
+    // Upsert by the globally unique email so parallel Server Component requests
+    // cannot race while provisioning the same newly authenticated user.
+    const user = await prisma.user.upsert({
+      where: { email: authUser.email },
+      update: {
+        supabaseId: authUser.id,
+        fullName: (authUser.user_metadata?.full_name as string) || undefined,
+      },
+      create: {
+        supabaseId: authUser.id,
+        email: authUser.email,
+        fullName: (authUser.user_metadata?.full_name as string) || null,
+        settings: {
+          create: {
+            jobTitles: ["Software Engineer"],
+            locations: ["Remote"],
           },
         },
-        include: { settings: true },
-      });
-    }
+      },
+      include: { settings: true },
+    });
 
     return user;
   } catch (error) {
