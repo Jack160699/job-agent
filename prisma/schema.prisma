@@ -165,8 +165,27 @@ model MasterResume {
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tailoredResumes TailoredResume[]
+  versions        MasterResumeVersion[]
 
   @@map("master_resume")
+}
+
+model MasterResumeVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  masterResumeId String   @map("master_resume_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  version        Int
+  title          String
+  content        Json
+  rawText        String   @map("raw_text") @db.Text
+  skills         String[]
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  masterResume MasterResume @relation(fields: [masterResumeId], references: [id], onDelete: Cascade)
+
+  @@unique([masterResumeId, version])
+  @@index([userId, createdAt])
+  @@map("master_resume_versions")
 }
 
 model TailoredResume {

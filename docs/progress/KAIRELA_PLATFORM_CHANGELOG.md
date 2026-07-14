@@ -69,3 +69,17 @@
 - Typecheck: passed.
 - Lint: passed with 8 pre-existing warnings.
 - Production build: passed (52 routes).
+
+## 2026-07-15 — Workstream 8
+
+- Added PDF/DOCX/text resume parsing with spoof and size checks.
+- Preserved resume section structure and skill detection without inventing content.
+- Added master-resume version history, restore, edit, and delete controls.
+- Added ownership-checked tailored resume PDF downloads.
+- Documented intake, versioning, and no-invention policies.
+
+### Verification
+- Unit tests: 69 passed, including resume parser cases.
+- Typecheck: passed.
+- Lint: passed with 8 pre-existing warnings.
+- Production build: passed (54 routes).

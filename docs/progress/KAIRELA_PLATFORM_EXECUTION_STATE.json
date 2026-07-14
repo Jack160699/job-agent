@@ -1,16 +1,17 @@
 {
   "status": "in_progress",
-  "currentWorkstream": 8,
-  "lastCompletedWorkstream": 7,
+  "currentWorkstream": 9,
+  "lastCompletedWorkstream": 8,
   "completedWorkstreams": [
     "0 — Complete product audit",
     "1 — P0 security and reliability",
     "2 — CI, release and operational foundation",
     "3 — Public job-link intake",
     "5 — Proactive career relationship manager",
-    "7 — Search quality and relevance"
+    "7 — Search quality and relevance",
+    "8 — Resume and document intelligence"
   ],
-  "currentCheckpoint": "WS7 validated: freshness-aware scoring, bounded user-feedback learning, real Lever/Ashby/Workday extraction, and no fabricated detail fallbacks. Starting WS8 documents.",
+  "currentCheckpoint": "WS8 validated: PDF/DOCX/text parsing, version history, delete/restore, and tailored PDF download. Next: WS9 ATS/application automation.",
   "failedChecks": [],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
@@ -21,11 +22,11 @@
   "manualActions": [
     "Set BROWSER_WORKER_TOKEN in production and worker runtime.",
     "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
-    "Apply pending platform migrations through 20260715130000_job_feedback.sql to the production database."
+    "Apply pending platform migrations through 20260715140000_resume_versions.sql to the production database."
   ],
-  "lastSuccessfulCommit": "31c0160",
+  "lastSuccessfulCommit": "73ba9ae",
   "lastPreviewDeployment": "No platform-branch preview found; latest project deployment dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j is product-v1 commit 9631599.",
   "landingPageBranch": "feat/kairela-product-v1 (uncommitted landing work in main worktree)",
   "landingPageIntegrationStatus": "pending",
-  "updatedAt": "2026-07-15T02:26:00.000Z"
+  "updatedAt": "2026-07-15T02:50:00.000Z"
 }

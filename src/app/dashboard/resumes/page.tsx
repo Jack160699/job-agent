@@ -2,8 +2,10 @@ import { DashboardHeader } from "@/components/dashboard/sidebar";
 import { EmptyState } from "@/components/dashboard/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMasterResume, getTailoredResumes } from "@/lib/data/dashboard";
-import { FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { ResumeUploadForm } from "@/components/dashboard/resume-upload";
+import { MasterResumeCard } from "@/components/dashboard/master-resume-card";
+import { Button } from "@/components/ui/button";
 
 export default async function ResumesPage() {
   const [masterResume, tailoredResumes] = await Promise.all([
@@ -25,24 +27,11 @@ export default async function ResumesPage() {
           </CardHeader>
           <CardContent>
             {masterResume ? (
-              <div>
-                <p className="text-sm font-medium text-[var(--ink)]">
-                  {masterResume.title}
-                </p>
-                <p className="mt-2 text-sm text-[var(--ink-tertiary)] line-clamp-6">
-                  {masterResume.rawText}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {masterResume.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full bg-[var(--accent-muted)] px-2.5 py-0.5 text-xs text-[var(--accent)]"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <MasterResumeCard
+                title={masterResume.title}
+                rawText={masterResume.rawText}
+                skills={masterResume.skills}
+              />
             ) : (
               <ResumeUploadForm />
             )}
@@ -76,6 +65,12 @@ export default async function ResumesPage() {
                     <p className="mt-2 text-xs text-[var(--ink-tertiary)] line-clamp-3">
                       {resume.rawText}
                     </p>
+                    <Button asChild size="sm" variant="outline" className="mt-3">
+                      <a href={`/api/resumes/${resume.id}/pdf`}>
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        Download PDF
+                      </a>
+                    </Button>
                   </div>
                 ))}
               </div>

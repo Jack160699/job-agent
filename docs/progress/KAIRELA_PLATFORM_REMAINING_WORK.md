@@ -21,8 +21,8 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 5 | Proactive career relationship manager | **Complete** — grounded rules, evidence, priority, expiry, queue generation and user controls |
 | 6 | Complete job-seeker journey | Partial — recovery/security slice complete; document, ATS and auth journeys depend on WS8/9/10 |
 | 7 | Search quality and relevance | **Complete** — freshness, feedback learning and real ATS extraction |
-| 8 | Resume and document intelligence | **Current** |
-| 9 | Application agent and ATS automation | Pending |
+| 8 | Resume and document intelligence | **Complete** — PDF/DOCX/text parse, version history, PDF export |
+| 9 | Application agent and ATS automation | **Current** |
 | 10 | Authentication and Google integrations | Partial |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
 | 12 | Subscriptions and entitlements | Foundation only |
@@ -38,7 +38,6 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 - RLS `WITH CHECK` hardening on remaining legacy policies
 - Entitlement enforcement on search/agent/resume APIs
 - Application status enum expansion
-- PDF/DOCX resume upload pipeline
 - Security headers in next.config.ts
 - Migrations `20260715100000_rate_limits.sql` and `20260715113000_proactive_recommendations_v2.sql` applied to production
 - AI assistant conversation CRUD, confirmed write-tool policy and streaming UI
