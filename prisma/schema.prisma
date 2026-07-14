@@ -143,6 +143,8 @@ model User {
   jobFeedback       JobFeedback[]
   proactiveRecommendations ProactiveRecommendation[]
   consultantMessages ConsultantMessage[]
+  consultantConversations ConsultantConversation[]
+  agentActionProposals AgentActionProposal[]
   subscription      Subscription?
   usageLedger       UsageLedger[]
 
@@ -661,18 +663,66 @@ model ProactiveRecommendation {
   @@map("proactive_recommendations")
 }
 
-model ConsultantMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  role      String
-  content   String   @db.Text
-  metadata  Json?
-  createdAt DateTime @default(now()) @map("created_at")
+model ConsultantConversation {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  title      String    @default("Career chat")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        ConsultantMessage[]
+  actionProposals AgentActionProposal[]
+
+  @@index([userId, updatedAt])
+  @@map("consultant_conversations")
+}
+
+model ConsultantMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  role           String
+  content        String   @db.Text
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ConsultantConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
   @@map("consultant_messages")
+}
+
+model AgentActionProposal {
+  id             String                   @id @default(uuid()) @db.Uuid
+  userId         String                   @map("user_id") @db.Uuid
+  conversationId String?                  @map("conversation_id") @db.Uuid
+  toolName       String                   @map("tool_name")
+  params         Json
+  status         AgentActionProposalStatus @default(PENDING)
+  expiresAt      DateTime                 @map("expires_at")
+  consumedAt     DateTime?                @map("consumed_at")
+  result         Json?
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ConsultantConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, expiresAt])
+  @@map("agent_action_proposals")
+}
+
+enum AgentActionProposalStatus {
+  PENDING
+  EXECUTED
+  EXPIRED
+  CANCELLED
+
+  @@map("agent_action_proposal_status")
 }
 
 enum SubscriptionPlan {

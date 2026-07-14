@@ -17,7 +17,7 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 1 | P0 security and reliability | **Complete** |
 | 2 | CI, release and operational foundation | **Complete (foundation)** |
 | 3 | Public job-link intake | Complete (inherited) |
-| 4 | Live Kairela AI career agent | Partial — streaming/tools exist; conversation CRUD and confirmed write tools remain |
+| 4 | Live Kairela AI career agent | **Complete (code)** — conversations, proposals, confirm route; streaming endpoint exists |
 | 5 | Proactive career relationship manager | **Complete** |
 | 6 | Complete job-seeker journey | Partial — recovery, docs, ATS and Google slices landed; end-to-end journey still needs RC validation |
 | 7 | Search quality and relevance | **Complete** |
@@ -35,10 +35,10 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 
 ## Open carryovers
 
-- AI assistant conversation CRUD and confirmed write-tool proposals
 - Authenticated production E2E once Supabase egress recovers
-- Apply production migrations through `20260715150000_harden_legacy_rls.sql`
+- Apply production migrations through `20260715160000_consultant_conversations.sql`
 - Owner approval for `kairela.com` attach and human acceptance
+- Stripe billing activation remains external
 
 ## Deferred final actions
 

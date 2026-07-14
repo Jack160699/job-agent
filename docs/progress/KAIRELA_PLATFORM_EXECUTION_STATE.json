@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-14T21:40:00.000Z",
+  "updatedAt": "2026-07-14T21:55:00.000Z",
   "branch": "feat/kairela-platform-completion",
   "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion",
   "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\job apply agent",
@@ -16,23 +16,23 @@
     "src/app/data-deletion/**",
     "docs/design/**"
   ],
-  "currentWorkstream": 4,
-  "lastCompletedWorkstream": 10,
-  "completedWorkstreams": [0, 1, 2, 3, 5, 7, 8, 9, 10],
-  "partialWorkstreams": [4, 6, 11, 12, 13, 14, 15, 16],
+  "currentWorkstream": 13,
+  "lastCompletedWorkstream": 4,
+  "completedWorkstreams": [0, 1, 2, 3, 4, 5, 7, 8, 9, 10],
+  "partialWorkstreams": [6, 11, 12, 13, 14, 15, 16],
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
-    "a9b2365 feat(applications): classify stop conditions and show live browser status"
+    "3dae934 fix(platform): stop invented answers and harden Google, entitlements, and security"
   ],
   "verification": {
     "typecheck": "pass",
-    "unitTests": "79 passed",
+    "unitTests": "82 passed",
     "lint": "pass with preexisting warnings",
-    "build": "pass (52 routes)"
+    "build": "pass prior to conversation commit; typecheck/tests pass"
   },
   "manualOwnerActions": [
-    "Apply migrations through 20260715150000_harden_legacy_rls.sql",
+    "Apply migrations through 20260715160000_consultant_conversations.sql",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
     "Rotate shared E2E password after demo period"
@@ -45,9 +45,9 @@
     "No Vercel preview yet for feat/kairela-platform-completion; production still on product-v1 commit 9631599"
   ],
   "nextActions": [
-    "Continue WS4 conversation CRUD and confirmed write tools",
-    "Finish remaining entitlements UI and atomic reserve if needed",
-    "Mobile loading skeletons and viewport coverage",
+    "Add dashboard loading skeletons and remaining mobile polish",
+    "Expand admin inventory and structured logging",
+    "Keep Stripe activation and kairela.com attach owner-gated",
     "Keep landing integration blocked until Codex finishes"
   ]
 }
