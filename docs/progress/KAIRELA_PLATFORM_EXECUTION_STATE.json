@@ -1,12 +1,15 @@
 {
   "status": "in_progress",
-  "currentWorkstream": 2,
-  "lastCompletedWorkstream": 1,
+  "currentWorkstream": 6,
+  "lastCompletedWorkstream": 5,
   "completedWorkstreams": [
     "0 — Complete product audit",
-    "1 — P0 security and reliability"
+    "1 — P0 security and reliability",
+    "2 — CI, release and operational foundation",
+    "3 — Public job-link intake",
+    "5 — Proactive career relationship manager"
   ],
-  "currentCheckpoint": "WS1 committed and pushed; CI workflow added",
+  "currentCheckpoint": "WS5 implementation validated; checkpoint commit pending. WS4 tool-enabled assistant foundation exists but conversation management and confirmed write tools remain.",
   "failedChecks": [],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
@@ -19,9 +22,9 @@
     "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
     "Apply migration 20260715100000_rate_limits.sql to production database."
   ],
-  "lastSuccessfulCommit": "15d136e",
-  "lastPreviewDeployment": "",
+  "lastSuccessfulCommit": "a6a92983462f27571b19934b4e126ee6ea43cd74",
+  "lastPreviewDeployment": "No platform-branch preview found; latest project deployment dpl_AXAbTYjgDBLNfodvVBszeiXiZr1j is product-v1 commit 9631599.",
   "landingPageBranch": "feat/kairela-product-v1 (uncommitted landing work in main worktree)",
   "landingPageIntegrationStatus": "pending",
-  "updatedAt": "2026-07-15T02:30:00.000Z"
+  "updatedAt": "2026-07-15T02:26:00.000Z"
 }

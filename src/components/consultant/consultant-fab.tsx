@@ -45,7 +45,7 @@ export function ConsultantFab() {
     } catch {
       // ignore
     }
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (open) queueMicrotask(() => void loadHistory());

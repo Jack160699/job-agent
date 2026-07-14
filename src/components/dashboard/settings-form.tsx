@@ -21,6 +21,12 @@ interface Settings {
   requireReview: boolean;
   searchFrequencyHours: number;
   notificationsEnabled: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  proactiveFrequencyHours?: number;
+  disabledRecommendationCategories?: string[];
+  dailyDigestEnabled?: boolean;
+  weeklyReportEnabled?: boolean;
   gmailSyncEnabled: boolean;
   sheetsSyncEnabled: boolean;
   calendarSyncEnabled: boolean;
@@ -85,6 +91,27 @@ export function SettingsForm({
   const [driveSync, setDriveSync] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    initialSettings?.notificationsEnabled ?? true
+  );
+  const [quietHoursStart, setQuietHoursStart] = useState(
+    initialSettings?.quietHoursStart ?? "22:00"
+  );
+  const [quietHoursEnd, setQuietHoursEnd] = useState(
+    initialSettings?.quietHoursEnd ?? "08:00"
+  );
+  const [proactiveFrequencyHours, setProactiveFrequencyHours] = useState(
+    initialSettings?.proactiveFrequencyHours?.toString() ?? "24"
+  );
+  const [disabledRecommendationCategories, setDisabledCategories] = useState(
+    initialSettings?.disabledRecommendationCategories ?? []
+  );
+  const [dailyDigestEnabled, setDailyDigestEnabled] = useState(
+    initialSettings?.dailyDigestEnabled ?? false
+  );
+  const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(
+    initialSettings?.weeklyReportEnabled ?? true
+  );
 
   const applyGoogleStatus = useCallback((status: GoogleStatus) => {
     setGoogleConnected(status.connected);
@@ -178,6 +205,15 @@ export function SettingsForm({
           gmailSyncEnabled: googleConnected ? gmailSync : false,
           sheetsSyncEnabled: googleConnected ? sheetsSync : false,
           calendarSyncEnabled: googleConnected ? calendarSync : false,
+          driveBackupEnabled: googleConnected ? driveSync : false,
+          notificationsEnabled,
+          quietHoursStart: notificationsEnabled ? quietHoursStart : null,
+          quietHoursEnd: notificationsEnabled ? quietHoursEnd : null,
+          proactiveFrequencyHours:
+            parseInt(proactiveFrequencyHours, 10) || 24,
+          disabledRecommendationCategories,
+          dailyDigestEnabled,
+          weeklyReportEnabled,
         }),
       });
       const data = await res.json();
@@ -195,6 +231,7 @@ export function SettingsForm({
       <TabsList>
         <TabsTrigger value="filters">Job Filters</TabsTrigger>
         <TabsTrigger value="automation">Automation</TabsTrigger>
+        <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
         <TabsTrigger value="integrations">Integrations</TabsTrigger>
       </TabsList>
 
@@ -309,6 +346,115 @@ export function SettingsForm({
                 </p>
               </div>
             </label>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="recommendations">
+        <Card>
+          <CardHeader>
+            <CardTitle>Career recommendations</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={notificationsEnabled}
+                onChange={(event) =>
+                  setNotificationsEnabled(event.target.checked)
+                }
+                className="mt-1 h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
+              />
+              <div>
+                <p className="text-sm font-medium text-[var(--ink)]">
+                  Show grounded recommendations
+                </p>
+                <p className="text-xs text-[var(--ink-tertiary)]">
+                  Kairela uses your profile and activity, without manufactured
+                  urgency or guaranteed outcomes.
+                </p>
+              </div>
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="quiet-hours-start">Quiet hours start</Label>
+                <Input
+                  id="quiet-hours-start"
+                  type="time"
+                  value={quietHoursStart}
+                  onChange={(event) => setQuietHoursStart(event.target.value)}
+                  disabled={!notificationsEnabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quiet-hours-end">Quiet hours end</Label>
+                <Input
+                  id="quiet-hours-end"
+                  type="time"
+                  value={quietHoursEnd}
+                  onChange={(event) => setQuietHoursEnd(event.target.value)}
+                  disabled={!notificationsEnabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="recommendation-frequency">
+                  Minimum interval (hours)
+                </Label>
+                <Input
+                  id="recommendation-frequency"
+                  type="number"
+                  min="6"
+                  max="168"
+                  value={proactiveFrequencyHours}
+                  onChange={(event) =>
+                    setProactiveFrequencyHours(event.target.value)
+                  }
+                  disabled={!notificationsEnabled}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={dailyDigestEnabled}
+                  onChange={(event) =>
+                    setDailyDigestEnabled(event.target.checked)
+                  }
+                />
+                Daily digest
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={weeklyReportEnabled}
+                  onChange={(event) =>
+                    setWeeklyReportEnabled(event.target.checked)
+                  }
+                />
+                Weekly career report
+              </label>
+            </div>
+
+            {disabledRecommendationCategories.length > 0 && (
+              <div className="rounded-lg border border-[var(--line)] p-3">
+                <p className="text-sm font-medium">Hidden categories</p>
+                <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                  {disabledRecommendationCategories.join(", ")}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => setDisabledCategories([])}
+                >
+                  Re-enable all categories
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

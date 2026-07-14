@@ -23,3 +23,19 @@
 
 ### Migration
 - `20260715100000_rate_limits.sql` — durable rate limit buckets table
+
+## 2026-07-15 — Workstream 5
+
+### Proactive career manager
+- Added evidence-backed rules for profile completion, stale searches, strong matches, application review, recruiter replies, interviews, integration reconnects, and usage limits.
+- Added priority, expiration, completion state, snooze, category disablement, quiet hours, frequency limits, and digest/report preferences.
+- Added durable `GENERATE_RECOMMENDATIONS` background jobs.
+- Added loading, retry, empty, success, and action-failure UI states.
+- Added strict settings API validation, removing the prior mass-assignment path.
+- Corrected recommendation RLS to map `auth.uid()` through `users.supabase_id`.
+
+### Verification
+- Unit tests: 52 passed, including 5 proactive rule tests.
+- Typecheck: passed.
+- Lint: passed with 9 pre-existing warnings.
+- Production build: passed (51 routes).

@@ -12,6 +12,7 @@ export type JobType =
   | "SYNC_SHEETS"
   | "SYNC_CALENDAR"
   | "RUN_AGENT"
+  | "GENERATE_RECOMMENDATIONS"
   | "RETRY_FAILED";
 
 interface JobPayload {
@@ -328,6 +329,16 @@ export async function processBackgroundJobs() {
               result = await runAutonomousAgent(payload.userId);
             }
             break;
+          case "GENERATE_RECOMMENDATIONS":
+            if (payload.userId) {
+              const { generateProactiveRecommendations } = await import(
+                "@/lib/proactive/service"
+              );
+              result = await generateProactiveRecommendations(payload.userId);
+            } else {
+              throw new Error("GENERATE_RECOMMENDATIONS missing userId");
+            }
+            break;
           case "RETRY_FAILED":
             result = await retryFailedApplications(payload.userId);
             break;
@@ -445,6 +456,13 @@ export async function schedulePeriodicJobs() {
     if (!user.settings?.preferencesComplete) continue;
     await enqueueJob("SEARCH_JOBS", { userId: user.id }, { source: "scheduled" });
     await enqueueJob("RUN_AGENT", { userId: user.id }, { source: "scheduled" });
+    if (user.settings.notificationsEnabled) {
+      await enqueueJob(
+        "GENERATE_RECOMMENDATIONS",
+        { userId: user.id },
+        { source: "scheduled" }
+      );
+    }
     scheduled++;
   }
 

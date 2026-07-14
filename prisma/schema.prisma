@@ -426,6 +426,9 @@ model UserSettings {
   quietHoursStart       String?   @map("quiet_hours_start")
   quietHoursEnd         String?   @map("quiet_hours_end")
   proactiveFrequencyHours Int     @default(24) @map("proactive_frequency_hours")
+  disabledRecommendationCategories String[] @default([]) @map("disabled_recommendation_categories")
+  dailyDigestEnabled    Boolean  @default(false) @map("daily_digest_enabled")
+  weeklyReportEnabled   Boolean  @default(true) @map("weekly_report_enabled")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -594,18 +597,27 @@ model ProactiveRecommendation {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @map("user_id") @db.Uuid
   type        String
+  category    String    @default("career")
+  priority    String    @default("medium")
   title       String
   body        String    @db.Text
   reason      String    @db.Text
+  evidence    Json?
+  suggestedAction String? @map("suggested_action") @db.Text
   actionUrl   String?   @map("action_url")
+  status      String    @default("active")
   dismissed   Boolean   @default(false)
   snoozedUntil DateTime? @map("snoozed_until")
+  completedAt DateTime? @map("completed_at")
+  expiresAt   DateTime? @map("expires_at")
   metadata    Json?
   createdAt   DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, dismissed, createdAt])
+  @@index([userId, category, status])
+  @@index([expiresAt])
   @@map("proactive_recommendations")
 }
 
