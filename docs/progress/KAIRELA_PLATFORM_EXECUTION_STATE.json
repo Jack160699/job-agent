@@ -1,11 +1,12 @@
 {
   "status": "in_progress",
-  "currentWorkstream": 1,
-  "lastCompletedWorkstream": 0,
+  "currentWorkstream": 2,
+  "lastCompletedWorkstream": 1,
   "completedWorkstreams": [
-    "0 — Complete product audit"
+    "0 — Complete product audit",
+    "1 — P0 security and reliability"
   ],
-  "currentCheckpoint": "P0 security fixes implemented; running validation",
+  "currentCheckpoint": "WS1 committed and pushed; CI workflow added",
   "failedChecks": [],
   "externalBlockers": [
     "Attach and configure kairela.com only after explicit approval.",
@@ -18,9 +19,9 @@
     "Set OAUTH_STATE_SECRET (or ensure ENCRYPTION_KEY is set).",
     "Apply migration 20260715100000_rate_limits.sql to production database."
   ],
-  "lastSuccessfulCommit": "",
+  "lastSuccessfulCommit": "15d136e",
   "lastPreviewDeployment": "",
   "landingPageBranch": "feat/kairela-product-v1 (uncommitted landing work in main worktree)",
   "landingPageIntegrationStatus": "pending",
-  "updatedAt": "2026-07-15T02:10:00.000Z"
+  "updatedAt": "2026-07-15T02:30:00.000Z"
 }
