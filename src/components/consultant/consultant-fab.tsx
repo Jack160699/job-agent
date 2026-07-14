@@ -21,6 +21,7 @@ export function ConsultantFab() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,11 +36,12 @@ export function ConsultantFab() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/consultant/chat");
+      const res = await fetch(`/api/consultant/chat?pathname=${encodeURIComponent(pathname)}`);
       if (!res.ok) return;
       const data = await res.json();
       setMessages(data.messages ?? []);
       setEnabled(data.enabled !== false);
+      if (data.suggestions) setSuggestions(data.suggestions);
     } catch {
       // ignore
     }
@@ -53,8 +55,8 @@ export function ConsultantFab() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (textOverride?: string) => {
+    const text = (textOverride ?? input).trim();
     if (!text || loading) return;
 
     setInput("");
@@ -77,6 +79,7 @@ export function ConsultantFab() {
         ...m,
         { id: `a-${Date.now()}`, role: "assistant", content: data.reply },
       ]);
+      if (data.suggestions) setSuggestions(data.suggestions);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not reach consultant");
       setMessages((m) => m.filter((msg) => !msg.id.startsWith("tmp-")));
@@ -123,9 +126,23 @@ export function ConsultantFab() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 && (
               <p className="text-sm text-[var(--ink-secondary)]">
-                Hi! I can help explain your job search progress and suggest next steps —
-                using only your real profile data.
+                Hi! I can inspect your profile, search status, and applications to
+                suggest next steps — using only your real data.
               </p>
+            )}
+            {suggestions.length > 0 && messages.length === 0 && (
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => send(s)}
+                    className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--ink-secondary)] hover:bg-[var(--surface-raised)]"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             )}
             {messages.map((m) => (
               <div
@@ -153,7 +170,7 @@ export function ConsultantFab() {
             />
             <Button
               type="button"
-              onClick={send}
+              onClick={() => send()}
               disabled={loading || !input.trim()}
               className="h-11 w-11 shrink-0"
               aria-label="Send message"

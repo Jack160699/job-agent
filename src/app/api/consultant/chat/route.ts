@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/auth/server";
 import { chatWithConsultant } from "@/lib/consultant/service";
+import { pageSuggestions } from "@/lib/agent/context";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
-
 export async function POST(request: NextRequest) {
   const limited = await rateLimit(request, {
     ...RATE_LIMIT_PRESETS.aiChat,
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       reply: result.message.content,
       remaining: result.remaining,
+      suggestions: result.suggestions,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Consultant unavailable";
@@ -41,11 +42,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getDbUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const pathname = request.nextUrl.searchParams.get("pathname") ?? undefined;
 
   const { default: prisma } = await import("@/lib/db");
   const messages = await prisma.consultantMessage.findMany({
@@ -55,5 +58,9 @@ export async function GET() {
     select: { id: true, role: true, content: true, createdAt: true },
   });
 
-  return NextResponse.json({ messages, enabled: isFeatureEnabled("aiConsultant") });
+  return NextResponse.json({
+    messages,
+    enabled: isFeatureEnabled("aiConsultant"),
+    suggestions: pageSuggestions(pathname),
+  });
 }
