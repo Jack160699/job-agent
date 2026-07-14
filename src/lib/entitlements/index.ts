@@ -19,26 +19,79 @@ export const PLAN_LIMITS = {
   },
 } as const;
 
+export type PlanName = keyof typeof PLAN_LIMITS;
+
 export type EntitlementFeature =
   | "job_search"
   | "ai_consultant"
   | "resume_tailor"
   | "application";
 
-export async function getUserPlan(userId: string) {
+export class EntitlementError extends Error {
+  readonly code = "ENTITLEMENT_LIMIT" as const;
+  readonly remaining: number;
+  readonly feature: EntitlementFeature;
+
+  constructor(
+    feature: EntitlementFeature,
+    message: string,
+    remaining = 0
+  ) {
+    super(message);
+    this.name = "EntitlementError";
+    this.feature = feature;
+    this.remaining = remaining;
+  }
+}
+
+function startOfUtcDay(date = new Date()) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+}
+
+function startOfUtcMonth(date = new Date()) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+export async function getUserPlan(userId: string): Promise<PlanName> {
   const { default: prisma } = await import("@/lib/db");
   const sub = await prisma.subscription.findUnique({ where: { userId } });
-  return sub?.plan ?? "FREE";
+  if (!sub) return "FREE";
+  if (sub.status !== "ACTIVE" && sub.status !== "TRIALING") return "FREE";
+  return sub.plan;
 }
 
 export async function recordUsage(
   userId: string,
   feature: EntitlementFeature,
-  quantity = 1
+  quantity = 1,
+  metadata?: { idempotencyKey?: string }
 ) {
   const { default: prisma } = await import("@/lib/db");
-  await prisma.usageLedger.create({
-    data: { userId, feature, quantity },
+  if (metadata?.idempotencyKey) {
+    const existing = await prisma.usageLedger.findFirst({
+      where: {
+        userId,
+        feature,
+        metadata: {
+          path: ["idempotencyKey"],
+          equals: metadata.idempotencyKey,
+        },
+      },
+    });
+    if (existing) return existing;
+  }
+
+  return prisma.usageLedger.create({
+    data: {
+      userId,
+      feature,
+      quantity,
+      ...(metadata
+        ? { metadata: metadata as object }
+        : {}),
+    },
   });
 }
 
@@ -58,33 +111,30 @@ export async function getUsageCount(
 export async function canUseFeature(
   userId: string,
   feature: EntitlementFeature
-): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
+): Promise<{ allowed: boolean; reason?: string; remaining?: number; plan: PlanName }> {
   const plan = await getUserPlan(userId);
   const limits = PLAN_LIMITS[plan];
-
   const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   let limit = 0;
-  let since = monthStart;
+  let since = startOfUtcMonth(now);
 
   switch (feature) {
     case "job_search":
       limit = limits.jobSearchesPerMonth;
-      since = monthStart;
+      since = startOfUtcMonth(now);
       break;
     case "ai_consultant":
       limit = limits.aiConsultantMessagesPerDay;
-      since = dayStart;
+      since = startOfUtcDay(now);
       break;
     case "resume_tailor":
       limit = limits.resumeTailorsPerMonth;
-      since = monthStart;
+      since = startOfUtcMonth(now);
       break;
     case "application":
       limit = limits.applicationsPerMonth;
-      since = monthStart;
+      since = startOfUtcMonth(now);
       break;
   }
 
@@ -94,12 +144,40 @@ export async function canUseFeature(
   if (used >= limit) {
     return {
       allowed: false,
-      reason: `You've reached your ${plan} plan limit for ${feature.replace("_", " ")}.`,
+      plan,
+      reason: `You've reached your ${plan} plan limit for ${feature.replace(/_/g, " ")}.`,
       remaining: 0,
     };
   }
 
-  return { allowed: true, remaining };
+  return { allowed: true, remaining, plan };
+}
+
+export async function assertCanUseFeature(
+  userId: string,
+  feature: EntitlementFeature
+) {
+  const gate = await canUseFeature(userId, feature);
+  if (!gate.allowed) {
+    throw new EntitlementError(
+      feature,
+      gate.reason || "Usage limit reached",
+      gate.remaining ?? 0
+    );
+  }
+  return gate;
+}
+
+export async function consumeFeature(
+  userId: string,
+  feature: EntitlementFeature,
+  options?: { idempotencyKey?: string }
+) {
+  const gate = await assertCanUseFeature(userId, feature);
+  await recordUsage(userId, feature, 1, {
+    idempotencyKey: options?.idempotencyKey,
+  });
+  return gate;
 }
 
 export async function ensureSubscription(userId: string) {

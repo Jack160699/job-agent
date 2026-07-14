@@ -17,8 +17,45 @@ export const GOOGLE_INTEGRATION_SCOPES = {
 
 export type GoogleIntegrationFeature = keyof typeof GOOGLE_INTEGRATION_SCOPES;
 
+export const GOOGLE_INTEGRATION_FEATURES = Object.keys(
+  GOOGLE_INTEGRATION_SCOPES
+) as GoogleIntegrationFeature[];
+
+export type GoogleConnectionHealth =
+  | "disconnected"
+  | "healthy"
+  | "expired"
+  | "missing_refresh_token"
+  | "error";
+
+export type GoogleTokenBundle = {
+  access_token?: string | null;
+  refresh_token?: string | null;
+  expiry_date?: number | null;
+  scope?: string | null;
+  token_type?: string | null;
+  id_token?: string | null;
+};
+
 const TOKEN_KEY = "google_oauth_tokens";
 const SCOPES_KEY = "google_oauth_scopes";
+
+export function isGoogleIntegrationFeature(
+  value: string
+): value is GoogleIntegrationFeature {
+  return (GOOGLE_INTEGRATION_FEATURES as string[]).includes(value);
+}
+
+export function parseGoogleFeatures(
+  values: string[]
+): GoogleIntegrationFeature[] {
+  const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  const invalid = unique.filter((value) => !isGoogleIntegrationFeature(value));
+  if (invalid.length > 0) {
+    throw new Error(`Invalid Google integration features: ${invalid.join(", ")}`);
+  }
+  return unique as GoogleIntegrationFeature[];
+}
 
 export function getGoogleOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -41,13 +78,14 @@ export function scopesForFeatures(features: GoogleIntegrationFeature[]): string[
 }
 
 export function getAuthUrl(userId: string, features: GoogleIntegrationFeature[]) {
-  const scopes = scopesForFeatures(features);
+  const scoped = parseGoogleFeatures(features);
+  const scopes = scopesForFeatures(scoped);
   if (scopes.length === 0) {
     throw new Error("Select at least one integration to connect");
   }
 
   const client = getGoogleOAuthClient();
-  const state = createSignedOAuthState({ userId, features });
+  const state = createSignedOAuthState({ userId, features: scoped });
 
   return client.generateAuthUrl({
     access_type: "offline",
@@ -58,12 +96,40 @@ export function getAuthUrl(userId: string, features: GoogleIntegrationFeature[])
   });
 }
 
+export function mergeGoogleTokens(
+  existing: GoogleTokenBundle | null | undefined,
+  incoming: GoogleTokenBundle
+): GoogleTokenBundle {
+  return {
+    ...(existing || {}),
+    ...incoming,
+    refresh_token:
+      incoming.refresh_token || existing?.refresh_token || null,
+  };
+}
+
+export function unionGoogleFeatures(
+  existing: GoogleIntegrationFeature[],
+  incoming: GoogleIntegrationFeature[]
+): GoogleIntegrationFeature[] {
+  return [...new Set([...existing, ...incoming])];
+}
+
 export async function storeGoogleTokens(
   userId: string,
-  tokens: object,
-  features: GoogleIntegrationFeature[]
+  tokens: GoogleTokenBundle,
+  features: GoogleIntegrationFeature[],
+  options?: { mergeExisting?: boolean }
 ) {
-  const value = encrypt(JSON.stringify(tokens));
+  const mergeExisting = options?.mergeExisting !== false;
+  const existingTokens = mergeExisting ? await getGoogleTokens(userId) : null;
+  const existingFeatures = mergeExisting
+    ? await getGrantedFeatures(userId)
+    : [];
+  const mergedTokens = mergeGoogleTokens(existingTokens, tokens);
+  const mergedFeatures = unionGoogleFeatures(existingFeatures, features);
+
+  const value = encrypt(JSON.stringify(mergedTokens));
   await prisma.encryptedSecret.upsert({
     where: { userId_key: { userId, key: TOKEN_KEY } },
     create: { userId, key: TOKEN_KEY, value },
@@ -74,10 +140,12 @@ export async function storeGoogleTokens(
     create: {
       userId,
       key: SCOPES_KEY,
-      value: encrypt(JSON.stringify(features)),
+      value: encrypt(JSON.stringify(mergedFeatures)),
     },
-    update: { value: encrypt(JSON.stringify(features)) },
+    update: { value: encrypt(JSON.stringify(mergedFeatures)) },
   });
+
+  return { tokens: mergedTokens, features: mergedFeatures };
 }
 
 export async function getGrantedFeatures(
@@ -88,23 +156,37 @@ export async function getGrantedFeatures(
   });
   if (!secret) return [];
   try {
-    return JSON.parse(decrypt(secret.value)) as GoogleIntegrationFeature[];
+    const parsed = JSON.parse(decrypt(secret.value)) as string[];
+    return parseGoogleFeatures(parsed);
   } catch {
     return [];
   }
 }
 
-export async function getGoogleTokens(userId: string) {
+export async function getGoogleTokens(
+  userId: string
+): Promise<GoogleTokenBundle | null> {
   const secret = await prisma.encryptedSecret.findUnique({
     where: { userId_key: { userId, key: TOKEN_KEY } },
   });
   if (!secret) return null;
-  return JSON.parse(decrypt(secret.value)) as {
-    access_token?: string;
-    refresh_token?: string;
-    expiry_date?: number;
-    scope?: string;
-  };
+  return JSON.parse(decrypt(secret.value)) as GoogleTokenBundle;
+}
+
+export function assessGoogleConnectionHealth(
+  tokens: GoogleTokenBundle | null
+): GoogleConnectionHealth {
+  if (!tokens) return "disconnected";
+  if (!tokens.refresh_token && !tokens.access_token) return "disconnected";
+  if (!tokens.refresh_token) return "missing_refresh_token";
+  if (
+    tokens.expiry_date &&
+    tokens.expiry_date < Date.now() &&
+    !tokens.refresh_token
+  ) {
+    return "expired";
+  }
+  return "healthy";
 }
 
 export async function getAuthenticatedClient(userId: string) {
@@ -112,10 +194,21 @@ export async function getAuthenticatedClient(userId: string) {
   const tokens = await getGoogleTokens(userId);
   if (!tokens) throw new Error("Google not connected");
 
-  client.setCredentials(tokens);
+  client.setCredentials({
+    access_token: tokens.access_token ?? undefined,
+    refresh_token: tokens.refresh_token ?? undefined,
+    expiry_date: tokens.expiry_date ?? undefined,
+    scope: tokens.scope ?? undefined,
+    token_type: tokens.token_type ?? undefined,
+    id_token: tokens.id_token ?? undefined,
+  });
 
   client.on("tokens", async (newTokens) => {
-    await storeGoogleTokens(userId, { ...tokens, ...newTokens }, await getGrantedFeatures(userId));
+    await storeGoogleTokens(
+      userId,
+      newTokens as GoogleTokenBundle,
+      await getGrantedFeatures(userId)
+    );
   });
 
   return client;
@@ -126,33 +219,62 @@ export async function isGoogleConnected(userId: string) {
   return Boolean(tokens?.refresh_token || tokens?.access_token);
 }
 
+export async function revokeGoogleAccess(userId: string) {
+  const tokens = await getGoogleTokens(userId);
+  const token = tokens?.refresh_token || tokens?.access_token;
+  if (!token) return { revoked: false as const, reason: "missing_token" };
+
+  try {
+    const client = getGoogleOAuthClient();
+    await client.revokeToken(token);
+    return { revoked: true as const };
+  } catch (error) {
+    return {
+      revoked: false as const,
+      reason: error instanceof Error ? error.message : "revoke_failed",
+    };
+  }
+}
+
 export async function disconnectGoogle(userId: string) {
+  const revoke = await revokeGoogleAccess(userId);
   await prisma.encryptedSecret.deleteMany({
     where: { userId, key: { in: [TOKEN_KEY, SCOPES_KEY] } },
   });
+  return revoke;
 }
 
-/** Enable only the integrations the user explicitly authorized. */
+/** Enable the integrations the user authorized, preserving previously granted ones. */
 export async function syncIntegrationFlags(
   userId: string,
-  features: GoogleIntegrationFeature[]
+  features: GoogleIntegrationFeature[],
+  options?: { disableMissing?: boolean }
 ) {
+  const disableMissing = options?.disableMissing === true;
+  const data = {
+    gmailSyncEnabled: features.includes("gmail"),
+    sheetsSyncEnabled: features.includes("sheets"),
+    calendarSyncEnabled: features.includes("calendar"),
+    driveBackupEnabled: features.includes("drive"),
+  };
+
   await prisma.userSettings.upsert({
     where: { userId },
     create: {
       userId,
       jobTitles: [],
       locations: [],
-      gmailSyncEnabled: features.includes("gmail"),
-      sheetsSyncEnabled: features.includes("sheets"),
-      calendarSyncEnabled: features.includes("calendar"),
-      driveBackupEnabled: features.includes("drive"),
+      ...data,
     },
-    update: {
-      gmailSyncEnabled: features.includes("gmail"),
-      sheetsSyncEnabled: features.includes("sheets"),
-      calendarSyncEnabled: features.includes("calendar"),
-      driveBackupEnabled: features.includes("drive"),
-    },
+    update: disableMissing
+      ? data
+      : {
+          ...(features.includes("gmail") ? { gmailSyncEnabled: true } : {}),
+          ...(features.includes("sheets") ? { sheetsSyncEnabled: true } : {}),
+          ...(features.includes("calendar")
+            ? { calendarSyncEnabled: true }
+            : {}),
+          ...(features.includes("drive") ? { driveBackupEnabled: true } : {}),
+        },
   });
 }

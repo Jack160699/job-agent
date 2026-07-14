@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  disconnectGoogle,
   getGoogleOAuthClient,
   storeGoogleTokens,
   syncIntegrationFlags,
   type GoogleIntegrationFeature,
+  type GoogleTokenBundle,
+  parseGoogleFeatures,
 } from "@/lib/google/oauth";
 import { verifyGmailProfile } from "@/lib/google/verify";
 import { getAppBaseUrl } from "@/lib/brand/urls";
@@ -43,9 +46,12 @@ export async function GET(request: NextRequest) {
     return redirectWithReason(appUrl, "session_mismatch");
   }
 
-  const allowedFeatures = features.filter((feature): feature is GoogleIntegrationFeature =>
-    ["gmail", "drive", "sheets", "calendar"].includes(feature)
-  );
+  let allowedFeatures: GoogleIntegrationFeature[];
+  try {
+    allowedFeatures = parseGoogleFeatures(features);
+  } catch {
+    return redirectWithReason(appUrl, "invalid_features");
+  }
   if (allowedFeatures.length === 0) {
     return redirectWithReason(appUrl, "invalid_features");
   }
@@ -63,12 +69,21 @@ export async function GET(request: NextRequest) {
       return redirectWithReason(appUrl, "no_tokens");
     }
 
-    await storeGoogleTokens(userId, tokens, allowedFeatures);
-    await syncIntegrationFlags(userId, allowedFeatures);
+    const stored = await storeGoogleTokens(
+      userId,
+      tokens as GoogleTokenBundle,
+      allowedFeatures,
+      { mergeExisting: true }
+    );
+    await syncIntegrationFlags(userId, stored.features, {
+      disableMissing: false,
+    });
 
-    if (allowedFeatures.includes("gmail")) {
+    if (stored.features.includes("gmail")) {
       const email = await verifyGmailProfile(userId);
       if (!email) {
+        await disconnectGoogle(userId);
+        await syncIntegrationFlags(userId, [], { disableMissing: true });
         return redirectWithReason(appUrl, "gmail_verify");
       }
     }

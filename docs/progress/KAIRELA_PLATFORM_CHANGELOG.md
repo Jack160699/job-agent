@@ -83,3 +83,26 @@
 - Typecheck: passed.
 - Lint: passed with 8 pre-existing warnings.
 - Production build: passed (54 routes).
+
+## 2026-07-15 — Workstream 9 complete + authenticity hotfix
+
+- Classification outcomes and live browser task status/cancel/retry UX.
+- Removed fabricated ATS answers; automation fills only grounded profile facts.
+- Agent/scheduled runs prepare only and never submit; per-attempt confirmation remains required.
+- Fixed element matching so role/tag hints cannot invent field hits.
+
+## 2026-07-15 — Workstream 10 + entitlements/security slice
+
+- Google connect lifecycle: select scopes before connect, disconnect/verify/sync, refresh-token merge, feature union, provider revoke, health reporting.
+- Entitlement enforcement on search, resume tailor, and confirmed submissions with UTC windows and PAST_DUE/CANCELLED fallback to FREE.
+- Global security headers in `next.config.ts`.
+- Legacy RLS hardening migration `20260715150000_harden_legacy_rls.sql`.
+- Public `/api/health` minimized; diagnostics admin-gated.
+- Removed settings placeholder defaults and cover-letter `[Your Name]` invention.
+- Fixed consultant history duplicate user message.
+
+### Verification
+- Unit tests: 79 passed.
+- Typecheck: passed.
+- Lint: passed with 8 pre-existing warnings.
+- Production build: passed (52 routes).

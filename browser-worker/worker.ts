@@ -31,6 +31,9 @@ async function processTask(taskId: string) {
       if (!application) throw new Error("Application not found");
 
       const user = await prisma.user.findUnique({ where: { id: task.userId } });
+      const settings = await prisma.userSettings.findUnique({
+        where: { userId: task.userId },
+      });
       const resumeText =
         application.tailoredResume?.rawText ||
         (await prisma.masterResume.findUnique({ where: { userId: task.userId } }))
@@ -43,6 +46,18 @@ async function processTask(taskId: string) {
         profile: {
           fullName: user?.fullName || user?.email || "Applicant",
           email: user?.email || "",
+          linkedinUrl: user?.linkedinUrl || undefined,
+          location: user?.currentLocation || settings?.locations?.[0],
+          experienceYears: settings?.experienceYears,
+          salaryMin: settings?.salaryMin,
+          salaryMax: settings?.salaryMax,
+          salaryCurrency: settings?.salaryCurrency,
+          visaSponsorshipRequired: settings?.visaSponsorshipRequired,
+          willingToRelocate: settings?.willingToRelocate,
+          noticePeriodDays: settings?.noticePeriodDays,
+          workModes: settings?.workModes as
+            | Array<"REMOTE" | "HYBRID" | "ONSITE">
+            | undefined,
         },
         documents: {
           resumeText,

@@ -3,6 +3,7 @@ import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUser } from "@/lib/api/auth";
 import { runAutonomousAgent } from "@/lib/agent/orchestrator";
 import { enqueueJob } from "@/lib/jobs/background";
+import { EntitlementError } from "@/lib/entitlements";
 
 export const maxDuration = 60;
 
@@ -29,6 +30,17 @@ export async function POST(request: NextRequest) {
     ]);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof EntitlementError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          feature: error.feature,
+          remaining: error.remaining,
+        },
+        { status: 402 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Agent run failed";
     if (message === "Agent timed out") {
       const user = await resolveApiUser().catch(() => null);

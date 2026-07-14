@@ -34,14 +34,10 @@ export function findElementWithFallbacks(
   patterns: RegExp[],
   fallbacks: RegExp[] = []
 ) {
+  // Match against the accessible name only. Role/tag must never expand name matching,
+  // or every textbox would match `/input/i` / `/textbox/i` fallbacks.
   const allPatterns = [...patterns, ...fallbacks];
   return snapshot.elements.find((el) =>
-    allPatterns.some(
-      (p) =>
-        p.test(el.name) ||
-        p.test(el.role) ||
-        (el.tag ? p.test(el.tag) : false) ||
-        (el.type ? p.test(el.type) : false)
-    )
+    allPatterns.some((p) => p.test(el.name))
   );
 }

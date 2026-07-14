@@ -97,7 +97,7 @@ export function ConsultantFab() {
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "fixed z-50 h-14 w-14 rounded-full shadow-lg",
-          "bottom-[calc(var(--mobile-nav-height,0px)+env(safe-area-inset-bottom)+1rem)] right-4",
+          "bottom-[calc(var(--bottom-nav-height,0px)+env(safe-area-inset-bottom)+1rem)] right-4",
           "md:bottom-6 md:right-6"
         )}
         aria-label="Open Kairela career consultant"

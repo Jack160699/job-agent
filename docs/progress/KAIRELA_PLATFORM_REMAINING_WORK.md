@@ -14,33 +14,31 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | # | Workstream | Status |
 |---|------------|--------|
 | 0 | Complete product audit | **Complete** |
-| 1 | P0 security and reliability | **Complete** — OAuth state, browser worker, durable rate limits, redirect fix |
-| 2 | CI, release and operational foundation | **Complete (foundation)** — GitHub Actions + release scripts/runbooks |
-| 3 | Public job-link intake | Complete (inherited from product-v1) |
-| 4 | Live Kairela AI career agent | Partial — read-only tool layer, page context, suggested prompts and streaming route exist; conversation CRUD and confirmed write tools remain |
-| 5 | Proactive career relationship manager | **Complete** — grounded rules, evidence, priority, expiry, queue generation and user controls |
-| 6 | Complete job-seeker journey | Partial — recovery/security slice complete; document, ATS and auth journeys depend on WS8/9/10 |
-| 7 | Search quality and relevance | **Complete** — freshness, feedback learning and real ATS extraction |
-| 8 | Resume and document intelligence | **Complete** — PDF/DOCX/text parse, version history, PDF export |
-| 9 | Application agent and ATS automation | **Current** |
-| 10 | Authentication and Google integrations | Partial |
+| 1 | P0 security and reliability | **Complete** |
+| 2 | CI, release and operational foundation | **Complete (foundation)** |
+| 3 | Public job-link intake | Complete (inherited) |
+| 4 | Live Kairela AI career agent | Partial — streaming/tools exist; conversation CRUD and confirmed write tools remain |
+| 5 | Proactive career relationship manager | **Complete** |
+| 6 | Complete job-seeker journey | Partial — recovery, docs, ATS and Google slices landed; end-to-end journey still needs RC validation |
+| 7 | Search quality and relevance | **Complete** |
+| 8 | Resume and document intelligence | **Complete** |
+| 9 | Application agent and ATS automation | **Complete** — policy + no invented answers + no scheduled auto-submit |
+| 10 | Authentication and Google integrations | **Complete (code)** — connect lifecycle, revoke, merge tokens/scopes; real Google E2E still external |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
-| 12 | Subscriptions and entitlements | Foundation only |
-| 13 | Mobile UX and performance | Pending |
-| 14 | Security, privacy and user control | Partial |
-| 15 | Observability and admin operations | Partial |
-| 16 | Product copy and polish | Pending |
+| 12 | Subscriptions and entitlements | Partial — execution-path enforcement landed; Stripe activation external |
+| 13 | Mobile UX and performance | Partial — bottom-nav CSS fix landed; skeletons/viewport evidence remain |
+| 14 | Security, privacy and user control | Partial — headers + RLS hardening migration landed |
+| 15 | Observability and admin operations | Partial — public health minimized; richer admin inventory remains |
+| 16 | Product copy and polish | Partial — misleading defaults and cover-letter placeholder fixed |
 | 17 | Landing-page integration | Blocked on Codex |
 | 18 | Final prelaunch release candidate | Pending |
 
-## Open P0/P1 carryovers
+## Open carryovers
 
-- RLS `WITH CHECK` hardening on remaining legacy policies
-- Entitlement enforcement on search/agent/resume APIs
-- Application status enum expansion
-- Security headers in next.config.ts
-- Migrations `20260715100000_rate_limits.sql` and `20260715113000_proactive_recommendations_v2.sql` applied to production
-- AI assistant conversation CRUD, confirmed write-tool policy and streaming UI
+- AI assistant conversation CRUD and confirmed write-tool proposals
+- Authenticated production E2E once Supabase egress recovers
+- Apply production migrations through `20260715150000_harden_legacy_rls.sql`
+- Owner approval for `kairela.com` attach and human acceptance
 
 ## Deferred final actions
 

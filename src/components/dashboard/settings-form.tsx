@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Save, Link2, CheckCircle2 } from "lucide-react";
+import { Save, Link2, CheckCircle2, RefreshCw, Unplug } from "lucide-react";
 
 interface Settings {
   jobTitles: string[];
@@ -35,13 +35,25 @@ interface Settings {
 
 type GoogleStatus = {
   connected: boolean;
+  health?: string;
   email: string | null;
+  grantedFeatures?: string[];
   integrations: {
     gmail: boolean;
     drive: boolean;
     sheets: boolean;
     calendar: boolean;
   };
+};
+
+const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
+  missing_params: "Google did not return the required connection details.",
+  session_required: "Sign in again, then reconnect Google.",
+  session_mismatch: "That Google connection belonged to a different session.",
+  invalid_features: "Choose at least one Google integration before connecting.",
+  no_tokens: "Google did not issue usable credentials. Try again.",
+  gmail_verify: "Gmail access could not be verified. Reconnect and approve Gmail.",
+  exchange_failed: "Google connection failed during token exchange.",
 };
 
 export function SettingsForm({
@@ -53,13 +65,13 @@ export function SettingsForm({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [jobTitles, setJobTitles] = useState(
-    initialSettings?.jobTitles?.join(", ") || "Software Engineer"
+    initialSettings?.jobTitles?.join(", ") || ""
   );
   const [locations, setLocations] = useState(
-    initialSettings?.locations?.join(", ") || "Remote"
+    initialSettings?.locations?.join(", ") || ""
   );
   const [experienceYears, setExperienceYears] = useState(
-    initialSettings?.experienceYears?.toString() || "3"
+    initialSettings?.experienceYears?.toString() || ""
   );
   const [salaryMin, setSalaryMin] = useState(
     initialSettings?.salaryMin?.toString() || ""
@@ -77,8 +89,9 @@ export function SettingsForm({
     initialSettings?.autoSubmitEnabled ?? false
   );
   const [targetCompanies, setTargetCompanies] = useState(
-    initialSettings?.targetCompanies?.join(", ") || "openai, stripe, linear"
+    initialSettings?.targetCompanies?.join(", ") || ""
   );
+  const [googleBusy, setGoogleBusy] = useState<string | null>(null);
   const [gmailSync, setGmailSync] = useState(
     initialSettings?.gmailSyncEnabled ?? false
   );
@@ -162,25 +175,105 @@ export function SettingsForm({
 
     if (googleParam === "error") {
       const reason = searchParams.get("reason") || "unknown";
-      toast.error(`Google connection failed (${reason})`);
+      toast.error(
+        GOOGLE_ERROR_MESSAGES[reason] ||
+          `Google connection failed. Please try again (${reason}).`
+      );
       router.replace("/dashboard/settings", { scroll: false });
     }
   }, [searchParams, refreshGoogleStatus, router]);
 
-  const connectGoogle = async () => {
+  const selectedGoogleFeatures = () => {
     const features: string[] = [];
     if (gmailSync) features.push("gmail");
     if (sheetsSync) features.push("sheets");
     if (calendarSync) features.push("calendar");
     if (driveSync) features.push("drive");
+    return features;
+  };
+
+  const connectGoogle = async () => {
+    const features = selectedGoogleFeatures();
     if (features.length === 0) {
-      toast.error("Enable at least one integration toggle before connecting");
+      toast.error("Select at least one Google integration before connecting");
       return;
     }
-    const res = await fetch(`/api/google/oauth?scopes=${features.join(",")}`);
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-    else toast.error(data.error || "Google OAuth not configured");
+    setGoogleBusy("connect");
+    try {
+      const res = await fetch(`/api/google/oauth?scopes=${features.join(",")}`);
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else toast.error(data.error || "Google OAuth not configured");
+    } finally {
+      setGoogleBusy(null);
+    }
+  };
+
+  const disconnectGoogle = async () => {
+    setGoogleBusy("disconnect");
+    try {
+      const res = await fetch("/api/google/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Disconnect failed");
+      setGoogleConnected(false);
+      setGoogleEmail(null);
+      setGmailSync(false);
+      setSheetsSync(false);
+      setCalendarSync(false);
+      setDriveSync(false);
+      toast.success("Google disconnected and provider access revoked when possible");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Disconnect failed");
+    } finally {
+      setGoogleBusy(null);
+    }
+  };
+
+  const verifyGoogle = async () => {
+    setGoogleBusy("verify");
+    try {
+      const res = await fetch("/api/google/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+      toast.success("Google integrations verified");
+      await refreshGoogleStatus();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Verification failed");
+    } finally {
+      setGoogleBusy(null);
+    }
+  };
+
+  const syncGoogle = async () => {
+    setGoogleBusy("sync");
+    try {
+      const res = await fetch("/api/google/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "sync",
+          gmail: gmailSync,
+          sheets: sheetsSync,
+          calendar: calendarSync,
+          drive: driveSync,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      toast.success("Google sync completed for enabled integrations");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Sync failed");
+    } finally {
+      setGoogleBusy(null);
+    }
   };
 
   const handleSave = async () => {
@@ -298,7 +391,7 @@ export function SettingsForm({
               <Input
                 value={targetCompanies}
                 onChange={(e) => setTargetCompanies(e.target.value)}
-                placeholder="openai, stripe, linear, netflix"
+                placeholder="Optional: openai, stripe, linear"
               />
               <p className="text-xs text-[var(--ink-tertiary)]">
                 Greenhouse/Lever/Ashby board slugs for job discovery
@@ -339,10 +432,10 @@ export function SettingsForm({
               />
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">
-                  Enable auto-submit (Greenhouse, Lever, Ashby only)
+                  Allow one-click submit after review (Greenhouse, Lever, Ashby)
                 </p>
                 <p className="text-xs text-[var(--ink-tertiary)]">
-                  Automatically submit on supported ATS platforms when review is disabled
+                  Still requires explicit confirmation per application. Scheduled agent runs never submit.
                 </p>
               </div>
             </label>
@@ -465,39 +558,75 @@ export function SettingsForm({
             <CardTitle>Integrations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--line)] p-4">
+            <div className="flex flex-col gap-3 rounded-lg border border-[var(--line)] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">Google Account</p>
                 <p className="text-xs text-[var(--ink-tertiary)]">
                   {googleConnected
                     ? `Connected${googleEmail ? ` as ${googleEmail}` : ""}`
-                    : "Connect for Gmail, Drive, Sheets, and Calendar"}
+                    : "Select the integrations below, then connect your Google account"}
                 </p>
               </div>
-              {googleConnected ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950 px-3 py-1 text-xs font-medium text-emerald-400">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Connected
-                </span>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={connectGoogle}
-                  className="gap-1"
-                >
-                  <Link2 className="h-3 w-3" />
-                  Connect
-                </Button>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {googleConnected ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950 px-3 py-1 text-xs font-medium text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Connected
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={verifyGoogle}
+                      disabled={googleBusy != null}
+                      className="gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Verify
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={syncGoogle}
+                      disabled={googleBusy != null}
+                      className="gap-1"
+                    >
+                      Sync now
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={disconnectGoogle}
+                      disabled={googleBusy != null}
+                      className="gap-1"
+                    >
+                      <Unplug className="h-3 w-3" />
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={connectGoogle}
+                    disabled={googleBusy != null}
+                    className="gap-1"
+                  >
+                    <Link2 className="h-3 w-3" />
+                    Connect
+                  </Button>
+                )}
+              </div>
             </div>
+            <p className="text-xs text-[var(--ink-tertiary)]">
+              Choose scopes before connecting. You can reconnect later to add more Google products.
+            </p>
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={gmailSync}
-                disabled={!googleConnected}
                 onChange={(e) => setGmailSync(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">Gmail sync</p>
@@ -508,9 +637,8 @@ export function SettingsForm({
               <input
                 type="checkbox"
                 checked={driveSync}
-                disabled={!googleConnected}
                 onChange={(e) => setDriveSync(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">Google Drive</p>
@@ -521,9 +649,8 @@ export function SettingsForm({
               <input
                 type="checkbox"
                 checked={sheetsSync}
-                disabled={!googleConnected}
                 onChange={(e) => setSheetsSync(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">Google Sheets sync</p>
@@ -534,9 +661,8 @@ export function SettingsForm({
               <input
                 type="checkbox"
                 checked={calendarSync}
-                disabled={!googleConnected}
                 onChange={(e) => setCalendarSync(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)] disabled:opacity-50"
+                className="h-4 w-4 rounded border-[var(--line)] bg-[var(--surface)] text-[var(--accent)]"
               />
               <div>
                 <p className="text-sm font-medium text-[var(--ink)]">Google Calendar sync</p>

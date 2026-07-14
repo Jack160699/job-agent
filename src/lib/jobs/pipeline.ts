@@ -14,6 +14,11 @@ import { updateJobProgress } from "./job-progress-store";
 import { GreenhouseAdapter, LeverAdapter, AshbyAdapter, WorkdayAdapter } from "./adapters";
 import type { DiscoveredJob } from "./types";
 import { applyFeedbackProfile, buildFeedbackProfile } from "./feedback";
+import {
+  assertCanUseFeature,
+  consumeFeature,
+  recordUsage,
+} from "@/lib/entitlements";
 
 export async function getOrCreateUser(supabaseId: string, email: string) {
   let user = await prisma.user.findUnique({ where: { supabaseId } });
@@ -112,6 +117,12 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     action: "JOB_SEARCH_VALIDATE",
     message: `Validated preferences: ${settings.jobTitles.join(", ")}`,
     level: "INFO",
+  });
+
+  await consumeFeature(userId, "job_search", {
+    idempotencyKey: backgroundJobId
+      ? `job_search:${backgroundJobId}`
+      : undefined,
   });
 
   const boards = buildDiscoveryBoards(settings);
@@ -428,6 +439,8 @@ export async function processApplication(userId: string, applicationId: string) 
   });
   if (!masterResume) throw new Error("Master resume required");
 
+  await assertCanUseFeature(userId, "resume_tailor");
+
   const job = application.job;
   const matchAnalysis = job.matchAnalysis as {
     matchedSkills?: string[];
@@ -520,6 +533,10 @@ export async function processApplication(userId: string, applicationId: string) 
     resourceId: applicationId,
     message: `Generated resume and cover letter for ${job.title} at ${job.company}`,
     level: "AUDIT",
+  });
+
+  await recordUsage(userId, "resume_tailor", 1, {
+    idempotencyKey: `resume_tailor:${applicationId}`,
   });
 
   return { tailoredResume, coverLetter, status: newStatus };

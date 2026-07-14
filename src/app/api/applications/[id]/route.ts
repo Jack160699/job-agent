@@ -4,6 +4,7 @@ import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUser, prisma } from "@/lib/api/auth";
 import { prepareApplicationSubmission } from "@/lib/agent/orchestrator";
 import { validateSubmissionAuthorization } from "@/lib/applications/action-policy";
+import { EntitlementError } from "@/lib/entitlements";
 
 const actionSchema = z.object({
   autoSubmit: z.boolean().default(false),
@@ -71,6 +72,17 @@ export async function POST(
     });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof EntitlementError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          feature: error.feature,
+          remaining: error.remaining,
+        },
+        { status: 402 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Submit failed";
     return NextResponse.json(
       { error: message },

@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { searchJobs } from "@/lib/jobs/pipeline";
 import { resolveApiUser } from "@/lib/api/auth";
@@ -9,6 +8,7 @@ import {
   processBackgroundJobs,
 } from "@/lib/jobs/background";
 import { hasMinimumPreferences } from "@/lib/jobs/preferences";
+import { EntitlementError } from "@/lib/entitlements";
 import prisma from "@/lib/db";
 
 export const maxDuration = 60;
@@ -62,6 +62,17 @@ export async function POST(request: NextRequest) {
     ]);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof EntitlementError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          feature: error.feature,
+          remaining: error.remaining,
+        },
+        { status: 402 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Search failed";
     if (message === "PREFERENCES_INCOMPLETE") {
       return NextResponse.json(

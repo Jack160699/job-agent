@@ -239,7 +239,7 @@ export function JobSearchWorkflow({
           className={cn(
             "rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)]",
             "md:static",
-            "fixed inset-x-0 bottom-[calc(var(--mobile-nav-height,0px)+env(safe-area-inset-bottom))] z-40 mx-3 border-b-0 shadow-lg md:relative md:mx-0 md:shadow-none"
+            "fixed inset-x-0 bottom-[calc(var(--bottom-nav-height,0px)+env(safe-area-inset-bottom))] z-40 mx-3 border-b-0 shadow-lg md:relative md:mx-0 md:shadow-none"
           )}
         >
           <div className="flex items-center gap-3 px-4 py-3">

@@ -14,9 +14,26 @@
 |---|---|
 | CAPTCHA / bot check | `NEEDS_INPUT` + human escalation |
 | Login / SSO / MFA | `NEEDS_INPUT` + human escalation |
-| Missing required answer | `NEEDS_INPUT` |
+| Missing required answer | `NEEDS_INPUT` / `MANUAL_REQUIRED` |
 | Adapter or browser timeout | `FAILED` (retryable) |
-| Confirmed submission | `APPLIED` |
+| Confirmed submission | `APPLIED` / `SUBMITTED` |
+
+## Answer Policy
+
+Automation may fill only facts present on the applicant profile and settings:
+name, email, phone, LinkedIn, location, experience years, salary range,
+sponsorship preference, relocation preference, work-mode preference, and notice period.
+
+It must not invent work authorization, demographics, or any other unanswered field.
+When an inventable or unknown field is detected, preparation stops for human input.
+
+## Agent vs Submission
+
+Scheduled and one-click agent runs can search, analyze, match, and prepare.
+They must not submit.
+
+Final submission is only allowed through the applications API after
+`validateSubmissionAuthorization({ autoSubmit: true, confirmed: true })`.
 
 ## UI Contract
 

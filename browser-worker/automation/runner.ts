@@ -80,10 +80,23 @@ export async function runPrepareApplicationTask(input: {
     retries: 2,
   });
 
-  await answerCommonQuestions(input.browser, input.profile);
+  const answered = await answerCommonQuestions(input.browser, input.profile);
   await uploadDocuments(input.browser, input.documents, dir);
   await capture("form-filled");
   await input.onProgress?.(70);
+
+  if (answered.unanswered.length > 0) {
+    return {
+      success: false,
+      status: "requires_manual",
+      message: `Missing required information: ${answered.unanswered.join(", ")}. Kairela will not invent answers.`,
+      formData: {
+        answeredFields: answered.answered,
+        unansweredFields: answered.unanswered,
+      },
+      screenshotPaths,
+    };
+  }
 
   const result = await automator.prepareApplication(
     input.browser,

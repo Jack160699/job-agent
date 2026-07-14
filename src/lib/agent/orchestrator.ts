@@ -21,6 +21,7 @@ import {
 } from "@/lib/jobs/pipeline";
 import type { Prisma } from "@prisma/client";
 import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-policy";
+import { assertCanUseFeature, recordUsage } from "@/lib/entitlements";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -124,10 +125,12 @@ export async function runAutonomousAgent(userId: string): Promise<AgentRunResult
     take: 5,
   });
 
+  // Agent runs may prepare applications, but never submit.
+  // Final submission requires explicit per-attempt confirmation on the application API.
   for (const app of reviewApps) {
     try {
       const prep = await prepareApplicationSubmission(userId, app.id, {
-        autoSubmit: settings.autoSubmitEnabled && !settings.requireReview,
+        autoSubmit: false,
       });
       if (prep.status === "submitted") result.submitted++;
       else result.prepared++;
@@ -164,6 +167,10 @@ export async function prepareApplicationSubmission(
   applicationId: string,
   options?: { autoSubmit?: boolean }
 ) {
+  if (options?.autoSubmit) {
+    await assertCanUseFeature(userId, "application");
+  }
+
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
     include: {
@@ -281,15 +288,33 @@ export async function prepareApplicationSubmission(
     };
   }
 
+  const profileSettings = await prisma.userSettings.findUnique({
+    where: { userId },
+  });
+
+  const profile = {
+    fullName: user?.fullName || user?.email || "Applicant",
+    email: user?.email || "",
+    linkedinUrl: user?.linkedinUrl || undefined,
+    location: user?.currentLocation || profileSettings?.locations?.[0],
+    experienceYears: profileSettings?.experienceYears,
+    salaryMin: profileSettings?.salaryMin,
+    salaryMax: profileSettings?.salaryMax,
+    salaryCurrency: profileSettings?.salaryCurrency,
+    visaSponsorshipRequired: profileSettings?.visaSponsorshipRequired,
+    willingToRelocate: profileSettings?.willingToRelocate,
+    noticePeriodDays: profileSettings?.noticePeriodDays,
+    workModes: profileSettings?.workModes as
+      | Array<"REMOTE" | "HYBRID" | "ONSITE">
+      | undefined,
+  };
+
   const browser = await createBrowserClient();
   try {
     const submission = await automator.prepareApplication(
       browser,
       application.job.sourceUrl,
-      {
-        fullName: user?.fullName || user?.email || "Applicant",
-        email: user?.email || "",
-      },
+      profile,
       {
         resumeText,
         resumePdf: pdf,
@@ -318,6 +343,12 @@ export async function prepareApplicationSubmission(
         requiresReview: !options?.autoSubmit || mapped.status === "PENDING_REVIEW",
       },
     });
+
+    if (mapped.status === "SUBMITTED") {
+      await recordUsage(userId, "application", 1, {
+        idempotencyKey: `application_submitted:${applicationId}`,
+      });
+    }
 
     return {
       ...submission,

@@ -61,7 +61,7 @@ export async function chatWithConsultant(
   const { text, toolCalls } = await generateText({
     model: openai("gpt-4o-mini"),
     system: `${AGENT_SYSTEM_PROMPT}${pageContext}`,
-    messages: [...messages, { role: "user", content: message }],
+    messages,
     tools,
     maxSteps: 4,
     maxTokens: 1000,
@@ -102,7 +102,7 @@ export async function streamConsultantReply(
   const result = streamText({
     model: openai("gpt-4o-mini"),
     system: `${AGENT_SYSTEM_PROMPT}${pageContext}`,
-    messages: [...messages, { role: "user", content: message }],
+    messages,
     tools,
     maxSteps: 4,
     maxTokens: 1000,
