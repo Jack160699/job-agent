@@ -6,6 +6,10 @@ import { getApplications } from "@/lib/data/dashboard";
 import { ClipboardList } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { JobLinkImportButton } from "@/components/jobs/job-link-import";
+import {
+  applicationTimeline,
+  nextApplicationAction,
+} from "@/lib/applications/state-machine";
 
 export default async function ApplicationsPage() {
   const applications = await getApplications();
@@ -38,6 +42,34 @@ export default async function ApplicationsPage() {
                     </div>
                     <StatusBadge status={app.status} />
                   </div>
+                  <div className="mt-3 rounded-md bg-[var(--surface-sunken)] p-3 text-xs">
+                    <p>
+                      <span className="font-medium">Documents:</span>{" "}
+                      {app.tailoredResume && app.coverLetter
+                        ? "Tailored resume and cover letter ready"
+                        : "Documents still required"}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-medium">Next:</span>{" "}
+                      {nextApplicationAction({
+                        status: app.status,
+                        hasDocuments: Boolean(
+                          app.tailoredResume && app.coverLetter
+                        ),
+                        failureReason: app.failureReason,
+                      })}
+                    </p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer font-medium">Timeline</summary>
+                      <ol className="mt-1 space-y-1 text-[var(--ink-tertiary)]">
+                        {applicationTimeline(app).map((event) => (
+                          <li key={`${event.label}-${event.at.toISOString()}`}>
+                            {event.label} · {formatDate(event.at)}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  </div>
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {app.matchScore != null ? (
@@ -47,7 +79,17 @@ export default async function ApplicationsPage() {
                       )}
                       <span className="text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</span>
                     </div>
-                    <ApplicationActions applicationId={app.id} status={app.status} />
+                    <ApplicationActions
+                      applicationId={app.id}
+                      status={app.status}
+                      failureReason={app.failureReason}
+                      jobStatus={app.job.status}
+                      hasDocuments={Boolean(app.tailoredResume && app.coverLetter)}
+                      browserTaskId={
+                        ((app.documents as { browserTaskId?: string } | null)
+                          ?.browserTaskId) ?? null
+                      }
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -64,6 +106,7 @@ export default async function ApplicationsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Match</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Updated</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Documents / next action</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Actions</th>
                 </tr>
               </thead>
@@ -86,8 +129,44 @@ export default async function ApplicationsPage() {
                       <StatusBadge status={app.status} />
                     </td>
                     <td className="px-6 py-4 text-xs text-[var(--ink-tertiary)]">{formatDate(app.updatedAt)}</td>
+                    <td className="max-w-[260px] px-6 py-4 text-xs">
+                      <p>
+                        {app.tailoredResume && app.coverLetter
+                          ? "Resume + cover letter ready"
+                          : "Documents required"}
+                      </p>
+                      <p className="mt-1 text-[var(--ink-tertiary)]">
+                        {nextApplicationAction({
+                          status: app.status,
+                          hasDocuments: Boolean(
+                            app.tailoredResume && app.coverLetter
+                          ),
+                          failureReason: app.failureReason,
+                        })}
+                      </p>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer">Timeline</summary>
+                        <ol className="mt-1 space-y-1">
+                          {applicationTimeline(app).map((event) => (
+                            <li key={`${event.label}-${event.at.toISOString()}`}>
+                              {event.label} · {formatDate(event.at)}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    </td>
                     <td className="px-6 py-4">
-                      <ApplicationActions applicationId={app.id} status={app.status} />
+                      <ApplicationActions
+                        applicationId={app.id}
+                        status={app.status}
+                        failureReason={app.failureReason}
+                        jobStatus={app.job.status}
+                        hasDocuments={Boolean(app.tailoredResume && app.coverLetter)}
+                        browserTaskId={
+                          ((app.documents as { browserTaskId?: string } | null)
+                            ?.browserTaskId) ?? null
+                        }
+                      />
                     </td>
                   </tr>
                 ))}

@@ -1,9 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/auth/server";
-import { chatWithConsultant } from "@/lib/consultant/service";
+import {
+  chatWithConsultant,
+  getConversationMessages,
+  ensureConversation,
+} from "@/lib/consultant/service";
+import { pageSuggestions } from "@/lib/agent/context";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.aiChat,
+    keyPrefix: "consultant-chat",
+  });
+  if (limited) return limited;
+
   const user = await getDbUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,10 +35,14 @@ export async function POST(request: Request) {
     const result = await chatWithConsultant(user.id, message, {
       pathname: body.pathname,
       pageTitle: body.pageTitle,
+      conversationId: body.conversationId,
     });
     return NextResponse.json({
       reply: result.message.content,
+      conversationId: result.conversationId,
       remaining: result.remaining,
+      suggestions: result.suggestions,
+      proposals: result.proposals,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Consultant unavailable";
@@ -34,19 +50,33 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getDbUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { default: prisma } = await import("@/lib/db");
-  const messages = await prisma.consultantMessage.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "asc" },
-    take: 50,
-    select: { id: true, role: true, content: true, createdAt: true },
-  });
+  const pathname = request.nextUrl.searchParams.get("pathname") ?? undefined;
+  const conversationId = request.nextUrl.searchParams.get("conversationId");
 
-  return NextResponse.json({ messages, enabled: isFeatureEnabled("aiConsultant") });
+  if (conversationId) {
+    const detail = await getConversationMessages(user.id, conversationId);
+    if (!detail) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ...detail,
+      enabled: isFeatureEnabled("aiConsultant"),
+      suggestions: pageSuggestions(pathname),
+    });
+  }
+
+  const conversation = await ensureConversation(user.id);
+  const detail = await getConversationMessages(user.id, conversation.id);
+  return NextResponse.json({
+    conversationId: conversation.id,
+    messages: detail?.messages ?? [],
+    enabled: isFeatureEnabled("aiConsultant"),
+    suggestions: pageSuggestions(pathname),
+  });
 }

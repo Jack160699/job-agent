@@ -1,4 +1,8 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  isTerminalBrowserTask,
+  staleTaskRecoveryStatus,
+} from "../../src/lib/browser/queue-policy";
 
 const prisma = new PrismaClient();
 
@@ -27,18 +31,51 @@ export interface EnqueueBrowserTaskInput {
 
 export class BrowserQueueManager {
   async enqueue(input: EnqueueBrowserTaskInput) {
-    return prisma.browserTask.create({
-      data: {
-        userId: input.userId,
-        applicationId: input.applicationId,
-        type: input.type,
-        platform: input.platform,
-        payload: input.payload ?? {},
-        maxAttempts: input.maxAttempts ?? 3,
-        status: "pending",
-        progress: 0,
-      },
-    });
+    if (input.applicationId) {
+      const existing = await prisma.browserTask.findFirst({
+        where: {
+          userId: input.userId,
+          applicationId: input.applicationId,
+          type: input.type,
+          status: { in: ["pending", "running"] },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existing) return existing;
+    }
+    try {
+      return await prisma.browserTask.create({
+        data: {
+          userId: input.userId,
+          applicationId: input.applicationId,
+          type: input.type,
+          platform: input.platform,
+          payload: input.payload ?? {},
+          maxAttempts: input.maxAttempts ?? 3,
+          status: "pending",
+          progress: 0,
+        },
+      });
+    } catch (error) {
+      if (
+        input.applicationId &&
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2002"
+      ) {
+        return prisma.browserTask.findFirstOrThrow({
+          where: {
+            userId: input.userId,
+            applicationId: input.applicationId,
+            type: input.type,
+            status: { in: ["pending", "running"] },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+      throw error;
+    }
   }
 
   async claimNext(limit = 1) {
@@ -90,8 +127,8 @@ export class BrowserQueueManager {
   }
 
   async complete(taskId: string, result: Record<string, unknown>) {
-    return prisma.browserTask.update({
-      where: { id: taskId },
+    const updated = await prisma.browserTask.updateMany({
+      where: { id: taskId, status: "running", cancelledAt: null },
       data: {
         status: "completed",
         progress: 100,
@@ -100,11 +137,17 @@ export class BrowserQueueManager {
         error: null,
       },
     });
+    return updated.count === 1
+      ? prisma.browserTask.findUnique({ where: { id: taskId } })
+      : null;
   }
 
   async fail(taskId: string, error: string, screenshotPaths?: string[]) {
     const task = await prisma.browserTask.findUnique({ where: { id: taskId } });
     if (!task) return null;
+    if (isTerminalBrowserTask(task.status)) {
+      return task;
+    }
 
     const isDeadLetter = task.attempts >= task.maxAttempts;
     return prisma.browserTask.update({
@@ -159,6 +202,31 @@ export class BrowserQueueManager {
         scheduledAt: new Date(),
       },
     });
+  }
+
+  async recoverStaleRunning(timeoutMs = 10 * 60_000) {
+    const cutoff = new Date(Date.now() - timeoutMs);
+    const stale = await prisma.browserTask.findMany({
+      where: {
+        status: "running",
+        cancelledAt: null,
+        startedAt: { lt: cutoff },
+      },
+      select: { id: true, attempts: true, maxAttempts: true },
+    });
+    for (const task of stale) {
+      await prisma.browserTask.updateMany({
+        where: { id: task.id, status: "running", cancelledAt: null },
+        data: {
+          status: staleTaskRecoveryStatus(task),
+          error: "WORKER_TIMEOUT_RECOVERED",
+          progress: 0,
+          scheduledAt: new Date(),
+          startedAt: null,
+        },
+      });
+    }
+    return stale.length;
   }
 }
 

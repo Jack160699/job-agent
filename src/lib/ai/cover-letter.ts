@@ -78,8 +78,7 @@ I am excited about the opportunity to contribute to ${input.job.company} and wou
 
 Thank you for your consideration.
 
-Sincerely,
-[Your Name]`;
+Sincerely,`;
 
   return {
     title: `Cover Letter - ${input.job.company} - ${input.job.title}`,

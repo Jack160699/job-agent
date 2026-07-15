@@ -1,17 +1,68 @@
 import type { DiscoveredJob, JobSearchFilters } from "./types";
 import { getAllAutomators } from "@/lib/automation/registry";
 
+const FETCH_TIMEOUT_MS = 12_000;
+
+async function fetchJson(url: string): Promise<unknown> {
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Job source returned ${response.status}`);
+  }
+  return response.json();
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseDate(value: unknown): Date | undefined {
+  if (typeof value === "number" || typeof value === "string") {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return undefined;
+}
+
 function boardsFor(
   filters: JobSearchFilters,
-  platform: "greenhouse" | "lever" | "ashby" | "workday",
-  envKey: string
+  platform: "greenhouse" | "lever" | "ashby" | "workday"
 ): string[] {
   const fromDiscovery = filters.discoveryBoards?.[platform] || [];
-  const fromEnv = (process.env[envKey] || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [...new Set([...fromDiscovery, ...fromEnv])];
+  return [...new Set(fromDiscovery)];
+}
+
+/** Prefer explainable search-plan queries; fall back to flat titles. */
+function discoveryQueries(filters: JobSearchFilters): Array<{
+  title: string;
+  location: string | null;
+  remoteScope: "INDIA" | "WORLDWIDE" | null;
+}> {
+  if (filters.queries && filters.queries.length > 0) {
+    return filters.queries.slice(0, 12).map((query) => ({
+      title: query.title,
+      location: query.location,
+      remoteScope: query.remoteScope,
+    }));
+  }
+  return filters.titles.slice(0, 3).map((title) => ({
+    title,
+    location: filters.locations[0] ?? null,
+    remoteScope: filters.remote ? ("WORLDWIDE" as const) : null,
+  }));
 }
 
 export class GreenhouseAdapter {
@@ -19,16 +70,21 @@ export class GreenhouseAdapter {
   name = "Greenhouse";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const boards = boardsFor(filters, "greenhouse", "JOB_SEARCH_GREENHOUSE_BOARDS");
+    const boards = boardsFor(filters, "greenhouse");
     if (boards.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
     const jobs: DiscoveredJob[] = [];
 
     for (const board of boards.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(board, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              board,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Board may not exist
         }
@@ -68,16 +124,21 @@ export class LeverAdapter {
   name = "Lever";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const companies = boardsFor(filters, "lever", "JOB_SEARCH_LEVER_COMPANIES");
+    const companies = boardsFor(filters, "lever");
     if (companies.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
     const jobs: DiscoveredJob[] = [];
 
     for (const company of companies.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(company, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              company,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Company may not exist
         }
@@ -87,15 +148,45 @@ export class LeverAdapter {
   }
 
   async getJobDetails(url: string): Promise<DiscoveredJob | null> {
-    const match = url.match(/jobs\.lever\.co\/([^/]+)/);
+    const match = url.match(/jobs\.lever\.co\/([^/?#]+)\/([^/?#]+)/i);
     if (!match) return null;
-    return {
-      source: "LEVER",
-      sourceUrl: url,
-      title: "Job from Lever",
-      company: match[1],
-      description: "",
-    };
+    try {
+      const job = (await fetchJson(
+        `https://api.lever.co/v0/postings/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}`
+      )) as {
+        id?: string;
+        text?: string;
+        hostedUrl?: string;
+        descriptionPlain?: string;
+        additionalPlain?: string;
+        createdAt?: number;
+        categories?: {
+          location?: string;
+          commitment?: string;
+          team?: string;
+        };
+      };
+      if (!job.text) return null;
+      return {
+        externalId: job.id ?? match[2],
+        source: "LEVER",
+        sourceUrl: job.hostedUrl ?? url,
+        title: job.text,
+        company: match[1],
+        location: job.categories?.location,
+        description: [job.descriptionPlain, job.additionalPlain]
+          .filter(Boolean)
+          .join("\n\n"),
+        postedAt: parseDate(job.createdAt),
+        metadata: {
+          team: job.categories?.team,
+          commitment: job.categories?.commitment,
+          extractionMethod: "lever_postings_api",
+        },
+      };
+    } catch {
+      return null;
+    }
   }
 
   canAutoApply = true;
@@ -106,16 +197,21 @@ export class AshbyAdapter {
   name = "Ashby";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const boards = boardsFor(filters, "ashby", "JOB_SEARCH_ASHBY_BOARDS");
+    const boards = boardsFor(filters, "ashby");
     if (boards.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
     const jobs: DiscoveredJob[] = [];
 
     for (const board of boards.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(board, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              board,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Board may not exist
         }
@@ -125,14 +221,54 @@ export class AshbyAdapter {
   }
 
   async getJobDetails(url: string): Promise<DiscoveredJob | null> {
-    return {
-      source: "ASHBY",
-      sourceUrl: url,
-      title: "Job from Ashby",
-      company: "Unknown",
-      description: "",
-      metadata: { requiresBrowser: true },
-    };
+    const match = url.match(/jobs\.ashbyhq\.com\/([^/?#]+)\/([^/?#]+)/i);
+    if (!match) return null;
+    try {
+      const board = (await fetchJson(
+        `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(match[1])}`
+      )) as {
+        jobs?: Array<{
+          id?: string;
+          title?: string;
+          location?: string;
+          descriptionPlain?: string;
+          descriptionHtml?: string;
+          jobUrl?: string;
+          applyUrl?: string;
+          publishedAt?: string;
+          employmentType?: string;
+          department?: string;
+          team?: string;
+        }>;
+      };
+      const job = board.jobs?.find(
+        (candidate) =>
+          candidate.id === match[2] ||
+          candidate.jobUrl?.includes(`/${match[2]}`) ||
+          candidate.applyUrl?.includes(`/${match[2]}`)
+      );
+      if (!job?.title) return null;
+      return {
+        externalId: job.id ?? match[2],
+        source: "ASHBY",
+        sourceUrl: job.jobUrl ?? url,
+        title: job.title,
+        company: match[1],
+        location: job.location,
+        description:
+          job.descriptionPlain ??
+          (job.descriptionHtml ? stripHtml(job.descriptionHtml) : ""),
+        postedAt: parseDate(job.publishedAt),
+        metadata: {
+          employmentType: job.employmentType,
+          department: job.department,
+          team: job.team,
+          extractionMethod: "ashby_job_board_api",
+        },
+      };
+    } catch {
+      return null;
+    }
   }
 
   canAutoApply = true;
@@ -143,16 +279,21 @@ export class WorkdayAdapter {
   name = "Workday";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const companies = boardsFor(filters, "workday", "JOB_SEARCH_WORKDAY_COMPANIES");
+    const companies = boardsFor(filters, "workday");
     if (companies.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "WORKDAY")!;
     const jobs: DiscoveredJob[] = [];
 
     for (const company of companies) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(company, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              company,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Browser search may fail without Playwright
         }
@@ -162,14 +303,50 @@ export class WorkdayAdapter {
   }
 
   async getJobDetails(url: string): Promise<DiscoveredJob | null> {
-    return {
-      source: "WORKDAY",
-      sourceUrl: url,
-      title: "Job from Workday",
-      company: "Unknown",
-      description: "Use browser automation to fetch full details.",
-      metadata: { requiresBrowser: true },
-    };
+    try {
+      const parsed = new URL(url);
+      if (!parsed.hostname.endsWith("myworkdayjobs.com")) return null;
+      const tenant = parsed.hostname.split(".")[0];
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const localeIndex = parts.findIndex((part) =>
+        /^[a-z]{2}-[A-Z]{2}$/.test(part)
+      );
+      const siteIndex = localeIndex >= 0 ? localeIndex + 1 : 0;
+      const jobIndex = parts.indexOf("job");
+      const site = parts[siteIndex];
+      if (!tenant || !site || jobIndex < 0) return null;
+      const jobPath = parts.slice(jobIndex).join("/");
+      const data = (await fetchJson(
+        `${parsed.origin}/wday/cxs/${encodeURIComponent(tenant)}/${encodeURIComponent(site)}/${jobPath}`
+      )) as {
+        jobPostingInfo?: {
+          id?: string;
+          title?: string;
+          jobDescription?: string;
+          location?: string;
+          postedOn?: string;
+          externalUrl?: string;
+          jobReqId?: string;
+        };
+      };
+      const job = data.jobPostingInfo;
+      if (!job?.title) return null;
+      return {
+        externalId: job.jobReqId ?? job.id ?? parts.at(-1),
+        source: "WORKDAY",
+        sourceUrl: job.externalUrl
+          ? new URL(job.externalUrl, parsed.origin).toString()
+          : url,
+        title: job.title,
+        company: tenant,
+        location: job.location,
+        description: stripHtml(job.jobDescription ?? ""),
+        postedAt: parseDate(job.postedOn),
+        metadata: { extractionMethod: "workday_cxs_api" },
+      };
+    } catch {
+      return null;
+    }
   }
 
   canAutoApply = true;

@@ -1,5 +1,8 @@
 import { google } from "googleapis";
-import { getAuthenticatedClient } from "./oauth";
+import {
+  getAuthenticatedClient,
+  type GoogleIntegrationFeature,
+} from "./oauth";
 
 export type GoogleApiVerification = {
   gmail: { ok: boolean; email?: string; error?: string };
@@ -15,7 +18,10 @@ export async function verifyGmailProfile(userId: string) {
   return profile.data.emailAddress || null;
 }
 
-export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerification> {
+export async function verifyGoogleApis(
+  userId: string,
+  features: GoogleIntegrationFeature[]
+): Promise<GoogleApiVerification> {
   const auth = await getAuthenticatedClient(userId);
   const results: GoogleApiVerification = {
     gmail: { ok: false },
@@ -24,7 +30,7 @@ export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerific
     calendar: { ok: false },
   };
 
-  try {
+  if (features.includes("gmail")) try {
     const gmail = google.gmail({ version: "v1", auth });
     const profile = await gmail.users.getProfile({ userId: "me" });
     results.gmail = { ok: true, email: profile.data.emailAddress || undefined };
@@ -35,7 +41,7 @@ export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerific
     };
   }
 
-  try {
+  if (features.includes("drive")) try {
     const drive = google.drive({ version: "v3", auth });
     const about = await drive.about.get({ fields: "user(emailAddress)" });
     results.drive = {
@@ -49,19 +55,15 @@ export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerific
     };
   }
 
-  try {
-    const sheets = google.sheets({ version: "v4", auth });
-    const created = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: { title: "Kairela Connection Test" },
-        sheets: [{ properties: { title: "Test" } }],
-      },
-    });
-    if (created.data.spreadsheetId) {
-      const drive = google.drive({ version: "v3", auth });
-      await drive.files.delete({ fileId: created.data.spreadsheetId });
-    }
-    results.sheets = { ok: true };
+  if (features.includes("sheets")) try {
+    const access = await auth.getAccessToken();
+    if (!access.token) throw new Error("Google access token unavailable");
+    const tokenInfo = await auth.getTokenInfo(access.token);
+    results.sheets = {
+      ok: tokenInfo.scopes.includes(
+        "https://www.googleapis.com/auth/spreadsheets"
+      ),
+    };
   } catch (error) {
     results.sheets = {
       ok: false,
@@ -69,9 +71,9 @@ export async function verifyGoogleApis(userId: string): Promise<GoogleApiVerific
     };
   }
 
-  try {
+  if (features.includes("calendar")) try {
     const calendar = google.calendar({ version: "v3", auth });
-    await calendar.calendarList.list({ maxResults: 1 });
+    await calendar.events.list({ calendarId: "primary", maxResults: 1 });
     results.calendar = { ok: true };
   } catch (error) {
     results.calendar = {

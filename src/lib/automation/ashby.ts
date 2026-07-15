@@ -5,11 +5,8 @@ import type {
   BrowserAutomationClient,
   SubmissionResult,
 } from "@/lib/browser/types";
-import {
-  fillCommonFields,
-  findElement,
-  type PlatformAutomator,
-} from "./base";
+import type { PlatformAutomator } from "./base";
+import { prepareApplicationForm } from "./prepare-flow";
 
 export class AshbyAutomator implements PlatformAutomator {
   platform = "ASHBY";
@@ -61,53 +58,14 @@ export class AshbyAutomator implements PlatformAutomator {
     documents: ApplicationDocuments,
     options?: { autoSubmit?: boolean }
   ): Promise<SubmissionResult> {
-    await browser.navigate(jobUrl);
-    await browser.waitForSelector("Apply", 25000);
-
-    const snap = await browser.snapshot();
-    const applyBtn = findElement(snap, [/apply/i, /start application/i]);
-    if (applyBtn) await browser.click(applyBtn.ref);
-
-    await fillCommonFields(browser, profile);
-
-    if (documents.resumeText) {
-      const field = findElement(await browser.snapshot(), [/resume/i, /experience/i]);
-      if (field) await browser.type(field.ref, documents.resumeText.slice(0, 8000));
-    }
-
-    if (documents.coverLetterText) {
-      const field = findElement(await browser.snapshot(), [/cover letter/i, /motivation/i]);
-      if (field) await browser.type(field.ref, documents.coverLetterText.slice(0, 5000));
-    }
-
-    const formData = { platform: "ASHBY", jobUrl, profile: profile.email };
-
-    if (!options?.autoSubmit) {
-      return {
-        success: true,
-        status: "pending_review",
-        message: "Ashby application filled — ready for review",
-        formData,
-      };
-    }
-
-    const submitBtn = findElement(await browser.snapshot(), [/submit/i, /finish/i]);
-    if (submitBtn) {
-      await browser.click(submitBtn.ref);
-      return {
-        success: true,
-        status: "submitted",
-        message: "Ashby application submitted",
-        formData,
-      };
-    }
-
-    return {
-      success: false,
-      status: "requires_manual",
-      message: "Could not find submit button on Ashby form",
-      formData,
-    };
+    return prepareApplicationForm({
+      browser,
+      jobUrl,
+      platform: this.platform,
+      profile,
+      documents,
+      autoSubmit: options?.autoSubmit,
+    });
   }
 }
 

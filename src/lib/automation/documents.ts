@@ -34,7 +34,7 @@ export async function uploadDocuments(
       /paste/i,
       /experience/i,
     ]);
-    if (resumeField) {
+    if (resumeField && resumeField.type !== "file") {
       await browser.type(resumeField.ref, documents.resumeText.slice(0, 8000));
     }
   }

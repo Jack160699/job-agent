@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/security/rate-limit";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
+import { resolveApiUser } from "@/lib/api/auth";
 import {
   completeOnboarding,
   getOrCreateOnboardingState,
@@ -21,7 +21,7 @@ import type { UserPersona } from "@prisma/client";
 
 export async function GET() {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const [draft, state, complete] = await Promise.all([
       loadOnboardingDraft(user.id),
       getOrCreateOnboardingState(user.id),
@@ -52,11 +52,11 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const limited = rateLimit(request);
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.default);
   if (limited) return limited;
 
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const body = await request.json();
     const action = body.action as string | undefined;
 

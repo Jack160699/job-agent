@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/security/rate-limit";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
+import { resolveApiUser } from "@/lib/api/auth";
 import prisma from "@/lib/db";
 import { validateSearchPreferences } from "@/lib/jobs/preferences";
 import { archiveLegacyJobs } from "@/lib/jobs/pipeline";
 
 export async function GET() {
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const settings = await prisma.userSettings.findUnique({
       where: { userId: user.id },
     });
@@ -43,11 +43,11 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const limited = rateLimit(request);
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.default);
   if (limited) return limited;
 
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const body = await request.json();
     const complete = Boolean(body.preferencesComplete);
 

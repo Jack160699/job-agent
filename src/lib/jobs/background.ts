@@ -12,6 +12,7 @@ export type JobType =
   | "SYNC_SHEETS"
   | "SYNC_CALENDAR"
   | "RUN_AGENT"
+  | "GENERATE_RECOMMENDATIONS"
   | "RETRY_FAILED";
 
 interface JobPayload {
@@ -116,6 +117,26 @@ export async function getActiveSearchJob(userId: string) {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function cancelActiveJob(userId: string, type: JobType) {
+  const result = await prisma.backgroundJob.updateMany({
+    where: {
+      userId,
+      type,
+      status: { in: ["pending", "running"] },
+    },
+    data: {
+      status: "cancelled",
+      cancelledAt: new Date(),
+      error: "Cancelled by user",
+      progressStage: "cancelled",
+    },
+  });
+  if (result.count > 0) {
+    logWorker("job_cancelled_by_user", { userId, type, count: result.count });
+  }
+  return result.count;
 }
 
 /** Idempotent interactive search — returns existing active job or creates a prioritized one. */
@@ -328,6 +349,16 @@ export async function processBackgroundJobs() {
               result = await runAutonomousAgent(payload.userId);
             }
             break;
+          case "GENERATE_RECOMMENDATIONS":
+            if (payload.userId) {
+              const { generateProactiveRecommendations } = await import(
+                "@/lib/proactive/service"
+              );
+              result = await generateProactiveRecommendations(payload.userId);
+            } else {
+              throw new Error("GENERATE_RECOMMENDATIONS missing userId");
+            }
+            break;
           case "RETRY_FAILED":
             result = await retryFailedApplications(payload.userId);
             break;
@@ -335,8 +366,8 @@ export async function processBackgroundJobs() {
             throw new Error(`Unknown job type: ${job.type}`);
         }
 
-        await prisma.backgroundJob.update({
-          where: { id: job.id },
+        const completed = await prisma.backgroundJob.updateMany({
+          where: { id: job.id, status: "running" },
           data: {
             status: "completed",
             completedAt: new Date(),
@@ -348,10 +379,35 @@ export async function processBackgroundJobs() {
           },
         });
 
+        if (completed.count === 0) {
+          const current = await prisma.backgroundJob.findUnique({
+            where: { id: job.id },
+            select: { status: true },
+          });
+          if (current?.status === "cancelled") {
+            allResults.push({ id: job.id, status: "cancelled" });
+            continue;
+          }
+          throw new Error("JOB_STATE_CHANGED");
+        }
+
         logWorker("job_completed", { jobId: job.id, type: job.type });
         allResults.push({ id: job.id, status: "completed", result });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg === "JOB_CANCELLED") {
+          await prisma.backgroundJob.update({
+            where: { id: job.id },
+            data: {
+              status: "cancelled",
+              cancelledAt: new Date(),
+              error: "Cancelled by user",
+              progressStage: "cancelled",
+            },
+          });
+          allResults.push({ id: job.id, status: "cancelled" });
+          continue;
+        }
         const attemptsAfterFail = job.attempts + 1;
         const isDeadLetter = attemptsAfterFail >= job.maxAttempts;
         const willRetry = !isDeadLetter;
@@ -445,6 +501,13 @@ export async function schedulePeriodicJobs() {
     if (!user.settings?.preferencesComplete) continue;
     await enqueueJob("SEARCH_JOBS", { userId: user.id }, { source: "scheduled" });
     await enqueueJob("RUN_AGENT", { userId: user.id }, { source: "scheduled" });
+    if (user.settings.notificationsEnabled) {
+      await enqueueJob(
+        "GENERATE_RECOMMENDATIONS",
+        { userId: user.id },
+        { source: "scheduled" }
+      );
+    }
     scheduled++;
   }
 

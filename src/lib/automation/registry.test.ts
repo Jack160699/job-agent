@@ -3,8 +3,8 @@ import { getAutomatorForUrl, getAllAutomators } from "@/lib/automation/registry"
 import { generateResumePdf } from "@/lib/pdf/resume-pdf";
 
 describe("automation registry", () => {
-  it("has four platform automators", () => {
-    expect(getAllAutomators()).toHaveLength(4);
+  it("has four provider automators and a review-only generic adapter", () => {
+    expect(getAllAutomators()).toHaveLength(5);
   });
 
   it("routes greenhouse URLs", () => {
@@ -19,6 +19,14 @@ describe("automation registry", () => {
       "https://company.wd1.myworkdayjobs.com/en-US/careers"
     );
     expect(automator?.platform).toBe("WORKDAY");
+  });
+
+  it("routes supported generic career forms last", () => {
+    const automator = getAutomatorForUrl(
+      "https://careers.example.com/jobs/software-engineer"
+    );
+    expect(automator?.platform).toBe("GENERIC_ATS");
+    expect(automator?.canAutoApply).toBe(false);
   });
 });
 

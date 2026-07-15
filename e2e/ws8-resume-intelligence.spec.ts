@@ -1,0 +1,47 @@
+import { expect, test } from "@playwright/test";
+
+const FAIL_CLOSED = [401, 403, 404, 405];
+
+test.describe("WS8 resume APIs fail closed", () => {
+  test("mutating master resume APIs require a session", async ({ request }) => {
+    const [post, del, restore] = await Promise.all([
+      request.post("/api/resumes/master", {
+        data: { title: "Master Resume", rawText: "x".repeat(100) },
+      }),
+      request.delete("/api/resumes/master"),
+      request.post("/api/resumes/master/versions", {
+        data: { versionId: "00000000-0000-0000-0000-000000000001" },
+      }),
+    ]);
+    expect(FAIL_CLOSED).toContain(post.status());
+    expect(FAIL_CLOSED).toContain(del.status());
+    expect(FAIL_CLOSED).toContain(restore.status());
+  });
+
+  test("tailored PDF export requires a session", async ({ request }) => {
+    const response = await request.get(
+      "/api/resumes/00000000-0000-0000-0000-000000000001/pdf"
+    );
+    expect(FAIL_CLOSED).toContain(response.status());
+  });
+
+  test("resume history, version restore and master PDF require a session", async ({
+    request,
+  }) => {
+    const id = "00000000-0000-0000-0000-000000000001";
+    const [history, rename, remove, restore, masterPdf] = await Promise.all([
+      request.get(`/api/resumes/${id}`),
+      request.patch(`/api/resumes/${id}`, {
+        data: { action: "rename", title: "Private Resume" },
+      }),
+      request.delete(`/api/resumes/${id}`),
+      request.post(`/api/resumes/${id}/versions`, {
+        data: { versionId: id },
+      }),
+      request.get("/api/resumes/master/pdf"),
+    ]);
+    for (const response of [history, rename, remove, restore, masterPdf]) {
+      expect(FAIL_CLOSED).toContain(response.status());
+    }
+  });
+});

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiUserDev } from "@/lib/api/auth";
+import { resolveApiUser } from "@/lib/api/auth";
+import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import {
   cancelBrowserTask,
   enqueueBrowserTask,
@@ -7,19 +8,31 @@ import {
   listBrowserTasks,
 } from "@/lib/browser/queue";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.browserWorker,
+    keyPrefix: "browser-tasks",
+  });
+  if (limited) return limited;
+
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const tasks = await listBrowserTasks(user.id);
     return NextResponse.json({ tasks });
   } catch {
-    return NextResponse.json({ tasks: [] });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, {
+    ...RATE_LIMIT_PRESETS.browserWorker,
+    keyPrefix: "browser-tasks",
+  });
+  if (limited) return limited;
+
   try {
-    const user = await resolveApiUserDev();
+    const user = await resolveApiUser();
     const body = await request.json();
 
     if (body.action === "cancel" && body.taskId) {
@@ -46,6 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ task });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Task failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

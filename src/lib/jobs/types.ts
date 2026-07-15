@@ -1,4 +1,8 @@
-import type { JobSource } from "@prisma/client";
+import type {
+  EmploymentType,
+  JobSource,
+  WorkMode,
+} from "@prisma/client";
 
 export interface DiscoveredJob {
   externalId?: string;
@@ -10,15 +14,27 @@ export interface DiscoveredJob {
   description: string;
   salaryMin?: number;
   salaryMax?: number;
+  salaryCurrency?: string;
   experienceMin?: number;
   experienceMax?: number;
+  workMode?: WorkMode;
+  employmentType?: EmploymentType;
+  industry?: string;
   visaSponsorship?: boolean | null;
   postedAt?: Date;
+  closesAt?: Date;
+  removedAt?: Date;
   metadata?: Record<string, unknown>;
 }
 
 export interface JobSearchFilters {
   titles: string[];
+  queries?: Array<{
+    title: string;
+    location: string | null;
+    remoteScope: "INDIA" | "WORLDWIDE" | null;
+    reasons: string[];
+  }>;
   locations: string[];
   remote?: boolean;
   experienceYears?: number;

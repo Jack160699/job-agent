@@ -4,6 +4,9 @@ import { getAuthenticatedClient } from "./oauth";
 export async function syncGmail(userId: string) {
   const auth = await getAuthenticatedClient(userId);
   const gmail = google.gmail({ version: "v1", auth });
+  const accountEmail =
+    (await gmail.users.getProfile({ userId: "me" })).data.emailAddress?.toLowerCase() ||
+    "";
 
   const list = await gmail.users.messages.list({
     userId: "me",
@@ -36,7 +39,9 @@ export async function syncGmail(userId: string) {
     if (!msgId) continue;
 
     const existing = await import("@/lib/db").then((m) =>
-      m.default.email.findUnique({ where: { gmailId: msgId } })
+      m.default.email.findUnique({
+        where: { userId_gmailId: { userId, gmailId: msgId } },
+      })
     );
     if (existing) continue;
 
@@ -46,7 +51,10 @@ export async function syncGmail(userId: string) {
           userId,
           gmailId: msgId,
           threadId: full.data.threadId || undefined,
-          direction: from.includes("me") ? "OUTBOUND" : "INBOUND",
+          direction:
+            parseHeaderEmail(from).toLowerCase() === accountEmail
+              ? "OUTBOUND"
+              : "INBOUND",
           fromAddress: from,
           toAddress: to,
           subject,
@@ -68,12 +76,16 @@ function extractBody(payload: unknown): string {
   } | null;
   if (!p) return "";
   if (p.body?.data) {
-    return Buffer.from(p.body.data, "base64").toString("utf8");
+    return Buffer.from(p.body.data, "base64url").toString("utf8");
   }
   for (const part of p.parts || []) {
     if (part.mimeType === "text/plain" && part.body?.data) {
-      return Buffer.from(part.body.data, "base64").toString("utf8");
+      return Buffer.from(part.body.data, "base64url").toString("utf8");
     }
   }
   return "";
+}
+
+export function parseHeaderEmail(value: string) {
+  return value.match(/<([^>]+)>/)?.[1]?.trim() || value.trim();
 }

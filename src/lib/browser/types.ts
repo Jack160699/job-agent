@@ -33,6 +33,15 @@ export interface ApplicationProfile {
   phone?: string;
   linkedinUrl?: string;
   location?: string;
+  /** Grounded preferences only — never invent missing facts during automation. */
+  experienceYears?: number | null;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string | null;
+  visaSponsorshipRequired?: boolean | null;
+  willingToRelocate?: boolean | null;
+  noticePeriodDays?: number | null;
+  workModes?: Array<"REMOTE" | "HYBRID" | "ONSITE"> | null;
 }
 
 export interface SubmissionResult {

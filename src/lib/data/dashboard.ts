@@ -97,7 +97,73 @@ export async function getJobs(filters?: {
         ...(filters?.source ? { source: filters.source as "LINKEDIN" } : {}),
       },
       orderBy: { discoveredAt: "desc" },
-      include: { applications: true },
+      include: {
+        applications: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+      },
+    });
+  }, []);
+}
+
+export type JobResultsView =
+  | "recommended"
+  | "possible"
+  | "saved"
+  | "imported"
+  | "excluded"
+  | "expired";
+
+export async function getJobsForView(view: JobResultsView) {
+  return safe(async () => {
+    const user = await getDbUser();
+    if (!user) return [];
+
+    let where;
+    if (view === "expired") {
+      where = { userId: user.id, status: "EXPIRED" as const };
+    } else if (view === "excluded") {
+      where = { userId: user.id, status: "ARCHIVED" as const };
+    } else if (view === "saved") {
+      where = {
+        userId: user.id,
+        savedAt: { not: null },
+      };
+    } else if (view === "imported") {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        imports: { some: { userId: user.id } },
+      };
+    } else if (view === "recommended") {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        matchAnalysis: { path: ["classification"], equals: "STRONG" },
+      };
+    } else {
+      // "possible" browse view — keep LOW out of this tab.
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        matchAnalysis: { path: ["classification"], equals: "POSSIBLE" },
+      };
+    }
+
+    return prisma.job.findMany({
+      where,
+      orderBy:
+        view === "recommended" || view === "possible"
+          ? [{ matchScore: "desc" }, { discoveredAt: "desc" }]
+          : { discoveredAt: "desc" },
+      take: 100,
+      include: {
+        applications: {
+          include: { tailoredResume: true, coverLetter: true },
+        },
+        imports: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+        provenance: true,
+      },
     });
   }, []);
 }
@@ -114,7 +180,10 @@ export async function getExcludedJobs() {
       },
       orderBy: { discoveredAt: "desc" },
       take: 100,
-      include: { applications: true },
+      include: {
+        applications: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+      },
     });
   }, []);
 }
@@ -164,6 +233,48 @@ export async function getTailoredResumes() {
       include: { job: true },
     });
   }, []);
+}
+
+export async function getResumeHistory() {
+  try {
+    const user = await getDbUser();
+    if (!user) {
+      return {
+        master: null,
+        masterVersions: [],
+        tailored: [],
+        error: null,
+      };
+    }
+
+    const [master, masterVersions, tailored] = await Promise.all([
+      prisma.masterResume.findUnique({ where: { userId: user.id } }),
+      prisma.masterResumeVersion.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.tailoredResume.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          job: { select: { id: true, title: true, company: true } },
+          application: { select: { id: true, status: true } },
+          versions: { orderBy: { version: "desc" }, take: 50 },
+        },
+      }),
+    ]);
+
+    return { master, masterVersions, tailored, error: null };
+  } catch (error) {
+    console.error("Resume history query failed:", error);
+    return {
+      master: null,
+      masterVersions: [],
+      tailored: [],
+      error: "Resume history could not be loaded.",
+    };
+  }
 }
 
 export async function getEmails() {

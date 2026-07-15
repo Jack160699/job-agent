@@ -7,6 +7,7 @@ import {
   isBrowserBridgeAvailable,
 } from "@/lib/browser/queue";
 import { getAutomatorForUrl } from "@/lib/automation/registry";
+import { prepareApplicationForm } from "@/lib/automation/prepare-flow";
 import { generateResumePdf } from "@/lib/pdf/resume-pdf";
 import { uploadToDrive, ensureDriveFolder } from "@/lib/google/drive";
 import { syncApplicationsToSheet } from "@/lib/google/sheets";
@@ -19,7 +20,10 @@ import {
   matchJob,
   processApplication,
 } from "@/lib/jobs/pipeline";
-import type { ApplicationStatus, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-policy";
+import { preparationReuseDecision } from "@/lib/applications/preparation-state";
+import { assertCanUseFeature, recordUsage } from "@/lib/entitlements";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -123,10 +127,12 @@ export async function runAutonomousAgent(userId: string): Promise<AgentRunResult
     take: 5,
   });
 
+  // Agent runs may prepare applications, but never submit.
+  // Final submission requires explicit per-attempt confirmation on the application API.
   for (const app of reviewApps) {
     try {
       const prep = await prepareApplicationSubmission(userId, app.id, {
-        autoSubmit: settings.autoSubmitEnabled && !settings.requireReview,
+        autoSubmit: false,
       });
       if (prep.status === "submitted") result.submitted++;
       else result.prepared++;
@@ -163,6 +169,10 @@ export async function prepareApplicationSubmission(
   applicationId: string,
   options?: { autoSubmit?: boolean }
 ) {
+  if (options?.autoSubmit) {
+    await assertCanUseFeature(userId, "application");
+  }
+
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
     include: {
@@ -173,23 +183,74 @@ export async function prepareApplicationSubmission(
   });
 
   if (!application) throw new Error("Application not found");
+  if (!application.tailoredResume || !application.coverLetter) {
+    throw new Error(
+      "Generate tailored resume and cover letter before preparing this application"
+    );
+  }
+  const persistedDocuments = application.documents as {
+    browserTaskId?: string;
+  } | null;
+  const activeTask = persistedDocuments?.browserTaskId
+    ? await prisma.browserTask.findFirst({
+        where: {
+          id: persistedDocuments.browserTaskId,
+          userId,
+          applicationId,
+          status: { in: ["pending", "running"] },
+        },
+      })
+    : null;
+  const reuseDecision = preparationReuseDecision({
+    applicationStatus: application.status,
+    autoSubmit: Boolean(options?.autoSubmit),
+    hasPersistedFormData: Boolean(application.formData),
+    activeTaskId: activeTask?.id,
+  });
+  if (reuseDecision === "already_submitted") {
+    return {
+      success: true,
+      status: "submitted" as const,
+      message: "Application was already submitted. Duplicate delivery was ignored.",
+      reused: true,
+    };
+  }
+  if (reuseDecision === "active_delivery") {
+    return {
+      success: true,
+      status:
+        application.status === "SUBMITTING"
+          ? ("submitting" as const)
+          : ("pending_review" as const),
+      message: "Application preparation is already active.",
+      formData: activeTask ? { browserTaskId: activeTask.id } : undefined,
+      reused: true,
+    };
+  }
+  if (reuseDecision === "already_prepared") {
+    return {
+      success: true,
+      status: "pending_review" as const,
+      message: "Prepared application is already waiting for your review.",
+      formData: application.formData as Record<string, unknown>,
+      reused: true,
+    };
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  const resumeText =
-    application.tailoredResume?.rawText ||
-    (await prisma.masterResume.findUnique({ where: { userId } }))?.rawText ||
-    "";
+  const resumeText = application.tailoredResume.rawText;
 
   const pdf = await generateResumePdf({
-    title: application.tailoredResume?.title || "Resume",
+    title: application.tailoredResume.title || "Resume",
     rawText: resumeText,
-    skills: application.tailoredResume
-      ? undefined
-      : (await prisma.masterResume.findUnique({ where: { userId } }))?.skills,
-    highlights: application.tailoredResume?.highlights,
+    highlights: application.tailoredResume.highlights,
   });
 
+  // Prefer Drive URL if available; never treat OS temp paths as durable artifacts.
   let fileUrl = application.tailoredResume?.fileUrl;
+  if (fileUrl && (fileUrl.includes(tmpdir()) || fileUrl.startsWith("/tmp"))) {
+    fileUrl = null;
+  }
   const tmpDir = join(tmpdir(), "job-agent");
   await mkdir(tmpDir, { recursive: true });
   const pdfPath = join(
@@ -201,9 +262,8 @@ export async function prepareApplicationSubmission(
   if (application.tailoredResume) {
     await prisma.tailoredResume.update({
       where: { id: application.tailoredResume.id },
-      data: { fileUrl: pdfPath },
+      data: { fileUrl: fileUrl ?? null },
     });
-    fileUrl = pdfPath;
   }
 
   if (await isGoogleConnected(userId)) {
@@ -231,18 +291,38 @@ export async function prepareApplicationSubmission(
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: "PENDING_REVIEW",
+        status: "UNSUPPORTED",
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
         } as Prisma.InputJsonValue,
+        failureReason: "UNSUPPORTED_PLATFORM",
       },
     });
     return {
-      success: true,
-      status: "pending_review" as const,
+      success: false,
+      status: "requires_manual" as const,
       message: "Documents generated — manual submission required for this platform",
     };
+  }
+
+  if (options?.autoSubmit) {
+    const acquired = await prisma.application.updateMany({
+      where: {
+        id: applicationId,
+        userId,
+        status: { notIn: ["SUBMITTING", "SUBMITTED"] },
+      },
+      data: { status: "SUBMITTING", lastAttemptAt: new Date() },
+    });
+    if (acquired.count === 0) {
+      return {
+        success: true,
+        status: "submitting" as const,
+        message: "Submission authorization is already being processed.",
+        reused: true,
+      };
+    }
   }
 
   if (shouldUseBrowserQueue() && !isBrowserBridgeAvailable()) {
@@ -259,7 +339,8 @@ export async function prepareApplicationSubmission(
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: "PENDING_REVIEW",
+        status: options?.autoSubmit ? "SUBMITTING" : "PENDING_REVIEW",
+        lastAttemptAt: new Date(),
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
@@ -269,54 +350,91 @@ export async function prepareApplicationSubmission(
     });
     return {
       success: true,
-      status: "pending_review" as const,
-      message: `Browser automation queued (task ${task.id})`,
+      status: options?.autoSubmit
+        ? ("submitting" as const)
+        : ("pending_review" as const),
+      message: options?.autoSubmit
+        ? "Authorized submission queued. You can leave this page and track progress here."
+        : "Application preparation queued. Kairela will stop for your review.",
       formData: { browserTaskId: task.id },
     };
   }
 
+  const profileSettings = await prisma.userSettings.findUnique({
+    where: { userId },
+  });
+
+  const profile = {
+    fullName: user?.fullName || user?.email || "Applicant",
+    email: user?.email || "",
+    linkedinUrl: user?.linkedinUrl || undefined,
+    location: user?.currentLocation || profileSettings?.locations?.[0],
+    experienceYears: profileSettings?.experienceYears,
+    salaryMin: profileSettings?.salaryMin,
+    salaryMax: profileSettings?.salaryMax,
+    salaryCurrency: profileSettings?.salaryCurrency,
+    visaSponsorshipRequired: profileSettings?.visaSponsorshipRequired,
+    willingToRelocate: profileSettings?.willingToRelocate,
+    noticePeriodDays: profileSettings?.noticePeriodDays,
+    workModes: profileSettings?.workModes as
+      | Array<"REMOTE" | "HYBRID" | "ONSITE">
+      | undefined,
+  };
+
   const browser = await createBrowserClient();
   try {
-    const submission = await automator.prepareApplication(
+    const submission = await prepareApplicationForm({
       browser,
-      application.job.sourceUrl,
-      {
-        fullName: user?.fullName || user?.email || "Applicant",
-        email: user?.email || "",
-      },
-      {
+      jobUrl: application.job.sourceUrl,
+      platform: automator.platform,
+      profile,
+      documents: {
         resumeText,
         resumePdf: pdf,
         coverLetterText: application.coverLetter?.content,
       },
-      { autoSubmit: options?.autoSubmit }
-    );
+      autoSubmit: options?.autoSubmit,
+    });
 
-    const newStatus: ApplicationStatus =
-      submission.status === "submitted"
-        ? "SUBMITTED"
-        : submission.status === "pending_review"
-          ? "PENDING_REVIEW"
-          : submission.status === "failed"
-            ? "FAILED"
-            : "PENDING_REVIEW";
+    const mapped = mapSubmissionToApplicationStatus(
+      submission,
+      Boolean(options?.autoSubmit)
+    );
 
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: newStatus,
-        submittedAt: newStatus === "SUBMITTED" ? new Date() : undefined,
+        status: mapped.status,
+        submittedAt: mapped.status === "SUBMITTED" ? new Date() : undefined,
         formData: submission.formData as Prisma.InputJsonValue,
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
         } as Prisma.InputJsonValue,
-        failureReason: submission.success ? null : submission.message,
-        requiresReview: !options?.autoSubmit,
+        failureReason: mapped.failureReason,
+        lastAttemptAt: new Date(),
+        requiresReview:
+          !options?.autoSubmit ||
+          ["PENDING_REVIEW", "AWAITING_APPROVAL", "NEEDS_INFORMATION"].includes(
+            mapped.status
+          ),
       },
     });
 
-    return submission;
+    if (mapped.status === "SUBMITTED") {
+      await recordUsage(userId, "application", 1, {
+        idempotencyKey: `application_submitted:${applicationId}`,
+      });
+    }
+
+    return {
+      ...submission,
+      message: mapped.message,
+      success:
+        mapped.status === "SUBMITTED" ||
+        mapped.status === "PENDING_REVIEW" ||
+        mapped.status === "AWAITING_APPROVAL",
+    };
   } finally {
     await browser.close();
   }

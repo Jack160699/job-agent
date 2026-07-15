@@ -1,16 +1,78 @@
 import prisma from "@/lib/db";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { isGoogleConnected } from "@/lib/google/oauth";
+import {
+  canUseFeature,
+  getUserPlan,
+  PLAN_LIMITS,
+  type EntitlementFeature,
+} from "@/lib/entitlements";
+import {
+  buildRecommendationCandidates,
+  prioritizeRecommendations,
+  type RecommendationSnapshot,
+} from "@/lib/proactive/rules";
+import type { Prisma } from "@prisma/client";
 
-function inQuietHours(start?: string | null, end?: string | null): boolean {
+export function inQuietHours(
+  start?: string | null,
+  end?: string | null,
+  now = new Date()
+): boolean {
   if (!start || !end) return false;
-  const now = new Date();
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
+  if (
+    !Number.isInteger(sh) ||
+    !Number.isInteger(eh) ||
+    sh < 0 ||
+    sh > 23 ||
+    eh < 0 ||
+    eh > 23
+  ) {
+    return false;
+  }
   const mins = now.getHours() * 60 + now.getMinutes();
   const startM = sh * 60 + (sm || 0);
   const endM = eh * 60 + (em || 0);
   if (startM <= endM) return mins >= startM && mins < endM;
   return mins >= startM || mins < endM;
+}
+
+async function getUsageNearLimit(userId: string) {
+  const plan = await getUserPlan(userId);
+  const limits = PLAN_LIMITS[plan];
+  const checks: Array<{
+    feature: EntitlementFeature;
+    limit: number;
+  }> = [
+    { feature: "job_search", limit: limits.jobSearchesPerMonth },
+    {
+      feature: "ai_consultant",
+      limit: limits.aiConsultantMessagesPerDay,
+    },
+    { feature: "resume_tailor", limit: limits.resumeTailorsPerMonth },
+    { feature: "application", limit: limits.applicationsPerMonth },
+  ];
+
+  const usage = await Promise.all(
+    checks.map(async ({ feature, limit }) => ({
+      feature,
+      limit,
+      ...(await canUseFeature(userId, feature)),
+    }))
+  );
+
+  return usage
+    .filter(
+      (item) =>
+        item.remaining !== undefined && item.remaining / item.limit <= 0.2
+    )
+    .sort(
+      (a, b) =>
+        (a.remaining ?? Number.MAX_SAFE_INTEGER) -
+        (b.remaining ?? Number.MAX_SAFE_INTEGER)
+    )[0];
 }
 
 export async function generateProactiveRecommendations(userId: string) {
@@ -23,70 +85,149 @@ export async function generateProactiveRecommendations(userId: string) {
     return [];
   }
 
-  const since = new Date(Date.now() - settings.proactiveFrequencyHours * 60 * 60 * 1000);
-  const recent = await prisma.proactiveRecommendation.findFirst({
-    where: { userId, createdAt: { gte: since }, dismissed: false },
+  const now = new Date();
+  const [
+    masterResume,
+    activeJobCount,
+    strongMatches,
+    lastSearch,
+    pendingReviewCount,
+    unreadRecruiterReplies,
+    nextInterview,
+    googleConnected,
+    usageNearLimit,
+  ] = await Promise.all([
+    prisma.masterResume.findUnique({
+      where: { userId },
+      select: { id: true },
+    }),
+    prisma.job.count({ where: { userId, status: "ACTIVE" } }),
+    prisma.job.findMany({
+      where: {
+        userId,
+        status: "ACTIVE",
+        matchScore: { gte: settings.matchThreshold },
+      },
+      orderBy: { matchScore: "desc" },
+      take: 20,
+      select: {
+        title: true,
+        company: true,
+        matchScore: true,
+      },
+    }),
+    prisma.backgroundJob.findFirst({
+      where: { userId, type: "SEARCH_JOBS", status: "completed" },
+      orderBy: { completedAt: "desc" },
+      select: { completedAt: true },
+    }),
+    prisma.application.count({
+      where: { userId, status: "PENDING_REVIEW" },
+    }),
+    prisma.email.count({
+      where: { userId, direction: "INBOUND", isRead: false },
+    }),
+    prisma.interview.findFirst({
+      where: {
+        userId,
+        status: "SCHEDULED",
+        scheduledAt: { gte: now },
+      },
+      orderBy: { scheduledAt: "asc" },
+      select: {
+        title: true,
+        company: true,
+        scheduledAt: true,
+      },
+    }),
+    isGoogleConnected(userId),
+    getUsageNearLimit(userId),
+  ]);
+
+  const expectsGoogleConnection =
+    settings.gmailSyncEnabled ||
+    settings.calendarSyncEnabled ||
+    settings.sheetsSyncEnabled ||
+    settings.driveBackupEnabled;
+  const strongestMatch = strongMatches[0];
+  const snapshot: RecommendationSnapshot = {
+    preferencesComplete: settings.preferencesComplete,
+    hasResume: Boolean(masterResume),
+    activeJobCount,
+    strongMatchCount: strongMatches.length,
+    strongestMatch:
+      strongestMatch?.matchScore != null
+        ? {
+            title: strongestMatch.title,
+            company: strongestMatch.company,
+            score: strongestMatch.matchScore,
+          }
+        : undefined,
+    lastSearchAt: lastSearch?.completedAt ?? undefined,
+    pendingReviewCount,
+    unreadRecruiterReplies,
+    nextInterview: nextInterview
+      ? {
+          ...nextInterview,
+          company: nextInterview.company ?? undefined,
+        }
+      : undefined,
+    integrationReconnectRequired:
+      expectsGoogleConnection && !googleConnected,
+    usageNearLimit:
+      usageNearLimit?.remaining !== undefined
+        ? {
+            feature: usageNearLimit.feature,
+            remaining: usageNearLimit.remaining,
+            limit: usageNearLimit.limit,
+          }
+        : undefined,
+  };
+  const candidates = prioritizeRecommendations(
+    buildRecommendationCandidates(snapshot, now),
+    settings.disabledRecommendationCategories,
+    5
+  );
+  const activeTypes = candidates.map((candidate) => candidate.type);
+
+  await prisma.proactiveRecommendation.updateMany({
+    where: {
+      userId,
+      status: "active",
+      type: { notIn: activeTypes.length > 0 ? activeTypes : ["__none__"] },
+    },
+    data: { status: "expired" },
   });
-  if (recent) return [];
-
-  const recommendations: Array<{
-    type: string;
-    title: string;
-    body: string;
-    reason: string;
-    actionUrl?: string;
-  }> = [];
-
-  if (!settings.preferencesComplete) {
-    recommendations.push({
-      type: "onboarding",
-      title: "Complete your search preferences",
-      body: "Kairela needs your job titles, skills, and locations to find relevant roles.",
-      reason: "Preferences are incomplete — searches may return poor matches.",
-      actionUrl: "/dashboard/onboarding",
-    });
-  }
-
-  const jobCount = await prisma.job.count({
-    where: { userId, status: "ACTIVE" },
+  await prisma.proactiveRecommendation.updateMany({
+    where: {
+      userId,
+      status: { in: ["active", "snoozed"] },
+      expiresAt: { lte: now },
+    },
+    data: { status: "expired" },
   });
-  if (settings.preferencesComplete && jobCount === 0) {
-    recommendations.push({
-      type: "search",
-      title: "Run your first job search",
-      body: "Your preferences are set. Start a search to discover matching opportunities.",
-      reason: "No active jobs in your pipeline yet.",
-      actionUrl: "/dashboard/jobs",
-    });
-  }
 
-  const pendingReview = await prisma.application.count({
-    where: { userId, status: "PENDING_REVIEW" },
-  });
-  if (pendingReview > 0) {
-    recommendations.push({
-      type: "applications",
-      title: `${pendingReview} application${pendingReview > 1 ? "s" : ""} ready for review`,
-      body: "Review tailored materials before submission.",
-      reason: "Applications are prepared and waiting for your approval.",
-      actionUrl: "/dashboard/applications",
-    });
-  }
-
+  const since = new Date(
+    now.getTime() - settings.proactiveFrequencyHours * 60 * 60 * 1000
+  );
   const created = [];
-  for (const rec of recommendations.slice(0, 2)) {
+  for (const recommendation of candidates) {
     const existing = await prisma.proactiveRecommendation.findFirst({
       where: {
         userId,
-        type: rec.type,
-        dismissed: false,
+        type: recommendation.type,
+        status: { in: ["active", "snoozed"] },
         createdAt: { gte: since },
       },
     });
     if (existing) continue;
 
     const row = await prisma.proactiveRecommendation.create({
-      data: { userId, ...rec },
+      data: {
+        userId,
+        ...recommendation,
+        evidence: recommendation.evidence as unknown as Prisma.InputJsonValue,
+      },
     });
     created.push(row);
   }
@@ -96,13 +237,23 @@ export async function generateProactiveRecommendations(userId: string) {
 
 export async function getActiveRecommendations(userId: string) {
   const now = new Date();
-  return prisma.proactiveRecommendation.findMany({
+  const recommendations = await prisma.proactiveRecommendation.findMany({
     where: {
       userId,
       dismissed: false,
+      status: { in: ["active", "snoozed"] },
+      AND: [
+        {
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      ],
       OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
     },
     orderBy: { createdAt: "desc" },
     take: 20,
   });
+  const weight: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  return recommendations.sort(
+    (a, b) => (weight[b.priority] ?? 0) - (weight[a.priority] ?? 0)
+  );
 }

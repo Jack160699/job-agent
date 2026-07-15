@@ -10,7 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Settings2,
-  RefreshCw,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -96,6 +96,8 @@ export function JobSearchWorkflow({
         setError("Search was cancelled. Start a new search when ready.");
       }
       if (p.stalled && running) {
+        stopPolling();
+        setRunning(false);
         setError("Search is taking longer than expected. You can retry.");
       }
     } catch {
@@ -132,6 +134,30 @@ export function JobSearchWorkflow({
       const msg = err instanceof Error ? err.message : "Failed to start search";
       setError(msg);
       toast.error(msg);
+    }
+  };
+
+  const cancelRun = async () => {
+    try {
+      const response = await fetch("/api/jobs/search", { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Search cancellation failed");
+      }
+      doneRef.current = true;
+      stopPolling();
+      setRunning(false);
+      setError(
+        data.cancelled
+          ? "Search cancelled. Results already saved remain available."
+          : "No active search was found."
+      );
+    } catch (cancelError) {
+      toast.error(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "Search cancellation failed"
+      );
     }
   };
 
@@ -215,7 +241,7 @@ export function JobSearchWorkflow({
           className={cn(
             "rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)]",
             "md:static",
-            "fixed inset-x-0 bottom-[calc(var(--mobile-nav-height,0px)+env(safe-area-inset-bottom))] z-40 mx-3 border-b-0 shadow-lg md:relative md:mx-0 md:shadow-none"
+            "fixed inset-x-0 bottom-[calc(var(--bottom-nav-height,0px)+env(safe-area-inset-bottom))] z-40 mx-3 border-b-0 shadow-lg md:relative md:mx-0 md:shadow-none"
           )}
         >
           <div className="flex items-center gap-3 px-4 py-3">
@@ -231,6 +257,16 @@ export function JobSearchWorkflow({
               </div>
               <Progress value={progress?.progress ?? 5} className="mt-2 h-1.5" />
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1 text-[var(--ink-tertiary)]"
+              onClick={() => void cancelRun()}
+            >
+              <Square className="h-3 w-3" />
+              Cancel
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -253,6 +289,24 @@ export function JobSearchWorkflow({
                   <span>Queue: #{progress.queuePosition}</span>
                 )}
               </div>
+              {Array.isArray((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources) &&
+                ((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources?.length ?? 0) >
+                  0 && (
+                  <div className="mt-2 space-y-1">
+                    {((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources ?? []).map(
+                      (source) => (
+                        <p key={source.source} className="text-[var(--warning)]">
+                          {source.source}: {source.error || "temporarily unavailable"}
+                        </p>
+                      )
+                    )}
+                  </div>
+                )}
+              {(progress as { summary?: string | null }).summary && (
+                <p className="mt-2 text-[var(--ink-secondary)]">
+                  {(progress as { summary?: string | null }).summary}
+                </p>
+              )}
               {progress.logs?.slice(0, 5).map((log, i) => (
                 <p key={i} className="mt-1 truncate font-mono text-[10px]">
                   {log.message}
@@ -265,9 +319,13 @@ export function JobSearchWorkflow({
 
       {error && (
         <ErrorCallout
-          title="Search stalled"
+          title={error.startsWith("Search cancelled") ? "Search stopped" : "Search stalled"}
           what={error}
-          fix="Check your preferences and try again. The queue may be recovering."
+          fix={
+            error.startsWith("Search cancelled")
+              ? "Start a new search whenever you are ready."
+              : "Check your preferences and try again. The queue may be recovering."
+          }
           onRetry={startRun}
           retrying={running}
         />

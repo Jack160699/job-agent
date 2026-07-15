@@ -50,6 +50,12 @@ enum ApplicationStatus {
   SKIPPED
   RESUME_GENERATED
   COVER_LETTER_GENERATED
+  NEEDS_INFORMATION
+  AWAITING_APPROVAL
+  BLOCKED_CAPTCHA
+  BLOCKED_LOGIN
+  UNSUPPORTED
+  EXPIRED
   PENDING_REVIEW
   SUBMITTING
   SUBMITTED
@@ -125,6 +131,7 @@ model User {
 
   masterResume      MasterResume?
   tailoredResumes   TailoredResume[]
+  tailoredResumeVersions TailoredResumeVersion[]
   coverLetters      CoverLetter[]
   jobs              Job[]
   applications      Application[]
@@ -138,10 +145,17 @@ model User {
   consentRecords    ConsentRecord[]
   logs              AuditLog[]
   secrets           EncryptedSecret[]
+  oauthStateNonces   OAuthStateNonce[]
   browserTasks      BrowserTask[]
   jobImports        JobImport[]
+  jobFeedback       JobFeedback[]
+  searchPlans       SearchPlan[]
+  sourceHealth      JobSourceHealth[]
+  jobProvenance     JobProvenance[]
   proactiveRecommendations ProactiveRecommendation[]
   consultantMessages ConsultantMessage[]
+  consultantConversations ConsultantConversation[]
+  agentActionProposals AgentActionProposal[]
   subscription      Subscription?
   usageLedger       UsageLedger[]
 
@@ -164,14 +178,33 @@ model MasterResume {
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tailoredResumes TailoredResume[]
+  versions        MasterResumeVersion[]
 
   @@map("master_resume")
+}
+
+model MasterResumeVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  masterResumeId String   @map("master_resume_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  version        Int
+  title          String
+  content        Json
+  rawText        String   @map("raw_text") @db.Text
+  skills         String[]
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  masterResume MasterResume @relation(fields: [masterResumeId], references: [id], onDelete: Cascade)
+
+  @@unique([masterResumeId, version])
+  @@index([userId, createdAt])
+  @@map("master_resume_versions")
 }
 
 model TailoredResume {
   id             String   @id @default(uuid()) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
-  masterResumeId String   @map("master_resume_id") @db.Uuid
+  masterResumeId String?  @map("master_resume_id") @db.Uuid
   jobId          String?  @map("job_id") @db.Uuid
   applicationId  String?  @unique @map("application_id") @db.Uuid
   title          String
@@ -181,17 +214,47 @@ model TailoredResume {
   highlights     String[]
   fileUrl        String?  @map("file_url")
   version        Int      @default(1)
+  sourceMasterVersion Int? @map("source_master_version")
+  sourceMasterTitle String? @map("source_master_title")
+  sourceMasterSnapshot Json? @map("source_master_snapshot")
+  groundingReport Json? @map("grounding_report")
+  archivedAt     DateTime? @map("archived_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  masterResume MasterResume  @relation(fields: [masterResumeId], references: [id], onDelete: Cascade)
+  masterResume MasterResume? @relation(fields: [masterResumeId], references: [id], onDelete: SetNull)
   job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
   application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  versions     TailoredResumeVersion[]
 
   @@index([userId])
+  @@index([userId, archivedAt])
   @@index([jobId])
   @@map("tailored_resumes")
+}
+
+model TailoredResumeVersion {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tailoredResumeId    String   @map("tailored_resume_id") @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  version             Int
+  title               String
+  content             Json
+  rawText             String   @map("raw_text") @db.Text
+  highlights          String[]
+  sourceMasterVersion Int?     @map("source_master_version")
+  sourceMasterTitle   String?  @map("source_master_title")
+  sourceMasterSnapshot Json?   @map("source_master_snapshot")
+  groundingReport     Json?    @map("grounding_report")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  tailoredResume TailoredResume @relation(fields: [tailoredResumeId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tailoredResumeId, version])
+  @@index([userId, createdAt])
+  @@map("tailored_resume_versions")
 }
 
 model CoverLetter {
@@ -222,6 +285,8 @@ model Job {
   externalId      String?        @map("external_id")
   source          JobSource
   sourceUrl       String         @map("source_url")
+  canonicalUrl    String?        @map("canonical_url")
+  descriptionFingerprint String? @map("description_fingerprint")
   title           String
   company         String
   companySize     String?        @map("company_size")
@@ -241,6 +306,9 @@ model Job {
   matchAnalysis   Json?          @map("match_analysis")
   status          JobStatus      @default(ACTIVE)
   postedAt        DateTime?      @map("posted_at")
+  closesAt        DateTime?      @map("closes_at")
+  removedAt       DateTime?      @map("removed_at")
+  savedAt         DateTime?      @map("saved_at")
   discoveredAt    DateTime       @default(now()) @map("discovered_at")
   analyzedAt      DateTime?      @map("analyzed_at")
   metadata        Json?
@@ -252,12 +320,93 @@ model Job {
   tailoredResumes TailoredResume[]
   coverLetters    CoverLetter[]
   imports         JobImport[]
+  feedback        JobFeedback[]
+  provenance      JobProvenance[]
 
   @@unique([userId, source, externalId])
   @@index([userId, status])
   @@index([userId, matchScore])
   @@index([source])
+  @@index([userId, canonicalUrl])
+  @@index([userId, descriptionFingerprint])
+  @@index([userId, savedAt])
   @@map("jobs")
+}
+
+model SearchPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  version   String
+  plan      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("search_plans")
+}
+
+model JobSourceHealth {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  source              JobSource
+  requests            Int       @default(0)
+  successfulResponses Int       @default(0) @map("successful_responses")
+  emptyResponses      Int       @default(0) @map("empty_responses")
+  invalidJobs         Int       @default(0) @map("invalid_jobs")
+  duplicateJobs       Int       @default(0) @map("duplicate_jobs")
+  expiredJobs         Int       @default(0) @map("expired_jobs")
+  failures            Int       @default(0)
+  relevanceTotal      Float     @default(0) @map("relevance_total")
+  relevanceSamples    Int       @default(0) @map("relevance_samples")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastSuccessfulFetch DateTime? @map("last_successful_fetch")
+  disabledUntil       DateTime? @map("disabled_until")
+  lastError           String?   @map("last_error") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source])
+  @@index([userId, disabledUntil])
+  @@map("job_source_health")
+}
+
+model JobProvenance {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  jobId      String    @map("job_id") @db.Uuid
+  source     JobSource
+  sourceUrl  String    @map("source_url")
+  externalId String?   @map("external_id")
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, sourceUrl])
+  @@index([jobId])
+  @@map("job_provenance")
+}
+
+model JobFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  relevant  Boolean
+  reason    String?
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId, relevant, updatedAt])
+  @@map("job_feedback")
 }
 
 model JobImport {
@@ -367,7 +516,7 @@ model Email {
   userId        String         @map("user_id") @db.Uuid
   applicationId String?        @map("application_id") @db.Uuid
   recruiterId   String?        @map("recruiter_id") @db.Uuid
-  gmailId       String?        @unique @map("gmail_id")
+  gmailId       String?        @map("gmail_id")
   threadId      String?        @map("thread_id")
   direction     EmailDirection
   fromAddress   String         @map("from_address")
@@ -383,6 +532,7 @@ model Email {
   recruiter   Recruiter?   @relation(fields: [recruiterId], references: [id], onDelete: SetNull)
 
   @@index([userId, receivedAt])
+  @@unique([userId, gmailId])
   @@map("emails")
 }
 
@@ -426,6 +576,9 @@ model UserSettings {
   quietHoursStart       String?   @map("quiet_hours_start")
   quietHoursEnd         String?   @map("quiet_hours_end")
   proactiveFrequencyHours Int     @default(24) @map("proactive_frequency_hours")
+  disabledRecommendationCategories String[] @default([]) @map("disabled_recommendation_categories")
+  dailyDigestEnabled    Boolean  @default(false) @map("daily_digest_enabled")
+  weeklyReportEnabled   Boolean  @default(true) @map("weekly_report_enabled")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -465,6 +618,20 @@ model EncryptedSecret {
 
   @@unique([userId, key])
   @@map("encrypted_secrets")
+}
+
+model OAuthStateNonce {
+  nonce      String    @id
+  userId     String    @map("user_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId, consumedAt])
+  @@map("oauth_state_nonces")
 }
 
 model BackgroundJob {
@@ -521,6 +688,7 @@ model BrowserTask {
 
   @@index([status, scheduledAt])
   @@index([userId, status])
+  @@index([userId, applicationId, type, status])
   @@map("browser_tasks")
 }
 
@@ -594,33 +762,90 @@ model ProactiveRecommendation {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @map("user_id") @db.Uuid
   type        String
+  category    String    @default("career")
+  priority    String    @default("medium")
   title       String
   body        String    @db.Text
   reason      String    @db.Text
+  evidence    Json?
+  suggestedAction String? @map("suggested_action") @db.Text
   actionUrl   String?   @map("action_url")
+  status      String    @default("active")
   dismissed   Boolean   @default(false)
   snoozedUntil DateTime? @map("snoozed_until")
+  completedAt DateTime? @map("completed_at")
+  expiresAt   DateTime? @map("expires_at")
   metadata    Json?
   createdAt   DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, dismissed, createdAt])
+  @@index([userId, category, status])
+  @@index([expiresAt])
   @@map("proactive_recommendations")
 }
 
-model ConsultantMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  role      String
-  content   String   @db.Text
-  metadata  Json?
-  createdAt DateTime @default(now()) @map("created_at")
+model ConsultantConversation {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  title      String    @default("Career chat")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        ConsultantMessage[]
+  actionProposals AgentActionProposal[]
+
+  @@index([userId, updatedAt])
+  @@map("consultant_conversations")
+}
+
+model ConsultantMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  role           String
+  content        String   @db.Text
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ConsultantConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
   @@map("consultant_messages")
+}
+
+model AgentActionProposal {
+  id             String                   @id @default(uuid()) @db.Uuid
+  userId         String                   @map("user_id") @db.Uuid
+  conversationId String?                  @map("conversation_id") @db.Uuid
+  toolName       String                   @map("tool_name")
+  params         Json
+  status         AgentActionProposalStatus @default(PENDING)
+  expiresAt      DateTime                 @map("expires_at")
+  consumedAt     DateTime?                @map("consumed_at")
+  result         Json?
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ConsultantConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, expiresAt])
+  @@map("agent_action_proposals")
+}
+
+enum AgentActionProposalStatus {
+  PENDING
+  EXECUTED
+  EXPIRED
+  CANCELLED
+
+  @@map("agent_action_proposal_status")
 }
 
 enum SubscriptionPlan {

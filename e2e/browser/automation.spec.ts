@@ -7,6 +7,7 @@ import { GreenhouseAutomator } from "../../src/lib/automation/greenhouse";
 import { LeverAutomator } from "../../src/lib/automation/lever";
 import { AshbyAutomator } from "../../src/lib/automation/ashby";
 import { WorkdayAutomator } from "../../src/lib/automation/workday";
+import { GenericAtsAutomator } from "../../src/lib/automation/generic";
 import { getProductionBaseUrl } from "../helpers/production";
 
 const FIXTURES = resolve(__dirname, "fixtures");
@@ -77,8 +78,7 @@ async function runPlatformTest(
       documents,
       { autoSubmit: false }
     );
-    expect(result.success).toBe(true);
-    expect(["pending_review", "submitted"]).toContain(result.status);
+    expect(["pending_review", "requires_manual"]).toContain(result.status);
     const shot = await browser.screenshot();
     expect(shot.length).toBeGreaterThan(1000);
     const { writeFileSync, mkdirSync } = await import("fs");
@@ -108,6 +108,10 @@ test.describe("Platform Browser Automation", () => {
 
   test("Workday form fill", async () => {
     await runPlatformTest("workday.html", WorkdayAutomator);
+  });
+
+  test("Generic ATS form fill is review-only", async () => {
+    await runPlatformTest("generic.html", GenericAtsAutomator);
   });
 });
 

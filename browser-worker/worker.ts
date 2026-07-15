@@ -1,7 +1,8 @@
-import { PrismaClient, type ApplicationStatus, type Prisma } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { createBrowserClient } from "../../src/lib/browser/client";
 import { browserQueue } from "./queue/manager";
 import { runPrepareApplicationTask } from "./automation/runner";
+import { mapSubmissionToApplicationStatus } from "../../src/lib/applications/automation-policy";
 
 const prisma = new PrismaClient();
 const POLL_MS = Number(process.env.BROWSER_WORKER_POLL_MS || 3000);
@@ -11,6 +12,7 @@ async function processTask(taskId: string) {
   const task = await prisma.browserTask.findUniqueOrThrow({
     where: { id: taskId },
   });
+  if (task.status !== "running") return;
 
   const payload = (task.payload || {}) as Record<string, unknown>;
   const browser = await createBrowserClient();
@@ -29,13 +31,28 @@ async function processTask(taskId: string) {
         },
       });
       if (!application) throw new Error("Application not found");
+      if (!application.tailoredResume || !application.coverLetter) {
+        await prisma.application.update({
+          where: { id: applicationId },
+          data: {
+            status: "NEEDS_INFORMATION",
+            failureReason: "TAILORED_DOCUMENTS_REQUIRED",
+          },
+        });
+        await browserQueue.complete(taskId, {
+          success: false,
+          status: "requires_manual",
+          message:
+            "Generate both a tailored resume and cover letter before preparation.",
+        });
+        return;
+      }
 
       const user = await prisma.user.findUnique({ where: { id: task.userId } });
-      const resumeText =
-        application.tailoredResume?.rawText ||
-        (await prisma.masterResume.findUnique({ where: { userId: task.userId } }))
-          ?.rawText ||
-        "";
+      const settings = await prisma.userSettings.findUnique({
+        where: { userId: task.userId },
+      });
+      const resumeText = application.tailoredResume.rawText;
 
       const result = await runPrepareApplicationTask({
         browser,
@@ -43,30 +60,66 @@ async function processTask(taskId: string) {
         profile: {
           fullName: user?.fullName || user?.email || "Applicant",
           email: user?.email || "",
+          linkedinUrl: user?.linkedinUrl || undefined,
+          location: user?.currentLocation || settings?.locations?.[0],
+          experienceYears: settings?.experienceYears,
+          salaryMin: settings?.salaryMin,
+          salaryMax: settings?.salaryMax,
+          salaryCurrency: settings?.salaryCurrency,
+          visaSponsorshipRequired: settings?.visaSponsorshipRequired,
+          willingToRelocate: settings?.willingToRelocate,
+          noticePeriodDays: settings?.noticePeriodDays,
+          workModes: settings?.workModes as
+            | Array<"REMOTE" | "HYBRID" | "ONSITE">
+            | undefined,
         },
         documents: {
           resumeText,
-          coverLetterText: application.coverLetter?.content,
+          coverLetterText: application.coverLetter.content,
         },
         autoSubmit: Boolean(payload.autoSubmit),
         onProgress: (p) => browserQueue.updateProgress(taskId, p),
+        shouldContinue: async () => {
+          const current = await prisma.browserTask.findUnique({
+            where: { id: taskId },
+            select: { status: true },
+          });
+          return current?.status === "running" || current?.status === "pending";
+        },
       });
 
-      const newStatus: ApplicationStatus =
-        result.status === "submitted"
-          ? "SUBMITTED"
-          : result.status === "failed"
-            ? "FAILED"
-            : "PENDING_REVIEW";
+      if (
+        result.formData &&
+        typeof result.formData === "object" &&
+        "cancelled" in result.formData &&
+        (result.formData as { cancelled?: boolean }).cancelled
+      ) {
+        await prisma.application.update({
+          where: { id: applicationId },
+          data: {
+            status: "FAILED",
+            failureReason: "CANCELLED_BY_USER",
+          },
+        });
+        await browserQueue.fail(taskId, "Cancelled by user");
+        return;
+      }
+
+      const mapped = mapSubmissionToApplicationStatus(
+        result,
+        Boolean(payload.autoSubmit)
+      );
 
       await prisma.application.update({
         where: { id: applicationId },
         data: {
-          status: newStatus,
-          submittedAt: newStatus === "SUBMITTED" ? new Date() : undefined,
+          status: mapped.status,
+          submittedAt:
+            mapped.status === "SUBMITTED" ? new Date() : undefined,
           formData: result.formData as Prisma.InputJsonValue,
-          failureReason: result.success ? null : result.message,
-          requiresReview: !payload.autoSubmit,
+          failureReason: mapped.failureReason,
+          requiresReview:
+            !payload.autoSubmit || mapped.status !== "SUBMITTED",
         },
       });
 
@@ -93,6 +146,19 @@ async function processTask(taskId: string) {
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    if (task.applicationId) {
+      await prisma.application.updateMany({
+        where: {
+          id: task.applicationId,
+          userId: task.userId,
+          status: { in: ["SUBMITTING", "PENDING_REVIEW"] },
+        },
+        data: {
+          status: "FAILED",
+          failureReason: message.slice(0, 500),
+        },
+      });
+    }
     await browserQueue.fail(taskId, message, screenshotPath ? [screenshotPath] : undefined);
   } finally {
     await browser.close();
@@ -100,6 +166,7 @@ async function processTask(taskId: string) {
 }
 
 async function poll() {
+  await browserQueue.recoverStaleRunning();
   const tasks = await browserQueue.claimNext(CONCURRENCY);
   await Promise.all(tasks.map((t) => processTask(t.id)));
 }

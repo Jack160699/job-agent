@@ -136,6 +136,25 @@ export function JobRunPanel({
     return () => stopPolling();
   }, [stopPolling]);
 
+  useEffect(() => {
+    if (running) return;
+    fetch(`/api/jobs/progress?type=${jobType}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const p = data.progress as JobRunProgress | null;
+        if (p && (p.status === "pending" || p.status === "running")) {
+          completedRef.current = false;
+          setRunning(true);
+          setProgress(p);
+          setError(null);
+          pollRef.current = setInterval(() => {
+            void pollProgress();
+          }, 1500);
+        }
+      })
+      .catch(() => {});
+  }, [jobType, pollProgress, running]);
+
   const label =
     triggerLabel ?? (mode === "search" ? "Run Job Search" : "Run AI Agent");
   const Icon = mode === "search" ? Search : Bot;
