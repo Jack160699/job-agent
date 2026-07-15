@@ -50,4 +50,19 @@ describe("source health", () => {
     expect(userA.disabled).toBe(true);
     expect(userB.disabled).toBe(false);
   });
+
+  it("allows a recovery probe after a persisted cooldown expires", () => {
+    const now = new Date("2026-07-15T12:00:00Z");
+    const result = shouldTemporarilyDisableSource(
+      {
+        ...healthy,
+        requests: 8,
+        failures: 8,
+        consecutiveFailures: 8,
+        disabledUntil: new Date("2026-07-15T11:00:00Z"),
+      },
+      now
+    );
+    expect(result.disabled).toBe(false);
+  });
 });

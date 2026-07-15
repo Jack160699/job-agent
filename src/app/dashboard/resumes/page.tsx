@@ -1,17 +1,110 @@
 import { DashboardHeader } from "@/components/dashboard/sidebar";
 import { EmptyState } from "@/components/dashboard/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getMasterResume, getTailoredResumes } from "@/lib/data/dashboard";
+import { getResumeHistory } from "@/lib/data/dashboard";
 import { Download, FileText } from "lucide-react";
 import { ResumeUploadForm } from "@/components/dashboard/resume-upload";
 import { MasterResumeCard } from "@/components/dashboard/master-resume-card";
 import { Button } from "@/components/ui/button";
+import {
+  ResumeHistory,
+  type ResumeHistoryEntry,
+} from "@/components/dashboard/resume-history";
 
 export default async function ResumesPage() {
-  const [masterResume, tailoredResumes] = await Promise.all([
-    getMasterResume(),
-    getTailoredResumes(),
-  ]);
+  const history = await getResumeHistory();
+  const masterResume = history.master;
+  const tailoredResumes = history.tailored;
+  const historyEntries: ResumeHistoryEntry[] = [];
+
+  if (masterResume) {
+    historyEntries.push({
+      key: `master-current-${masterResume.id}`,
+      id: masterResume.id,
+      documentType: "MASTER",
+      isCurrent: true,
+      version: masterResume.version,
+      title: masterResume.title,
+      rawText: masterResume.rawText,
+      createdAt: masterResume.updatedAt.toISOString(),
+      status: "CURRENT",
+      downloadUrl: "/api/resumes/master/pdf",
+    });
+  }
+  for (const version of history.masterVersions) {
+    historyEntries.push({
+      key: `master-version-${version.id}`,
+      id: version.id,
+      documentType: "MASTER",
+      isCurrent: false,
+      version: version.version,
+      title: version.title,
+      rawText: version.rawText,
+      createdAt: version.createdAt.toISOString(),
+      status: "VERSION",
+      downloadUrl: `/api/resumes/master/pdf?versionId=${version.id}`,
+    });
+  }
+  for (const resume of tailoredResumes) {
+    const source = resume.sourceMasterSnapshot as {
+      title?: string;
+      version?: number;
+      rawText?: string;
+    } | null;
+    const grounding = resume.groundingReport as ResumeHistoryEntry["groundingReport"];
+    historyEntries.push({
+      key: `tailored-current-${resume.id}`,
+      id: resume.id,
+      documentType: "TAILORED",
+      isCurrent: true,
+      version: resume.version,
+      title: resume.title,
+      rawText: resume.rawText,
+      createdAt: resume.updatedAt.toISOString(),
+      status: resume.archivedAt ? "ARCHIVED" : "CURRENT",
+      job: resume.job,
+      application: resume.application,
+      sourceMaster: {
+        title: resume.sourceMasterTitle ?? source?.title ?? null,
+        version: resume.sourceMasterVersion ?? source?.version ?? null,
+        removed: resume.masterResumeId == null,
+        rawText: source?.rawText ?? null,
+      },
+      groundingReport: grounding,
+      downloadUrl: `/api/resumes/${resume.id}/pdf`,
+    });
+    for (const version of resume.versions) {
+      const versionSource = version.sourceMasterSnapshot as {
+        title?: string;
+        version?: number;
+        rawText?: string;
+      } | null;
+      historyEntries.push({
+        key: `tailored-version-${version.id}`,
+        id: version.id,
+        parentId: resume.id,
+        documentType: "TAILORED",
+        isCurrent: false,
+        version: version.version,
+        title: version.title,
+        rawText: version.rawText,
+        createdAt: version.createdAt.toISOString(),
+        status: "VERSION",
+        job: resume.job,
+        application: resume.application,
+        sourceMaster: {
+          title: version.sourceMasterTitle ?? versionSource?.title ?? null,
+          version:
+            version.sourceMasterVersion ?? versionSource?.version ?? null,
+          removed: resume.masterResumeId == null,
+          rawText: versionSource?.rawText ?? null,
+        },
+        groundingReport:
+          version.groundingReport as ResumeHistoryEntry["groundingReport"],
+        downloadUrl: `/api/resumes/${resume.id}/pdf?versionId=${version.id}`,
+      });
+    }
+  }
 
   return (
     <div>
@@ -78,6 +171,7 @@ export default async function ResumesPage() {
           </CardContent>
         </Card>
       </div>
+      <ResumeHistory entries={historyEntries} initialError={history.error} />
     </div>
   );
 }

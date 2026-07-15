@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
     const status =
       message === "Unauthorized"
         ? 401
+        : message === "JOB_NOT_ACTIVE"
+          ? 409
         : message === "Application not found" || message === "Master resume required"
           ? 404
           : 500;

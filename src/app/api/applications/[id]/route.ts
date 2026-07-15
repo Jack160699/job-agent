@@ -57,6 +57,23 @@ export async function POST(
       );
     }
     const body = parsed.data;
+    const ownedApplication = await prisma.application.findFirst({
+      where: { id, userId: user.id },
+      select: { id: true, job: { select: { status: true } } },
+    });
+    if (!ownedApplication) {
+      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    }
+    if (["EXPIRED", "CLOSED"].includes(ownedApplication.job.status)) {
+      return NextResponse.json(
+        {
+          error:
+            "This posting is expired or closed. It cannot be prepared or submitted.",
+          code: "JOB_NOT_ACTIVE",
+        },
+        { status: 409 }
+      );
+    }
     const authorization = validateSubmissionAuthorization(body);
     if (!authorization.allowed) {
       return NextResponse.json(

@@ -9,7 +9,7 @@ export function JobResultActions({
   job,
   application,
 }: {
-  job: { id: string; title: string; company: string };
+  job: { id: string; title: string; company: string; status?: string };
   application?: {
     id: string;
     status: string;
@@ -60,6 +60,7 @@ export function JobResultActions({
           failureReason={application.failureReason}
           hasDocuments={application.hasDocuments}
           browserTaskId={application.browserTaskId}
+          jobStatus={job.status}
         />
       )}
     </div>

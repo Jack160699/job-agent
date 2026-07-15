@@ -22,7 +22,9 @@ describe("browser-worker-auth", () => {
 
   it("allows missing token in development", () => {
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL", "");
     delete process.env.BROWSER_WORKER_TOKEN;
+    delete process.env.VERCEL;
     expect(requireBrowserWorkerToken()).toBe("");
   });
 

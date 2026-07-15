@@ -45,6 +45,26 @@ function boardsFor(
   return [...new Set(fromDiscovery)];
 }
 
+/** Prefer explainable search-plan queries; fall back to flat titles. */
+function discoveryQueries(filters: JobSearchFilters): Array<{
+  title: string;
+  location: string | null;
+  remoteScope: "INDIA" | "WORLDWIDE" | null;
+}> {
+  if (filters.queries && filters.queries.length > 0) {
+    return filters.queries.slice(0, 12).map((query) => ({
+      title: query.title,
+      location: query.location,
+      remoteScope: query.remoteScope,
+    }));
+  }
+  return filters.titles.slice(0, 3).map((title) => ({
+    title,
+    location: filters.locations[0] ?? null,
+    remoteScope: filters.remote ? ("WORLDWIDE" as const) : null,
+  }));
+}
+
 export class GreenhouseAdapter {
   source = "GREENHOUSE" as const;
   name = "Greenhouse";
@@ -57,9 +77,14 @@ export class GreenhouseAdapter {
     const jobs: DiscoveredJob[] = [];
 
     for (const board of boards.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(board, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              board,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Board may not exist
         }
@@ -106,9 +131,14 @@ export class LeverAdapter {
     const jobs: DiscoveredJob[] = [];
 
     for (const company of companies.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(company, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              company,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Company may not exist
         }
@@ -174,9 +204,14 @@ export class AshbyAdapter {
     const jobs: DiscoveredJob[] = [];
 
     for (const board of boards.slice(0, 4)) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(board, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              board,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Board may not exist
         }
@@ -251,9 +286,14 @@ export class WorkdayAdapter {
     const jobs: DiscoveredJob[] = [];
 
     for (const company of companies) {
-      for (const title of filters.titles.slice(0, 3)) {
+      for (const query of discoveryQueries(filters)) {
         try {
-          jobs.push(...(await automator.discoverJobs(company, title)));
+          jobs.push(
+            ...(await automator.discoverJobs(
+              company,
+              query.location ? `${query.title} ${query.location}` : query.title
+            ))
+          );
         } catch {
           // Browser search may fail without Playwright
         }

@@ -15,6 +15,7 @@ import { getDbUser } from "@/lib/auth/server";
 import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 import { JobFeedbackControl } from "@/components/jobs/job-feedback";
 import { JobResultActions } from "@/components/jobs/job-result-actions";
+import { JobDispositionActions } from "@/components/jobs/job-disposition-actions";
 
 export default async function JobsPage({
   searchParams,
@@ -157,6 +158,16 @@ export default async function JobsPage({
                           years
                         </p>
                       )}
+                      {job.provenance?.length > 0 && (
+                        <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                          Sources:{" "}
+                          {[
+                            ...new Set(
+                              job.provenance.map((entry) => entry.source)
+                            ),
+                          ].join(" · ")}
+                        </p>
+                      )}
                       {analysis?.reasons && analysis.reasons.length > 0 && (
                         <p className="mt-2 text-xs text-[var(--ink-secondary)]">
                           {activeView === "excluded" ? "Excluded:" : "Match:"}{" "}
@@ -212,11 +223,17 @@ export default async function JobsPage({
                             : null
                         }
                       />
+                      <JobDispositionActions
+                        jobId={job.id}
+                        saved={Boolean(job.savedAt)}
+                        excluded={job.status === "ARCHIVED"}
+                      />
                       <JobResultActions
                         job={{
                           id: job.id,
                           title: job.title,
                           company: job.company,
+                          status: job.status,
                         }}
                         application={
                           application

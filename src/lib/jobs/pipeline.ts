@@ -208,6 +208,27 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       disabledUntil: currentHealth?.disabledUntil,
     });
     if (healthDecision.disabled) {
+      if (
+        healthDecision.until &&
+        (!currentHealth?.disabledUntil ||
+          currentHealth.disabledUntil.getTime() !== healthDecision.until.getTime())
+      ) {
+        await prisma.jobSourceHealth.upsert({
+          where: {
+            userId_source: { userId, source: adapter.source as JobSource },
+          },
+          create: {
+            userId,
+            source: adapter.source as JobSource,
+            disabledUntil: healthDecision.until,
+            lastError: healthDecision.reason,
+          },
+          update: {
+            disabledUntil: healthDecision.until,
+            lastError: healthDecision.reason,
+          },
+        });
+      }
       sourceResults.push({
         source: adapter.source,
         requested: false,
@@ -778,11 +799,9 @@ export async function processApplication(
     },
   });
   if (!application) throw new Error("Application not found");
-
-  const masterResume = await prisma.masterResume.findUnique({
-    where: { userId },
-  });
-  if (!masterResume) throw new Error("Master resume required");
+  if (["EXPIRED", "CLOSED"].includes(application.job.status)) {
+    throw new Error("JOB_NOT_ACTIVE");
+  }
 
   if (
     !options?.force &&
@@ -799,6 +818,11 @@ export async function processApplication(
       reused: true,
     };
   }
+
+  const masterResume = await prisma.masterResume.findUnique({
+    where: { userId },
+  });
+  if (!masterResume) throw new Error("Master resume required");
 
   await assertCanUseFeature(userId, "resume_tailor");
 
@@ -839,28 +863,79 @@ export async function processApplication(
     highlights: tailored.highlights,
   });
 
-  const tailoredResume = await prisma.tailoredResume.upsert({
-    where: { applicationId: application.id },
-    create: {
-      userId,
-      masterResumeId: masterResume.id,
-      jobId: job.id,
-      applicationId: application.id,
-      title: tailored.title,
-      content: tailored as Prisma.InputJsonValue,
-      rawText: tailored.rawText,
-      matchScore: application.matchScore,
-      highlights: tailored.highlights,
-      fileUrl: null,
-    },
-    update: {
-      title: tailored.title,
-      content: tailored as Prisma.InputJsonValue,
-      rawText: tailored.rawText,
-      matchScore: application.matchScore,
-      highlights: tailored.highlights,
-      fileUrl: null,
-    },
+  const sourceMasterSnapshot = {
+    title: masterResume.title,
+    version: masterResume.version,
+    rawText: masterResume.rawText,
+    skills: masterResume.skills,
+  } as Prisma.InputJsonValue;
+  const groundingReport =
+    tailored.groundingReport as unknown as Prisma.InputJsonValue;
+
+  const tailoredResume = await prisma.$transaction(async (tx) => {
+    const existing = application.tailoredResume;
+    if (!existing) {
+      return tx.tailoredResume.create({
+        data: {
+          userId,
+          masterResumeId: masterResume.id,
+          jobId: job.id,
+          applicationId: application.id,
+          title: tailored.title,
+          content: tailored as unknown as Prisma.InputJsonValue,
+          rawText: tailored.rawText,
+          matchScore: application.matchScore,
+          highlights: tailored.highlights,
+          fileUrl: null,
+          sourceMasterVersion: masterResume.version,
+          sourceMasterTitle: masterResume.title,
+          sourceMasterSnapshot,
+          groundingReport,
+        },
+      });
+    }
+
+    await tx.tailoredResumeVersion.upsert({
+      where: {
+        tailoredResumeId_version: {
+          tailoredResumeId: existing.id,
+          version: existing.version,
+        },
+      },
+      create: {
+        tailoredResumeId: existing.id,
+        userId,
+        version: existing.version,
+        title: existing.title,
+        content: existing.content as Prisma.InputJsonValue,
+        rawText: existing.rawText,
+        highlights: existing.highlights,
+        sourceMasterVersion: existing.sourceMasterVersion,
+        sourceMasterTitle: existing.sourceMasterTitle,
+        sourceMasterSnapshot:
+          existing.sourceMasterSnapshot as Prisma.InputJsonValue,
+        groundingReport: existing.groundingReport as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+    return tx.tailoredResume.update({
+      where: { id: existing.id },
+      data: {
+        masterResumeId: masterResume.id,
+        title: tailored.title,
+        content: tailored as unknown as Prisma.InputJsonValue,
+        rawText: tailored.rawText,
+        matchScore: application.matchScore,
+        highlights: tailored.highlights,
+        fileUrl: null,
+        version: { increment: 1 },
+        sourceMasterVersion: masterResume.version,
+        sourceMasterTitle: masterResume.title,
+        sourceMasterSnapshot,
+        groundingReport,
+        archivedAt: null,
+      },
+    });
   });
 
   const savedCoverLetter = await prisma.coverLetter.upsert({
@@ -901,6 +976,16 @@ export async function processApplication(
     resourceId: applicationId,
     message: `Generated resume and cover letter for ${job.title} at ${job.company}`,
     level: "AUDIT",
+    metadata: {
+      groundingVersion: tailored.groundingReport.version,
+      excludedReasonCodes: [
+        ...new Set(
+          tailored.groundingReport.excluded.map((item) => item.reasonCode)
+        ),
+      ],
+      excludedCount: tailored.groundingReport.excluded.length,
+      gapCount: tailored.groundingReport.gaps.length,
+    },
   });
 
   await recordUsage(userId, "resume_tailor", 1, {

@@ -16,20 +16,34 @@ export async function GET(
   try {
     const user = await resolveApiUser();
     const { id } = await params;
-    const resume = await prisma.tailoredResume.findFirst({
+    const versionId = request.nextUrl.searchParams.get("versionId");
+    const current = await prisma.tailoredResume.findFirst({
       where: { id, userId: user.id },
       include: { job: { select: { title: true, company: true } } },
     });
-    if (!resume) {
+    if (!current) {
       return NextResponse.json({ error: "Resume not found" }, { status: 404 });
     }
+    const version = versionId
+      ? await prisma.tailoredResumeVersion.findFirst({
+          where: {
+            id: versionId,
+            tailoredResumeId: current.id,
+            userId: user.id,
+          },
+        })
+      : null;
+    if (versionId && !version) {
+      return NextResponse.json({ error: "Resume version not found" }, { status: 404 });
+    }
+    const resume = version ?? current;
 
     const pdf = await generateResumePdf({
       title: resume.title,
       rawText: resume.rawText,
       highlights: resume.highlights,
     });
-    const safeName = `${resume.job?.company ?? "Kairela"}-${resume.job?.title ?? resume.title}`
+    const safeName = `${current.job?.company ?? "Kairela"}-${current.job?.title ?? resume.title}`
       .replace(/[^a-z0-9-]+/gi, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 100);

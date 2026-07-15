@@ -24,4 +24,24 @@ test.describe("WS8 resume APIs fail closed", () => {
     );
     expect(FAIL_CLOSED).toContain(response.status());
   });
+
+  test("resume history, version restore and master PDF require a session", async ({
+    request,
+  }) => {
+    const id = "00000000-0000-0000-0000-000000000001";
+    const [history, rename, remove, restore, masterPdf] = await Promise.all([
+      request.get(`/api/resumes/${id}`),
+      request.patch(`/api/resumes/${id}`, {
+        data: { action: "rename", title: "Private Resume" },
+      }),
+      request.delete(`/api/resumes/${id}`),
+      request.post(`/api/resumes/${id}/versions`, {
+        data: { versionId: id },
+      }),
+      request.get("/api/resumes/master/pdf"),
+    ]);
+    for (const response of [history, rename, remove, restore, masterPdf]) {
+      expect(FAIL_CLOSED).toContain(response.status());
+    }
+  });
 });

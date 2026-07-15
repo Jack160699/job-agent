@@ -12,12 +12,14 @@ export function ApplicationActions({
   failureReason,
   browserTaskId,
   hasDocuments = false,
+  jobStatus = "ACTIVE",
 }: {
   applicationId: string;
   status: string;
   failureReason?: string | null;
   browserTaskId?: string | null;
   hasDocuments?: boolean;
+  jobStatus?: string;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
@@ -105,6 +107,10 @@ export function ApplicationActions({
   };
 
   const generateDocs = async (force = false) => {
+    if (["EXPIRED", "CLOSED"].includes(jobStatus)) {
+      toast.error("Expired or closed jobs cannot generate new application documents.");
+      return;
+    }
     setLoading(force ? "regenerate" : "generate");
     try {
       const res = await fetch("/api/jobs/process", {
@@ -134,6 +140,10 @@ export function ApplicationActions({
   };
 
   const prepareSubmit = async (autoSubmit: boolean) => {
+    if (["EXPIRED", "CLOSED"].includes(jobStatus)) {
+      toast.error("This posting is expired or closed and cannot be prepared or submitted.");
+      return;
+    }
     if (!hasDocuments) {
       toast.error("Generate tailored documents before preparing or submitting.");
       return;
@@ -167,8 +177,10 @@ export function ApplicationActions({
   const terminal = ["SUBMITTING", "SUBMITTED", "WITHDRAWN", "ACCEPTED"].includes(
     status
   );
-  const showGenerate = !terminal;
+  const unavailable = ["EXPIRED", "CLOSED"].includes(jobStatus);
+  const showGenerate = !terminal && !unavailable;
   const canPrepare =
+    !unavailable &&
     hasDocuments &&
     ["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "FAILED"].includes(
       status
@@ -247,6 +259,12 @@ export function ApplicationActions({
       {!hasDocuments && (
         <p className="max-w-[220px] text-right text-[10px] text-[var(--ink-tertiary)]">
           Generate tailored documents before prepare/submit.
+        </p>
+      )}
+      {unavailable && (
+        <p className="max-w-[220px] text-right text-[10px] text-[var(--warning)]">
+          Posting expired or closed. Existing documents remain downloadable, but
+          preparation and submission are blocked.
         </p>
       )}
       {failureReason && (

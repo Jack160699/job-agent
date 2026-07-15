@@ -35,4 +35,14 @@ test.describe("WS7 search quality fail-closed surfaces", () => {
     expect(FAIL_CLOSED).toContain(put.status());
     expect(FAIL_CLOSED).toContain(del.status());
   });
+
+  test("saved and excluded result actions fail closed without a session", async ({
+    request,
+  }) => {
+    const response = await request.put(
+      "/api/jobs/00000000-0000-0000-0000-000000000001/disposition",
+      { data: { action: "save" } }
+    );
+    expect(FAIL_CLOSED).toContain(response.status());
+  });
 });

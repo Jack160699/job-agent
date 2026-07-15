@@ -126,8 +126,7 @@ export async function getJobsForView(view: JobResultsView) {
     } else if (view === "saved") {
       where = {
         userId: user.id,
-        status: "ACTIVE" as const,
-        feedback: { some: { userId: user.id, relevant: true } },
+        savedAt: { not: null },
       };
     } else if (view === "imported") {
       where = {
@@ -142,13 +141,11 @@ export async function getJobsForView(view: JobResultsView) {
         matchAnalysis: { path: ["classification"], equals: "STRONG" },
       };
     } else {
+      // "possible" browse view — keep LOW out of this tab.
       where = {
         userId: user.id,
         status: "ACTIVE" as const,
-        OR: [
-          { matchAnalysis: { path: ["classification"], equals: "POSSIBLE" } },
-          { matchAnalysis: { path: ["classification"], equals: "LOW" } },
-        ],
+        matchAnalysis: { path: ["classification"], equals: "POSSIBLE" },
       };
     }
 
@@ -236,6 +233,48 @@ export async function getTailoredResumes() {
       include: { job: true },
     });
   }, []);
+}
+
+export async function getResumeHistory() {
+  try {
+    const user = await getDbUser();
+    if (!user) {
+      return {
+        master: null,
+        masterVersions: [],
+        tailored: [],
+        error: null,
+      };
+    }
+
+    const [master, masterVersions, tailored] = await Promise.all([
+      prisma.masterResume.findUnique({ where: { userId: user.id } }),
+      prisma.masterResumeVersion.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.tailoredResume.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          job: { select: { id: true, title: true, company: true } },
+          application: { select: { id: true, status: true } },
+          versions: { orderBy: { version: "desc" }, take: 50 },
+        },
+      }),
+    ]);
+
+    return { master, masterVersions, tailored, error: null };
+  } catch (error) {
+    console.error("Resume history query failed:", error);
+    return {
+      master: null,
+      masterVersions: [],
+      tailored: [],
+      error: "Resume history could not be loaded.",
+    };
+  }
 }
 
 export async function getEmails() {

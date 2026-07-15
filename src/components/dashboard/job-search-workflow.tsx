@@ -96,6 +96,8 @@ export function JobSearchWorkflow({
         setError("Search was cancelled. Start a new search when ready.");
       }
       if (p.stalled && running) {
+        stopPolling();
+        setRunning(false);
         setError("Search is taking longer than expected. You can retry.");
       }
     } catch {

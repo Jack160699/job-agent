@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-15T07:00:00.000Z",
+  "updatedAt": "2026-07-15T07:45:00.000Z",
   "branch": "feat/kairela-platform-completion",
   "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion",
   "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\job apply agent",
@@ -23,20 +23,22 @@
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
-    "aff6bb9 fix(resumes): restore history affordance and harden upload errors",
-    "67944ff feat(search): improve preference-aware discovery and relevance"
+    "2859d4e fix(resumes): preserve tailored docs and ground tailor output"
   ],
   "verification": {
     "typecheck": "pass",
-    "unitTests": "115 passed",
+    "unitTests": "136 passed",
     "lint": "pass with preexisting warnings",
+    "rlsContracts": "3 passed",
     "build": "pass",
-    "e2eWs7": "4 passed",
-    "e2eWs8": "2 passed",
-    "previewUrl": "https://kairela-platform-completion-9p7ze2lxj-jack160699s-projects.vercel.app"
+    "e2eWs7": "5 passed",
+    "e2eWs8": "3 passed (1 flaky retry)",
+    "previewUrl": "https://kairela-platform-completion-5ovi8n0n6-jack160699s-projects.vercel.app",
+    "reconciliationDoc": "docs/progress/WS7_WS8_CURRENT_HEAD_RECONCILIATION.md"
   },
   "manualOwnerActions": [
-    "Apply migrations through 20260715170000_ws7_search_quality.sql",
+    "Apply migrations through 20260715190000_resume_history_grounding.sql on the linked Supabase project",
+    "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
     "Rotate shared E2E password after demo period"
@@ -46,10 +48,10 @@
     "Final human acceptance is owner-owned",
     "Authenticated production E2E blocked by Supabase egress quota exhaustion",
     "Landing page completion owned by Codex on feat/kairela-product-v1",
-    "Preview deployed to linked jack160699s-projects/kairela-platform-completion project"
+    "Remote DB migration application not yet proven from this environment (no linked Supabase CLI project / no DB URLs in preview pull)"
   ],
   "nextActions": [
-    "Continue remaining partial workstreams from WS11+ after WS8 polish commit",
+    "Continue remaining partial workstreams from WS11+",
     "Optional P2: inbox mark-as-read",
     "Optional P2: manual interview creation",
     "Keep Stripe activation and kairela.com attach owner-gated",

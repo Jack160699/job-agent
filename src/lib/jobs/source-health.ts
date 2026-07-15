@@ -38,12 +38,16 @@ export function shouldTemporarilyDisableSource(
   snapshot: SourceHealthSnapshot,
   now = new Date()
 ): { disabled: boolean; reason?: string; until?: Date } {
-  if (snapshot.disabledUntil && snapshot.disabledUntil > now) {
-    return {
-      disabled: true,
-      reason: "Source is in a temporary cooldown",
-      until: snapshot.disabledUntil,
-    };
+  if (snapshot.disabledUntil) {
+    if (snapshot.disabledUntil > now) {
+      return {
+        disabled: true,
+        reason: "Source is in a temporary cooldown",
+        until: snapshot.disabledUntil,
+      };
+    }
+    // Permit one recovery probe after the persisted cooldown expires.
+    return { disabled: false };
   }
   const rates = sourceHealthRates(snapshot);
   if (

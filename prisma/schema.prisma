@@ -125,6 +125,7 @@ model User {
 
   masterResume      MasterResume?
   tailoredResumes   TailoredResume[]
+  tailoredResumeVersions TailoredResumeVersion[]
   coverLetters      CoverLetter[]
   jobs              Job[]
   applications      Application[]
@@ -206,6 +207,11 @@ model TailoredResume {
   highlights     String[]
   fileUrl        String?  @map("file_url")
   version        Int      @default(1)
+  sourceMasterVersion Int? @map("source_master_version")
+  sourceMasterTitle String? @map("source_master_title")
+  sourceMasterSnapshot Json? @map("source_master_snapshot")
+  groundingReport Json? @map("grounding_report")
+  archivedAt     DateTime? @map("archived_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -213,10 +219,35 @@ model TailoredResume {
   masterResume MasterResume? @relation(fields: [masterResumeId], references: [id], onDelete: SetNull)
   job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
   application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  versions     TailoredResumeVersion[]
 
   @@index([userId])
+  @@index([userId, archivedAt])
   @@index([jobId])
   @@map("tailored_resumes")
+}
+
+model TailoredResumeVersion {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tailoredResumeId    String   @map("tailored_resume_id") @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  version             Int
+  title               String
+  content             Json
+  rawText             String   @map("raw_text") @db.Text
+  highlights          String[]
+  sourceMasterVersion Int?     @map("source_master_version")
+  sourceMasterTitle   String?  @map("source_master_title")
+  sourceMasterSnapshot Json?   @map("source_master_snapshot")
+  groundingReport     Json?    @map("grounding_report")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  tailoredResume TailoredResume @relation(fields: [tailoredResumeId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tailoredResumeId, version])
+  @@index([userId, createdAt])
+  @@map("tailored_resume_versions")
 }
 
 model CoverLetter {
@@ -270,6 +301,7 @@ model Job {
   postedAt        DateTime?      @map("posted_at")
   closesAt        DateTime?      @map("closes_at")
   removedAt       DateTime?      @map("removed_at")
+  savedAt         DateTime?      @map("saved_at")
   discoveredAt    DateTime       @default(now()) @map("discovered_at")
   analyzedAt      DateTime?      @map("analyzed_at")
   metadata        Json?
@@ -290,6 +322,7 @@ model Job {
   @@index([source])
   @@index([userId, canonicalUrl])
   @@index([userId, descriptionFingerprint])
+  @@index([userId, savedAt])
   @@map("jobs")
 }
 

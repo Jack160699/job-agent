@@ -104,6 +104,31 @@
 - Lint: passed with 8 pre-existing warnings.
 - Production build: passed (54 routes).
 
+## 2026-07-15 — WS7/WS8 current-HEAD reconciliation
+
+- Created `docs/progress/WS7_WS8_CURRENT_HEAD_RECONCILIATION.md`.
+- Persisted temporary source-health cooldowns and allow recovery probes after expiry.
+- Added admin search-source diagnostics (`/api/admin/search-sources`).
+- Wired adapters to consume explainable search-plan queries (location-aware).
+- Fixed Possible view so it no longer mixes LOW matches; Saved uses durable `saved_at`.
+- Blocked prepare/submit/generate on expired/closed jobs in UI and APIs.
+- Cleared stalled search running state so retry remains available.
+- Hardened post-tailor grounding with reason codes, gaps, adversarial unit coverage, and persisted reports.
+- Built Resume History UX: filters, open/compare/PDF, rename/archive/delete/restore, orphan master label, grounding review.
+- Added tailored versioning + history migration `20260715190000_resume_history_grounding.sql`.
+- Added master/tailored PDF endpoints and fail-closed history E2E coverage.
+- DOCX export intentionally deferred and disclosed in UI.
+
+### Verification
+- Lint: pass with preexisting warnings.
+- Typecheck: pass.
+- Unit tests: 136 passed.
+- RLS/migration contracts: 3 passed.
+- Production build: pass.
+- Playwright WS7: 5 passed; WS8: 3 passed (1 flaky retry).
+- Preview: https://kairela-platform-completion-5ovi8n0n6-jack160699s-projects.vercel.app
+- Remote DB apply remains an external owner verification item.
+
 ## 2026-07-15 — Workstream 9 complete + authenticity hotfix
 
 - Classification outcomes and live browser task status/cancel/retry UX.

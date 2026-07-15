@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run src/lib/**/*.test.ts",
     "test:security": "vitest run src/lib/security",
-    "test:rls": "echo \"RLS policy tests require Supabase test project — see docs/RLS_REVIEW.md\"",
+    "test:rls": "vitest run src/lib/security/resume-migration-contract.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/app.spec.ts e2e/production-audit.spec.ts",
     "test:e2e:prod": "playwright test --config=playwright.config.ts",
