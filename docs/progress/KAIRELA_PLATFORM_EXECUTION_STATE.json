@@ -23,14 +23,15 @@
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
-    "e91ca89 chore(progress): checkpoint WS6 journey recovery"
+    "67944ff feat(search): improve preference-aware discovery and relevance"
   ],
   "verification": {
     "typecheck": "pass",
     "unitTests": "115 passed",
     "lint": "pass with preexisting warnings",
     "build": "pass",
-    "e2eWs7": "4 passed"
+    "e2eWs7": "4 passed",
+    "previewUrl": "https://kairela-platform-completion-9p7ze2lxj-jack160699s-projects.vercel.app"
   },
   "manualOwnerActions": [
     "Apply migrations through 20260715170000_ws7_search_quality.sql",
