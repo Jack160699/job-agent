@@ -129,6 +129,15 @@
 - Preview: https://kairela-platform-completion-5ovi8n0n6-jack160699s-projects.vercel.app
 - Remote DB apply remains an external owner verification item.
 
+## 2026-07-15 — Workstream 9 authenticity hotfix (post-reconciliation)
+
+- Removed invented last-name placeholder (`"-"`) from `fillCommonFields`.
+- Shared grounded prepare flow for worker and in-process orchestration; no re-entry into platform adapters after Q&A.
+- Missing last name / inventable legal fields stop for human input.
+- Cancel updates the application to `FAILED`/`CANCELLED_BY_USER` and mid-run `shouldContinue` checks abort before submit.
+- Cancel prep available while prepare tasks are in `PENDING_REVIEW`.
+- E2E ATS policy test routed to real `/api/browser/tasks`.
+
 ## 2026-07-15 — Workstream 9 complete + authenticity hotfix
 
 - Classification outcomes and live browser task status/cancel/retry UX.

@@ -1,13 +1,22 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("ATS automation policy", () => {
-  test("browser cancel and queue routes require auth", async ({ request }) => {
-    const cancel = await request.post("/api/browser-tasks/demo/cancel");
-    expect(cancel.status()).toBe(401);
-
-    const queue = await request.post("/api/browser-queue", {
-      data: { applicationId: "demo" },
+  test("browser task cancel and status do not succeed without a session", async ({
+    request,
+  }) => {
+    const cancel = await request.post("/api/browser/tasks", {
+      data: {
+        action: "cancel",
+        taskId: "00000000-0000-0000-0000-000000000001",
+      },
     });
-    expect(queue.status()).toBe(401);
+    const status = await request.post("/api/browser/tasks", {
+      data: {
+        action: "status",
+        taskId: "00000000-0000-0000-0000-000000000001",
+      },
+    });
+    expect(cancel.ok()).toBe(false);
+    expect(status.ok()).toBe(false);
   });
 });

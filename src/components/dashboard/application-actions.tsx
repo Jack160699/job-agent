@@ -211,6 +211,18 @@ export function ApplicationActions({
             {loading === "cancel" ? "Cancelling…" : "Cancel"}
           </Button>
         )}
+        {status === "PENDING_REVIEW" && browserTaskId && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1"
+            disabled={!!loading}
+            onClick={() => void cancelTask()}
+          >
+            <Square className="h-3 w-3" />
+            {loading === "cancel" ? "Cancelling…" : "Cancel prep"}
+          </Button>
+        )}
         {showGenerate && (
           <Button
             size="sm"

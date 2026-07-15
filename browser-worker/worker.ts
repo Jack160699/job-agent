@@ -65,7 +65,31 @@ async function processTask(taskId: string) {
         },
         autoSubmit: Boolean(payload.autoSubmit),
         onProgress: (p) => browserQueue.updateProgress(taskId, p),
+        shouldContinue: async () => {
+          const current = await prisma.browserTask.findUnique({
+            where: { id: taskId },
+            select: { status: true },
+          });
+          return current?.status === "running" || current?.status === "pending";
+        },
       });
+
+      if (
+        result.formData &&
+        typeof result.formData === "object" &&
+        "cancelled" in result.formData &&
+        (result.formData as { cancelled?: boolean }).cancelled
+      ) {
+        await prisma.application.update({
+          where: { id: applicationId },
+          data: {
+            status: "FAILED",
+            failureReason: "CANCELLED_BY_USER",
+          },
+        });
+        await browserQueue.fail(taskId, "Cancelled by user");
+        return;
+      }
 
       const newStatus: ApplicationStatus =
         result.status === "submitted"
@@ -108,6 +132,19 @@ async function processTask(taskId: string) {
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    if (task.applicationId) {
+      await prisma.application.updateMany({
+        where: {
+          id: task.applicationId,
+          userId: task.userId,
+          status: { in: ["SUBMITTING", "PENDING_REVIEW"] },
+        },
+        data: {
+          status: "FAILED",
+          failureReason: message.slice(0, 500),
+        },
+      });
+    }
     await browserQueue.fail(taskId, message, screenshotPath ? [screenshotPath] : undefined);
   } finally {
     await browser.close();

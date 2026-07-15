@@ -41,6 +41,19 @@ export function buildKnownFieldAnswers(
       value: profile.fullName || null,
     },
     {
+      key: "first_name",
+      patterns: [/first name/i, /given name/i],
+      value: profile.fullName?.trim().split(/\s+/).filter(Boolean)[0] || null,
+    },
+    {
+      key: "last_name",
+      patterns: [/last name/i, /family name/i, /surname/i],
+      value: (() => {
+        const parts = profile.fullName?.trim().split(/\s+/).filter(Boolean) ?? [];
+        return parts.length > 1 ? parts.slice(1).join(" ") : null;
+      })(),
+    },
+    {
       key: "email",
       patterns: [/email/i, /e-mail/i],
       value: profile.email || null,

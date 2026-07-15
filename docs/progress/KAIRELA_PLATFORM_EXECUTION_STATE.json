@@ -23,6 +23,7 @@
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
+    "aeccc3f feat(resumes,search): reconcile WS7/WS8 history grounding and discovery",
     "2859d4e fix(resumes): preserve tailored docs and ground tailor output"
   ],
   "verification": {

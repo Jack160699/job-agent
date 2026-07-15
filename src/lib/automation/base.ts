@@ -33,11 +33,13 @@ export async function fillCommonFields(
   profile: ApplicationProfile
 ) {
   const snap = await browser.snapshot();
-  const first = profile.fullName.split(" ")[0] || profile.fullName;
-  const last = profile.fullName.split(" ").slice(1).join(" ") || "-";
+  const parts = profile.fullName.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0] || profile.fullName;
+  const last = parts.length > 1 ? parts.slice(1).join(" ") : "";
 
   const mappings: Array<{ patterns: RegExp[]; value: string }> = [
     { patterns: [/first name/i], value: first },
+    // Never invent a last-name placeholder. Leave blank and let grounding Q&A stop.
     { patterns: [/last name/i], value: last },
     { patterns: [/email/i], value: profile.email },
     { patterns: [/phone/i], value: profile.phone || "" },

@@ -53,7 +53,18 @@ export async function listBrowserTasks(userId: string, limit = 20) {
 }
 
 export async function cancelBrowserTask(taskId: string, userId: string) {
-  return prisma.browserTask.updateMany({
+  const task = await prisma.browserTask.findFirst({
+    where: {
+      id: taskId,
+      userId,
+      status: { in: ["pending", "running"] },
+    },
+  });
+  if (!task) {
+    return { count: 0, applicationId: null as string | null };
+  }
+
+  const result = await prisma.browserTask.updateMany({
     where: {
       id: taskId,
       userId,
@@ -64,6 +75,22 @@ export async function cancelBrowserTask(taskId: string, userId: string) {
       cancelledAt: new Date(),
     },
   });
+
+  if (result.count > 0 && task.applicationId) {
+    await prisma.application.updateMany({
+      where: {
+        id: task.applicationId,
+        userId,
+        status: { in: ["SUBMITTING", "PENDING_REVIEW"] },
+      },
+      data: {
+        status: "FAILED",
+        failureReason: "CANCELLED_BY_USER",
+      },
+    });
+  }
+
+  return { count: result.count, applicationId: task.applicationId };
 }
 
 export function shouldUseBrowserQueue() {

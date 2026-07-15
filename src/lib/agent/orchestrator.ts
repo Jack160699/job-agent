@@ -7,6 +7,7 @@ import {
   isBrowserBridgeAvailable,
 } from "@/lib/browser/queue";
 import { getAutomatorForUrl } from "@/lib/automation/registry";
+import { prepareApplicationForm } from "@/lib/automation/prepare-flow";
 import { generateResumePdf } from "@/lib/pdf/resume-pdf";
 import { uploadToDrive, ensureDriveFolder } from "@/lib/google/drive";
 import { syncApplicationsToSheet } from "@/lib/google/sheets";
@@ -313,17 +314,18 @@ export async function prepareApplicationSubmission(
 
   const browser = await createBrowserClient();
   try {
-    const submission = await automator.prepareApplication(
+    const submission = await prepareApplicationForm({
       browser,
-      application.job.sourceUrl,
+      jobUrl: application.job.sourceUrl,
+      platform: automator.platform,
       profile,
-      {
+      documents: {
         resumeText,
         resumePdf: pdf,
         coverLetterText: application.coverLetter?.content,
       },
-      { autoSubmit: options?.autoSubmit }
-    );
+      autoSubmit: options?.autoSubmit,
+    });
 
     const mapped = mapSubmissionToApplicationStatus(
       submission,

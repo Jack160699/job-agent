@@ -22,7 +22,7 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 6 | Complete job-seeker journey | **Complete (core loop)** — Generate docs, prepare gate, browser poll, agent resume; inbox/interview manual create remain polish |
 | 7 | Search quality and relevance | **Complete (HEAD reconciled)** — plan queries consumed, source cooldown recovery, admin source health, expire prepare gate, saved/excluded views |
 | 8 | Resume and document intelligence | **Complete (HEAD reconciled)** — master-delete SET NULL, grounding-v2 report, full Resume History UX |
-| 9 | Application agent and ATS automation | **Complete** — policy + no invented answers + no scheduled auto-submit |
+| 9 | Application agent and ATS automation | **Complete (authenticity hotfix)** — grounded prepare path shared; no invented last name; cancel updates application and mid-run checks |
 | 10 | Authentication and Google integrations | **Complete (code)** — connect lifecycle, revoke, merge tokens/scopes; real Google E2E still external |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
 | 12 | Subscriptions and entitlements | Partial — execution-path enforcement landed; Stripe activation external |
