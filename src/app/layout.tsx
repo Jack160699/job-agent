@@ -1,20 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Providers } from "@/components/providers";
+import localFont from "next/font/local";
 import { BRAND } from "@/lib/brand";
 import { getCanonicalOrigin } from "@/lib/brand/urls";
 import "./globals.css";
+import "./landing.css";
 
-const geistSans = Geist({
+const KairelaSans = localFont({
+  src: "../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
+  weight: "100 900",
+  display: "optional",
 });
 
 const title = `${BRAND.name} — ${BRAND.tagline}`;
@@ -44,7 +39,7 @@ export const metadata: Metadata = {
     description,
     type: "website",
     siteName: BRAND.name,
-    locale: "en_US",
+    locale: "en_IN",
     url: getCanonicalOrigin(),
   },
   twitter: {
@@ -84,7 +79,7 @@ export default function RootLayout({
     offers: {
       "@type": "Offer",
       price: "0",
-      priceCurrency: "USD",
+      priceCurrency: "INR",
       description: "Free during beta",
     },
   };
@@ -92,7 +87,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${KairelaSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
@@ -102,7 +97,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full bg-[var(--canvas)] font-sans text-[var(--ink)]">
-        <Providers>{children}</Providers>
+        {children}
       </body>
     </html>
   );

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loginWithSharedAccount } from "./helpers/auth";
 
 const PAGES = [
-  { name: "landing", path: "/", heading: /Kairela manages your job search/ },
+  { name: "landing", path: "/", heading: /Your career, managed by Kairela/ },
   { name: "login", path: "/login", heading: /Welcome back/ },
   { name: "signup", path: "/signup", heading: /Create your account/ },
 ];

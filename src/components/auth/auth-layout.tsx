@@ -1,5 +1,5 @@
 import { KairelaLogo } from "@/components/brand/kairela-logo";
-import { BRAND } from "@/lib/brand";
+import { Providers } from "@/components/providers";
 
 export function AuthLayout({
   children,
@@ -12,6 +12,7 @@ export function AuthLayout({
 }) {
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--canvas)]">
+      <Providers />
       <header className="flex h-14 items-center border-b border-[var(--line)] px-4">
         <KairelaLogo href="/" size="md" subtitle={null} />
       </header>

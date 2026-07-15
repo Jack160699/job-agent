@@ -10,6 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:landing": "playwright test --config=playwright.landing.config.ts",
+    "test:landing:update": "playwright test --config=playwright.landing.config.ts --update-snapshots",
+    "test:landing:production": "playwright test --config=playwright.production.config.ts",
     "test:e2e:prod": "playwright test --config=playwright.config.ts",
     "test:e2e:rc": "playwright test --config=playwright.config.ts --retries=0",
     "browser-worker": "npx tsx browser-worker/index.ts",
@@ -45,6 +48,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
     "framer-motion": "^12.23.0",
+    "geist": "^1.7.2",
     "googleapis": "^173.0.0",
     "lucide-react": "^0.525.0",
     "next": "16.2.10",
@@ -60,6 +64,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.53.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.3",
@@ -73,6 +78,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "jsdom": "^26.1.0",
+    "lighthouse": "^13.4.0",
     "prisma": "^6.11.1",
     "tailwindcss": "^4",
     "tsx": "^4.20.3",
