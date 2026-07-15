@@ -36,7 +36,7 @@ CREATE POLICY job_feedback_user_policy
       SELECT 1
       FROM public.users
       WHERE users.id = job_feedback.user_id
-        AND users.supabase_id = auth.uid()::text
+        AND users.supabase_id = auth.uid()
     )
   )
   WITH CHECK (
@@ -44,6 +44,6 @@ CREATE POLICY job_feedback_user_policy
       SELECT 1
       FROM public.users
       WHERE users.id = job_feedback.user_id
-        AND users.supabase_id = auth.uid()::text
+        AND users.supabase_id = auth.uid()
     )
   );

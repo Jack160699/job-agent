@@ -1,5 +1,36 @@
 # Kairela Platform Changelog
 
+## 2026-07-16 — WS9/WS10 migration deployment
+
+- Merged `feat/kairela-platform-completion` (WS9 `094c00d`, WS10 `3b5e6ff`)
+  into `feat/kairela-product-v1` (now `12eacc2`), resolving conflicts in
+  `package.json`, `package-lock.json`, and `consultant-fab.tsx`.
+- Resolved a migration-history rename drift: four migrations applied
+  remotely under earlier timestamps had been renamed locally under later
+  ones; repaired via `supabase migration repair --status reverted`
+  (metadata-only, no DDL).
+- Fixed missing idempotency guards in `20260713100000_phase2_onboarding.sql`
+  and `20260713120000_phase9_11_consultant_subscriptions.sql`.
+- Fixed a pre-existing `uuid = text` operator bug (erroneous `auth.uid()::text`
+  cast against the `uuid`-typed `users.supabase_id`) in four migrations,
+  including the `current_app_user_id()` RLS helper.
+- Applied all 20 pending migrations through
+  `20260715220000_ws10_gmail_user_isolation.sql` to the linked Supabase
+  project (`rcnigoakmxzlqipsaqvu`); remote migration history now matches
+  local exactly.
+- Verified RLS enabled on all 16 WS7/WS9/WS10-relevant tables, critical
+  indexes present, old global `emails_gmail_id_key` constraint dropped in
+  favor of the per-user unique index, and zero orphaned resume/application
+  relationships.
+- Full detail: `docs/progress/WS9_WS10_MIGRATION_DEPLOYMENT.md`.
+
+### Verification
+- Typecheck: pass.
+- Migration-contract tests: 13 passed.
+- Security tests: 23 passed.
+- Unit tests: 169 passed.
+- Production build: pass (58 routes).
+
 ## 2026-07-15 — Workstream 0–1 (feat/kairela-platform-completion)
 
 ### Security

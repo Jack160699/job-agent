@@ -39,7 +39,7 @@ STABLE
 AS $$
   SELECT id
   FROM public.users
-  WHERE supabase_id = auth.uid()::text
+  WHERE supabase_id = auth.uid()
   LIMIT 1
 $$;
 

@@ -27,7 +27,16 @@ Set in Vercel project `job-agent`:
 
 ## Database
 
-Apply migration `supabase/migrations/20260715100000_rate_limits.sql` to production Postgres (via Supabase SQL editor or CLI).
+All migrations through `supabase/migrations/20260715220000_ws10_gmail_user_isolation.sql`
+are applied to the linked Supabase project `rcnigoakmxzlqipsaqvu` as of
+2026-07-16. Verify with `supabase migration list --linked`. See
+`docs/progress/WS9_WS10_MIGRATION_DEPLOYMENT.md` for what was applied and
+two pre-existing SQL bugs fixed along the way.
+
+Follow-up migration needed (not created — out of scope for the deployment
+session that found it): pin `search_path` on `public.current_app_user_id()`
+(flagged by `supabase db advisors --type security` as
+`function_search_path_mutable`).
 
 ## Supabase dashboard
 

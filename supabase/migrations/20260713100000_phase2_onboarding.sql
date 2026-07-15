@@ -1,8 +1,12 @@
 -- Phase 2: Role-based onboarding models
 
-CREATE TYPE user_persona AS ENUM (
-  'JOB_SEEKER', 'EMPLOYER', 'RECRUITER', 'AGENCY', 'EXPLORER'
-);
+DO $$ BEGIN
+  CREATE TYPE user_persona AS ENUM (
+    'JOB_SEEKER', 'EMPLOYER', 'RECRUITER', 'AGENCY', 'EXPLORER'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS persona user_persona NOT NULL DEFAULT 'JOB_SEEKER',
@@ -75,14 +79,22 @@ ALTER TABLE hiring_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE preference_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consent_records ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY onboarding_state_user_policy ON onboarding_state
-  FOR ALL USING (user_id = auth.uid()::uuid);
+DO $$ BEGIN
+  CREATE POLICY onboarding_state_user_policy ON onboarding_state
+    FOR ALL USING (user_id = auth.uid()::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY hiring_profiles_user_policy ON hiring_profiles
-  FOR ALL USING (user_id = auth.uid()::uuid);
+DO $$ BEGIN
+  CREATE POLICY hiring_profiles_user_policy ON hiring_profiles
+    FOR ALL USING (user_id = auth.uid()::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY preference_history_user_policy ON preference_history
-  FOR ALL USING (user_id = auth.uid()::uuid);
+DO $$ BEGIN
+  CREATE POLICY preference_history_user_policy ON preference_history
+    FOR ALL USING (user_id = auth.uid()::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY consent_records_user_policy ON consent_records
-  FOR ALL USING (user_id = auth.uid()::uuid);
+DO $$ BEGIN
+  CREATE POLICY consent_records_user_policy ON consent_records
+    FOR ALL USING (user_id = auth.uid()::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

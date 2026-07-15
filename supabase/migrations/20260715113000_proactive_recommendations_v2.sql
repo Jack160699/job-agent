@@ -42,7 +42,7 @@ CREATE POLICY proactive_recommendations_user_policy
       SELECT 1
       FROM public.users
       WHERE users.id = proactive_recommendations.user_id
-        AND users.supabase_id = auth.uid()::text
+        AND users.supabase_id = auth.uid()
     )
   )
   WITH CHECK (
@@ -50,6 +50,6 @@ CREATE POLICY proactive_recommendations_user_policy
       SELECT 1
       FROM public.users
       WHERE users.id = proactive_recommendations.user_id
-        AND users.supabase_id = auth.uid()::text
+        AND users.supabase_id = auth.uid()
     )
   );

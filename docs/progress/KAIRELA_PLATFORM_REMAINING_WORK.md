@@ -36,11 +36,20 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 ## Open carryovers
 
 - Authenticated production E2E once Supabase egress recovers
-- Apply production/preview migrations through `20260715220000_ws10_gmail_user_isolation.sql`
 - Complete owner-approved live Google consent/refresh/revoke verification
 - Owner approval for `kairela.com` attach and human acceptance
 - Stripe billing activation remains external
 - DOCX export deferred (PDF authorized downloads only)
+- Pin `search_path` on `public.current_app_user_id()` in a follow-up migration (Supabase security advisor)
+
+## 2026-07-16 — Migrations applied through WS10
+
+Production/preview migrations through `20260715220000_ws10_gmail_user_isolation.sql`
+are now applied to the linked Supabase project (`rcnigoakmxzlqipsaqvu`), including a
+resolved migration-history rename drift and two pre-existing SQL bugs found and
+fixed along the way. See `docs/progress/WS9_WS10_MIGRATION_DEPLOYMENT.md` for
+full detail. Typecheck, migration-contract (13), security (23), unit (169) tests,
+and the production build all pass post-migration.
 
 ## Optional P2 backlog
 

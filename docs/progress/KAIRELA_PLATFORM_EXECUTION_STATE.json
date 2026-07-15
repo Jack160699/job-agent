@@ -1,7 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-15T09:20:00.000Z",
-  "branch": "feat/kairela-platform-completion",
+  "updatedAt": "2026-07-16T00:00:00.000Z",
+  "branch": "feat/kairela-product-v1",
+  "headCommit": "12eacc2",
+  "note": "feat/kairela-platform-completion (WS9 094c00d, WS10 3b5e6ff) merged into feat/kairela-product-v1 on 2026-07-16; see docs/progress/WS9_WS10_MIGRATION_DEPLOYMENT.md",
   "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion",
   "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\job apply agent",
   "mainWorktreeBranch": "feat/kairela-product-v1",
@@ -45,18 +47,18 @@
     "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md"
   },
   "manualOwnerActions": [
-    "Apply migrations through 20260715220000_ws10_gmail_user_isolation.sql on the linked Supabase project",
     "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
-    "Rotate shared E2E password after demo period"
+    "Rotate shared E2E password after demo period",
+    "Pin search_path on public.current_app_user_id() in a follow-up migration (Supabase security advisor: function_search_path_mutable)",
+    "Enable Supabase Auth leaked-password protection and additional MFA methods (project rcnigoakmxzlqipsaqvu)"
   ],
   "externalBlockers": [
     "Custom domain attach requires explicit owner approval",
     "Final human acceptance is owner-owned",
     "Authenticated production E2E blocked by Supabase egress quota exhaustion",
     "Landing page completion owned by Codex on feat/kairela-product-v1",
-    "Remote DB migration application not yet proven from this environment (no linked Supabase CLI project / no DB URLs in preview pull)",
     "Live Google API consent, refresh and revoke verification requires an approved OAuth test user / project owner"
   ],
   "nextActions": [
