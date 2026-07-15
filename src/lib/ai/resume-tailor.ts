@@ -98,8 +98,53 @@ Return valid JSON matching the required schema.`,
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI");
 
-  const parsed = JSON.parse(content);
-  return tailoredResumeSchema.parse(parsed);
+  const parsed = tailoredResumeSchema.parse(JSON.parse(content));
+  return groundTailoredResume(parsed, input.masterResume);
+}
+
+/**
+ * Drop skills/highlights that are not grounded in the master resume text.
+ * Experience companies/titles that cannot be found are also removed.
+ */
+export function groundTailoredResume(
+  tailored: TailoredResume,
+  master: { rawText: string; skills: string[] }
+): TailoredResume {
+  const haystack = `${master.rawText}\n${master.skills.join("\n")}`.toLowerCase();
+  const grounded = (value: string) => {
+    const needle = value.trim().toLowerCase();
+    return needle.length > 0 && haystack.includes(needle);
+  };
+
+  const skills = tailored.skills.filter(grounded);
+  const highlights = tailored.highlights.filter(grounded);
+  const experience = tailored.experience
+    .filter(
+      (entry) =>
+        grounded(entry.company) ||
+        grounded(entry.title) ||
+        entry.bullets.some(grounded)
+    )
+    .map((entry) => ({
+      ...entry,
+      bullets: entry.bullets.filter(
+        (bullet) =>
+          grounded(bullet) ||
+          bullet
+            .toLowerCase()
+            .split(/\W+/)
+            .filter((token) => token.length > 4)
+            .some((token) => haystack.includes(token))
+      ),
+    }));
+
+  return {
+    ...tailored,
+    skills: skills.length > 0 ? skills : master.skills,
+    highlights,
+    experience,
+    rawText: tailored.rawText || master.rawText,
+  };
 }
 
 function tailorResumeFallback(input: TailorResumeInput): TailoredResume {

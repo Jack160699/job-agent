@@ -196,7 +196,7 @@ model MasterResumeVersion {
 model TailoredResume {
   id             String   @id @default(uuid()) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
-  masterResumeId String   @map("master_resume_id") @db.Uuid
+  masterResumeId String?  @map("master_resume_id") @db.Uuid
   jobId          String?  @map("job_id") @db.Uuid
   applicationId  String?  @unique @map("application_id") @db.Uuid
   title          String
@@ -210,7 +210,7 @@ model TailoredResume {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  masterResume MasterResume  @relation(fields: [masterResumeId], references: [id], onDelete: Cascade)
+  masterResume MasterResume? @relation(fields: [masterResumeId], references: [id], onDelete: SetNull)
   job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
   application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
 
