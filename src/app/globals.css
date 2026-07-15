@@ -8,6 +8,7 @@
 
 @theme inline {
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-kairela-display), "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --color-canvas: var(--canvas);
@@ -31,6 +32,12 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-full: 9999px;
+}
+
+h1,
+h2 {
+  font-family: var(--font-kairela-display), "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
 }
 
 :root {
