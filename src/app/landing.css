@@ -244,12 +244,11 @@
 
 .landing-mobile-sheet-backdrop {
   position: fixed;
-  z-index: -1;
-  inset: 71px 0 0;
+  z-index: 300;
+  inset: 0;
   display: flex;
   justify-content: flex-end;
-  background: rgb(7 26 20 / 0.3);
-  backdrop-filter: blur(5px);
+  background: var(--lp-paper);
   animation: landing-fade-in 180ms ease both;
 }
 
@@ -258,13 +257,39 @@
   height: 100%;
   border-left: 1px solid var(--lp-line);
   background: var(--lp-paper);
-  padding: 36px 24px 24px;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   box-shadow: -24px 0 70px rgb(8 33 25 / 0.14);
   animation: landing-sheet-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.landing-mobile-sheet-header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.landing-mobile-sheet-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--lp-line);
+  border-radius: 50%;
+  background: var(--lp-white);
+  color: var(--lp-ink);
+}
+
+.landing-mobile-sheet-close svg {
+  width: 19px;
+  height: 19px;
+}
+
 .landing-mobile-sheet-label {
-  margin: 0 0 18px;
+  margin: 0;
   color: var(--lp-ink-faint);
   font-size: 0.7rem;
   font-weight: 700;
@@ -1647,9 +1672,14 @@
   .landing-container { width: min(100% - 36px, 680px); }
   .landing-header { height: 68px; }
   .landing-header-cta { min-height: 42px; padding-inline: 16px; }
-  .landing-mobile-sheet-backdrop { inset: 67px 0 0; }
   .landing-hero-grid { padding-block: 68px 90px; }
-  .landing-hero h1 { font-size: clamp(3.5rem, 15vw, 5.6rem); letter-spacing: -0.07em; }
+  .landing-hero h1 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: clamp(3.25rem, 13vw, 4.75rem);
+    letter-spacing: -0.06em;
+    text-wrap: balance;
+  }
   .landing-hero-description { font-size: 1rem; }
   .landing-verb-line { margin-top: 42px; }
   .landing-hero-product { padding-block: 28px; }
@@ -1707,7 +1737,7 @@
   .landing-header-inner { gap: 8px; }
   .landing-header-cta { display: none; }
   .landing-brand .h-9 { width: 34px; height: 34px; }
-  .landing-hero h1 { font-size: clamp(3.25rem, 16vw, 4.5rem); }
+  .landing-hero h1 { font-size: clamp(3rem, 13vw, 3.65rem); letter-spacing: -0.055em; }
   .landing-hero h1 br { display: none; }
   .landing-hero-actions { display: grid; grid-template-columns: 1fr; }
   .landing-hero-actions .landing-button { width: 100%; }

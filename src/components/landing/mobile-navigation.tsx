@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Menu, X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 const links = [
   { href: "#how-it-works", label: "How it works" },
@@ -41,7 +42,7 @@ export function MobileNavigation() {
   const close = () => setOpen(false);
 
   return (
-    <div className="landing-mobile-navigation">
+    <div className={`landing-mobile-navigation${open ? " is-open" : ""}`}>
       <button
         ref={triggerRef}
         type="button"
@@ -54,39 +55,46 @@ export function MobileNavigation() {
         {open ? <X aria-hidden /> : <Menu aria-hidden />}
       </button>
 
-      {open && (
-        <div className="landing-mobile-sheet-backdrop" onMouseDown={close}>
-          <nav
-            id="mobile-navigation-sheet"
-            className="landing-mobile-sheet"
-            aria-label="Mobile navigation"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <p className="landing-mobile-sheet-label">Explore Kairela</p>
-            <div className="landing-mobile-sheet-links">
-              {links.map((link, index) => (
-                <a
-                  ref={index === 0 ? firstLinkRef : undefined}
-                  key={link.href}
-                  href={link.href}
-                  onClick={close}
-                >
-                  <span>{link.label}</span>
-                  <ArrowUpRight aria-hidden />
-                </a>
-              ))}
-            </div>
-            <div className="landing-mobile-sheet-actions">
-              <Link href="/login" className="landing-button landing-button-secondary" onClick={close}>
-                Log in
-              </Link>
-              <Link href="/signup" className="landing-button landing-button-primary" onClick={close}>
-                Start free
-              </Link>
-            </div>
-          </nav>
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div className="landing-page landing-mobile-sheet-backdrop" onMouseDown={close}>
+            <nav
+              id="mobile-navigation-sheet"
+              className="landing-mobile-sheet"
+              aria-label="Mobile navigation"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="landing-mobile-sheet-header">
+                <p className="landing-mobile-sheet-label">Explore Kairela</p>
+                <button type="button" className="landing-mobile-sheet-close" onClick={close} aria-label="Close navigation">
+                  <X aria-hidden />
+                </button>
+              </div>
+              <div className="landing-mobile-sheet-links">
+                {links.map((link, index) => (
+                  <a
+                    ref={index === 0 ? firstLinkRef : undefined}
+                    key={link.href}
+                    href={link.href}
+                    onClick={close}
+                  >
+                    <span>{link.label}</span>
+                    <ArrowUpRight aria-hidden />
+                  </a>
+                ))}
+              </div>
+              <div className="landing-mobile-sheet-actions">
+                <Link href="/login" className="landing-button landing-button-secondary" onClick={close}>
+                  Log in
+                </Link>
+                <Link href="/signup" className="landing-button landing-button-primary" onClick={close}>
+                  Start free
+                </Link>
+              </div>
+            </nav>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

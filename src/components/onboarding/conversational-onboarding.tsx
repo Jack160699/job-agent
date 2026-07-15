@@ -176,7 +176,13 @@ export function ConversationalOnboarding() {
   });
 
   return (
-    <div className="mx-auto max-w-lg space-y-5 pb-8">
+    <div
+      className={cn(
+        "mx-auto max-w-lg space-y-5 pb-8",
+        step === "welcome" &&
+          "flex min-h-[calc(100dvh-var(--header-height)-var(--bottom-nav-height)-var(--safe-top)-var(--safe-bottom)-2rem)] flex-col justify-center py-6 md:min-h-0 md:justify-start md:py-0"
+      )}
+    >
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-[var(--ink-tertiary)]">
           <span>Profile completion</span>

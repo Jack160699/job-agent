@@ -59,27 +59,43 @@ test.describe("Kairela public homepage", () => {
     await expect(page).toHaveURL(/#main-content$/);
   });
 
-  test("mobile navigation is accessible and the page never scrolls horizontally", async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto("/");
+  test("mobile navigation is opaque and the hero stays within 375px and 414px viewports", async ({ page }) => {
+    for (const width of [375, 414]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto("/");
 
-    const dimensions = await page.evaluate(() => ({
-      viewport: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      headerBottom: document.querySelector("header")?.getBoundingClientRect().bottom ?? 0,
-      headingTop: document.querySelector("h1")?.getBoundingClientRect().top ?? 0,
-    }));
-    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport + 1);
-    expect(dimensions.headingTop).toBeGreaterThan(dimensions.headerBottom);
+      const dimensions = await page.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        headerBottom: document.querySelector("header")?.getBoundingClientRect().bottom ?? 0,
+        heading: document.querySelector("h1")?.getBoundingClientRect(),
+      }));
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport + 1);
+      expect(dimensions.heading?.top ?? 0).toBeGreaterThan(dimensions.headerBottom);
+      expect(dimensions.heading?.right ?? width + 1).toBeLessThanOrEqual(width);
 
-    const menuButton = page.getByRole("button", { name: "Open navigation" });
-    await expect(menuButton).toHaveCSS("width", "44px");
-    await expect(menuButton).toHaveCSS("height", "44px");
-    await menuButton.click();
-    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "For job seekers", exact: true })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toHaveCount(0);
+      const menuButton = page.getByRole("button", { name: "Open navigation" });
+      await expect(menuButton).toHaveCSS("width", "44px");
+      await expect(menuButton).toHaveCSS("height", "44px");
+      await menuButton.click();
+
+      const backdrop = page.locator(".landing-mobile-sheet-backdrop");
+      await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "For job seekers", exact: true })).toBeVisible();
+      await expect(backdrop).toHaveCSS("background-color", "rgb(251, 250, 245)");
+
+      const overlay = await backdrop.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom };
+      });
+      expect(overlay).toEqual({ top: 0, left: 0, right: width, bottom: 812 });
+
+      await page
+        .getByRole("navigation", { name: "Mobile navigation" })
+        .getByRole("button", { name: "Close navigation" })
+        .click();
+      await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toHaveCount(0);
+    }
   });
 
   test("the illustrative thinking sequence can be replayed", async ({ page }) => {
