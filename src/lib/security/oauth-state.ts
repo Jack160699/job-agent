@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import prisma from "@/lib/db";
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -102,6 +103,34 @@ export function verifySignedOAuthState(
   }
 
   return { ok: true, payload };
+}
+
+export async function registerOAuthStateNonce(payload: OAuthStatePayload) {
+  await prisma.$transaction([
+    prisma.oAuthStateNonce.deleteMany({
+      where: { userId: payload.userId, expiresAt: { lte: new Date() } },
+    }),
+    prisma.oAuthStateNonce.create({
+      data: {
+        nonce: payload.nonce,
+        userId: payload.userId,
+        expiresAt: new Date(payload.exp),
+      },
+    }),
+  ]);
+}
+
+export async function consumeOAuthStateNonce(payload: OAuthStatePayload) {
+  const result = await prisma.oAuthStateNonce.updateMany({
+    where: {
+      nonce: payload.nonce,
+      userId: payload.userId,
+      consumedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { consumedAt: new Date() },
+  });
+  return result.count === 1;
 }
 
 export function isSafeInternalRedirect(path: string): boolean {

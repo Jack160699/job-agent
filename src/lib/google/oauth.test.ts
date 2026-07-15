@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assessGoogleConnectionHealth,
+  GOOGLE_INTEGRATION_SCOPES,
+  isGoogleReconnectError,
   mergeGoogleTokens,
   parseGoogleFeatures,
   unionGoogleFeatures,
@@ -43,5 +45,25 @@ describe("Google OAuth helpers", () => {
         access_token: "only-access",
       })
     ).toBe("missing_refresh_token");
+  });
+
+  it("requests least-privilege product scopes separately from identity", () => {
+    expect(GOOGLE_INTEGRATION_SCOPES.gmail).toEqual([
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
+    expect(GOOGLE_INTEGRATION_SCOPES.gmail).not.toContain("openid");
+    expect(GOOGLE_INTEGRATION_SCOPES.drive).not.toEqual(
+      GOOGLE_INTEGRATION_SCOPES.sheets
+    );
+  });
+
+  it("marks an expired access-only connection for reconnect", () => {
+    expect(
+      assessGoogleConnectionHealth({
+        access_token: "expired",
+        expiry_date: Date.now() - 1,
+      })
+    ).toBe("expired");
+    expect(isGoogleReconnectError(new Error("invalid_grant"))).toBe(true);
   });
 });

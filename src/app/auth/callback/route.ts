@@ -5,6 +5,8 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { getOrCreateUser } from "@/lib/jobs/pipeline";
 import { isSafeInternalRedirect } from "@/lib/security/oauth-state";
 import prisma from "@/lib/db";
+import type { EmailOtpType } from "@supabase/supabase-js";
+import { postAuthDestination } from "@/lib/auth/redirect-policy";
 
 function buildRedirectUrl(request: Request, path: string): string {
   const { origin } = new URL(request.url);
@@ -23,6 +25,8 @@ function buildRedirectUrl(request: Request, path: string): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const otpType = searchParams.get("type") as EmailOtpType | null;
   const nextParam = searchParams.get("next") ?? "/dashboard";
   const next = isSafeInternalRedirect(nextParam) ? nextParam : "/dashboard";
   const oauthError = searchParams.get("error");
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!code) {
+  if (!code && !(tokenHash && otpType)) {
     return NextResponse.redirect(
       buildRedirectUrl(request, "/login?error=auth_callback_failed")
     );
@@ -64,7 +68,12 @@ export async function GET(request: Request) {
     },
   });
 
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  const { error: exchangeError } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+        token_hash: tokenHash!,
+        type: otpType!,
+      });
 
   if (exchangeError) {
     console.error("[auth/callback] exchangeCodeForSession failed:", exchangeError.message);
@@ -88,7 +97,10 @@ export async function GET(request: Request) {
       });
       const onboardingDone =
         settings?.onboardingCompletedAt && settings.preferencesComplete;
-      const dest = onboardingDone ? next : "/dashboard/onboarding";
+      const dest = postAuthDestination({
+        next,
+        onboardingComplete: Boolean(onboardingDone),
+      });
       return NextResponse.redirect(buildRedirectUrl(request, dest));
     } catch (err) {
       console.error("[auth/callback] getOrCreateUser failed:", err);

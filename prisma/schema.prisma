@@ -145,6 +145,7 @@ model User {
   consentRecords    ConsentRecord[]
   logs              AuditLog[]
   secrets           EncryptedSecret[]
+  oauthStateNonces   OAuthStateNonce[]
   browserTasks      BrowserTask[]
   jobImports        JobImport[]
   jobFeedback       JobFeedback[]
@@ -515,7 +516,7 @@ model Email {
   userId        String         @map("user_id") @db.Uuid
   applicationId String?        @map("application_id") @db.Uuid
   recruiterId   String?        @map("recruiter_id") @db.Uuid
-  gmailId       String?        @unique @map("gmail_id")
+  gmailId       String?        @map("gmail_id")
   threadId      String?        @map("thread_id")
   direction     EmailDirection
   fromAddress   String         @map("from_address")
@@ -531,6 +532,7 @@ model Email {
   recruiter   Recruiter?   @relation(fields: [recruiterId], references: [id], onDelete: SetNull)
 
   @@index([userId, receivedAt])
+  @@unique([userId, gmailId])
   @@map("emails")
 }
 
@@ -616,6 +618,20 @@ model EncryptedSecret {
 
   @@unique([userId, key])
   @@map("encrypted_secrets")
+}
+
+model OAuthStateNonce {
+  nonce      String    @id
+  userId     String    @map("user_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId, consumedAt])
+  @@map("oauth_state_nonces")
 }
 
 model BackgroundJob {

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       scopesParam.split(",").map((s) => s.trim()).filter(Boolean)
     );
 
-    const url = getAuthUrl(user.id, features);
+    const url = await getAuthUrl(user.id, features);
     return NextResponse.json({ url, features });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";

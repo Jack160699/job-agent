@@ -1,14 +1,17 @@
 import { google } from "googleapis";
 import prisma from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/security/encryption";
-import { createSignedOAuthState } from "@/lib/security/oauth-state";
+import {
+  createSignedOAuthState,
+  registerOAuthStateNonce,
+  verifySignedOAuthState,
+} from "@/lib/security/oauth-state";
 import { getGoogleOAuthRedirectUri } from "@/lib/brand/urls";
 
 /** Identity-only scopes are handled by Supabase Auth — not this module. */
 export const GOOGLE_INTEGRATION_SCOPES = {
   gmail: [
     "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.send",
   ],
   drive: ["https://www.googleapis.com/auth/drive.file"],
   sheets: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -27,6 +30,15 @@ export type GoogleConnectionHealth =
   | "expired"
   | "missing_refresh_token"
   | "error";
+
+export class GoogleReconnectRequiredError extends Error {
+  code = "GOOGLE_RECONNECT_REQUIRED" as const;
+
+  constructor(message = "Google authorization expired. Reconnect your account.") {
+    super(message);
+    this.name = "GoogleReconnectRequiredError";
+  }
+}
 
 export type GoogleTokenBundle = {
   access_token?: string | null;
@@ -77,7 +89,10 @@ export function scopesForFeatures(features: GoogleIntegrationFeature[]): string[
   return [...scopes];
 }
 
-export function getAuthUrl(userId: string, features: GoogleIntegrationFeature[]) {
+export async function getAuthUrl(
+  userId: string,
+  features: GoogleIntegrationFeature[]
+) {
   const scoped = parseGoogleFeatures(features);
   const scopes = scopesForFeatures(scoped);
   if (scopes.length === 0) {
@@ -86,6 +101,9 @@ export function getAuthUrl(userId: string, features: GoogleIntegrationFeature[])
 
   const client = getGoogleOAuthClient();
   const state = createSignedOAuthState({ userId, features: scoped });
+  const verified = verifySignedOAuthState(state, { consumeNonce: false });
+  if (!verified.ok) throw new Error("Could not create OAuth state");
+  await registerOAuthStateNonce(verified.payload);
 
   return client.generateAuthUrl({
     access_type: "offline",
@@ -178,7 +196,6 @@ export function assessGoogleConnectionHealth(
 ): GoogleConnectionHealth {
   if (!tokens) return "disconnected";
   if (!tokens.refresh_token && !tokens.access_token) return "disconnected";
-  if (!tokens.refresh_token) return "missing_refresh_token";
   if (
     tokens.expiry_date &&
     tokens.expiry_date < Date.now() &&
@@ -186,7 +203,35 @@ export function assessGoogleConnectionHealth(
   ) {
     return "expired";
   }
+  if (!tokens.refresh_token) return "missing_refresh_token";
   return "healthy";
+}
+
+export async function assertGoogleFeaturesGranted(
+  userId: string,
+  requested: GoogleIntegrationFeature[]
+) {
+  const granted = await getGrantedFeatures(userId);
+  const missing = requested.filter((feature) => !granted.includes(feature));
+  if (missing.length > 0) {
+    throw new GoogleReconnectRequiredError(
+      `Reconnect Google and grant: ${missing.join(", ")}.`
+    );
+  }
+  return granted;
+}
+
+export function isGoogleReconnectError(error: unknown) {
+  if (error instanceof GoogleReconnectRequiredError) return true;
+  const text =
+    error instanceof Error
+      ? `${error.name} ${error.message}`
+      : typeof error === "object" && error !== null
+        ? JSON.stringify(error)
+        : String(error);
+  return /invalid_grant|unauthorized_client|token has been expired|revoked/i.test(
+    text
+  );
 }
 
 export async function getAuthenticatedClient(userId: string) {
@@ -203,13 +248,36 @@ export async function getAuthenticatedClient(userId: string) {
     id_token: tokens.id_token ?? undefined,
   });
 
-  client.on("tokens", async (newTokens) => {
-    await storeGoogleTokens(
-      userId,
-      newTokens as GoogleTokenBundle,
-      await getGrantedFeatures(userId)
-    );
+  client.on("tokens", (newTokens) => {
+    void getGrantedFeatures(userId)
+      .then((features) =>
+        storeGoogleTokens(
+          userId,
+          newTokens as GoogleTokenBundle,
+          features
+        )
+      )
+      .catch((error) =>
+        console.error("[google/oauth] token persistence failed", error)
+      );
   });
+
+  if (tokens.expiry_date && tokens.expiry_date <= Date.now() + 60_000) {
+    if (!tokens.refresh_token) throw new GoogleReconnectRequiredError();
+    try {
+      await client.getAccessToken();
+      await storeGoogleTokens(
+        userId,
+        client.credentials as GoogleTokenBundle,
+        await getGrantedFeatures(userId)
+      );
+    } catch (error) {
+      if (isGoogleReconnectError(error)) {
+        throw new GoogleReconnectRequiredError();
+      }
+      throw error;
+    }
+  }
 
   return client;
 }

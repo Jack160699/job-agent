@@ -23,7 +23,7 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 7 | Search quality and relevance | **Complete (HEAD reconciled)** — plan queries consumed, source cooldown recovery, admin source health, expire prepare gate, saved/excluded views |
 | 8 | Resume and document intelligence | **Complete (HEAD reconciled)** — master-delete SET NULL, grounding-v2 report, full Resume History UX |
 | 9 | Application agent and ATS automation | **Complete (release gate)** — explicit state machine, idempotent/recoverable delivery, grounded provider fixtures, review default and accurate tracker |
-| 10 | Authentication and Google integrations | **In progress (current-HEAD reconciliation)** — existing connect lifecycle and OAuth security are being reverified end to end |
+| 10 | Authentication and Google integrations | **Complete (code/release gate)** — durable OAuth state, recovery routing, least-privilege scopes, refresh/reconnect, revoke and four Workspace integrations |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
 | 12 | Subscriptions and entitlements | Partial — execution-path enforcement landed; Stripe activation external |
 | 13 | Mobile UX and performance | Partial — bottom-nav CSS fix landed; skeletons/viewport evidence remain |
@@ -36,7 +36,8 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 ## Open carryovers
 
 - Authenticated production E2E once Supabase egress recovers
-- Apply production/preview migrations through `20260715200000_ws9_application_automation.sql`
+- Apply production/preview migrations through `20260715220000_ws10_gmail_user_isolation.sql`
+- Complete owner-approved live Google consent/refresh/revoke verification
 - Owner approval for `kairela.com` attach and human acceptance
 - Stripe billing activation remains external
 - DOCX export deferred (PDF authorized downloads only)

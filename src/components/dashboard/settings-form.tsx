@@ -36,6 +36,8 @@ interface Settings {
 type GoogleStatus = {
   connected: boolean;
   health?: string;
+  code?: string;
+  error?: string;
   email: string | null;
   grantedFeatures?: string[];
   integrations: {
@@ -104,6 +106,7 @@ export function SettingsForm({
   const [driveSync, setDriveSync] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [googleNeedsReconnect, setGoogleNeedsReconnect] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     initialSettings?.notificationsEnabled ?? true
   );
@@ -129,6 +132,7 @@ export function SettingsForm({
   const applyGoogleStatus = useCallback((status: GoogleStatus) => {
     setGoogleConnected(status.connected);
     setGoogleEmail(status.email);
+    setGoogleNeedsReconnect(status.code === "GOOGLE_RECONNECT_REQUIRED");
     if (status.connected) {
       setGmailSync(status.integrations.gmail);
       setSheetsSync(status.integrations.sheets);
@@ -141,6 +145,7 @@ export function SettingsForm({
     const res = await fetch("/api/google/status");
     const data = (await res.json()) as GoogleStatus;
     applyGoogleStatus(data);
+    if (!res.ok) throw new Error(data.error || "Google status failed");
     return data;
   }, [applyGoogleStatus]);
 
@@ -221,6 +226,7 @@ export function SettingsForm({
       if (!res.ok) throw new Error(data.error || "Disconnect failed");
       setGoogleConnected(false);
       setGoogleEmail(null);
+      setGoogleNeedsReconnect(false);
       setGmailSync(false);
       setSheetsSync(false);
       setCalendarSync(false);
@@ -564,6 +570,8 @@ export function SettingsForm({
                 <p className="text-xs text-[var(--ink-tertiary)]">
                   {googleConnected
                     ? `Connected${googleEmail ? ` as ${googleEmail}` : ""}`
+                    : googleNeedsReconnect
+                      ? "Authorization expired. Reconnect to resume enabled integrations."
                     : "Select the integrations below, then connect your Google account"}
                 </p>
               </div>
@@ -613,7 +621,7 @@ export function SettingsForm({
                     className="gap-1"
                   >
                     <Link2 className="h-3 w-3" />
-                    Connect
+                    {googleNeedsReconnect ? "Reconnect" : "Connect"}
                   </Button>
                 )}
               </div>

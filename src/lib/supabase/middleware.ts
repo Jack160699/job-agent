@@ -4,6 +4,7 @@ import { isUserEmailVerified } from "@/lib/auth/verify";
 import { shouldRedirectWwwToApex } from "@/lib/brand/urls";
 import { BRAND } from "@/lib/brand";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./config";
+import { shouldRedirectAuthenticatedAuthPage } from "@/lib/auth/redirect-policy";
 
 export async function updateSession(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
@@ -77,7 +78,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isUserEmailVerified(user) && isAuthPage && !request.nextUrl.pathname.startsWith("/auth/")) {
+  if (
+    user &&
+    isUserEmailVerified(user) &&
+    isAuthPage &&
+    shouldRedirectAuthenticatedAuthPage(request.nextUrl.pathname)
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-15T09:00:00.000Z",
+  "updatedAt": "2026-07-15T09:20:00.000Z",
   "branch": "feat/kairela-platform-completion",
   "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion",
   "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\job apply agent",
@@ -16,34 +16,36 @@
     "src/app/data-deletion/**",
     "docs/design/**"
   ],
-  "currentWorkstream": 10,
-  "lastCompletedWorkstream": 9,
-  "completedWorkstreams": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  "partialWorkstreams": [10, 11, 12, 13, 14, 15, 16],
+  "currentWorkstream": 11,
+  "lastCompletedWorkstream": 10,
+  "completedWorkstreams": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  "partialWorkstreams": [11, 12, 13, 14, 15, 16],
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
+    "094c00d feat(automation): close WS9 application release gate",
     "e72c5cb fix(automation): ground prepare path and honor cancel",
     "aeccc3f feat(resumes,search): reconcile WS7/WS8 history grounding and discovery",
     "2859d4e fix(resumes): preserve tailored docs and ground tailor output"
   ],
   "verification": {
     "typecheck": "pass",
-    "unitTests": "160 passed",
+    "unitTests": "169 passed",
     "integrationTests": "158 passed",
-    "securityTests": "20 passed",
+    "securityTests": "23 passed",
     "lint": "pass with preexisting warnings",
-    "rlsContracts": "10 passed",
+    "rlsContracts": "13 passed",
     "build": "pass",
     "e2eWs7": "5 passed",
     "e2eWs8": "3 passed (1 flaky retry)",
     "e2eWs9": "7 passed",
-    "previewUrl": "https://kairela-platform-completion-nw9chfsg3-jack160699s-projects.vercel.app",
+    "previewUrl": "https://kairela-platform-completion-almev0ks4-jack160699s-projects.vercel.app",
     "reconciliationDoc": "docs/progress/WS7_WS8_CURRENT_HEAD_RECONCILIATION.md",
-    "ws9ClosureDoc": "docs/progress/WS9_APPLICATION_AUTOMATION_CLOSURE.md"
+    "ws9ClosureDoc": "docs/progress/WS9_APPLICATION_AUTOMATION_CLOSURE.md",
+    "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md"
   },
   "manualOwnerActions": [
-    "Apply migrations through 20260715200000_ws9_application_automation.sql on the linked Supabase project",
+    "Apply migrations through 20260715220000_ws10_gmail_user_isolation.sql on the linked Supabase project",
     "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
@@ -54,10 +56,11 @@
     "Final human acceptance is owner-owned",
     "Authenticated production E2E blocked by Supabase egress quota exhaustion",
     "Landing page completion owned by Codex on feat/kairela-product-v1",
-    "Remote DB migration application not yet proven from this environment (no linked Supabase CLI project / no DB URLs in preview pull)"
+    "Remote DB migration application not yet proven from this environment (no linked Supabase CLI project / no DB URLs in preview pull)",
+    "Live Google API consent, refresh and revoke verification requires an approved OAuth test user / project owner"
   ],
   "nextActions": [
-    "Complete WS10 current-HEAD authentication and Google integration reconciliation",
+    "Continue remaining partial workstreams from WS11+",
     "Optional P2: inbox mark-as-read",
     "Optional P2: manual interview creation",
     "Keep Stripe activation and kairela.com attach owner-gated",

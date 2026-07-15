@@ -11,7 +11,10 @@ import {
 import { verifyGmailProfile } from "@/lib/google/verify";
 import { getAppBaseUrl } from "@/lib/brand/urls";
 import { getDbUser } from "@/lib/auth/server";
-import { verifySignedOAuthState } from "@/lib/security/oauth-state";
+import {
+  consumeOAuthStateNonce,
+  verifySignedOAuthState,
+} from "@/lib/security/oauth-state";
 import prisma from "@/lib/db";
 
 function redirectWithReason(appUrl: string, reason: string) {
@@ -29,7 +32,7 @@ export async function GET(request: NextRequest) {
     return redirectWithReason(appUrl, "missing_params");
   }
 
-  const verified = verifySignedOAuthState(stateRaw);
+  const verified = verifySignedOAuthState(stateRaw, { consumeNonce: false });
   if (!verified.ok) {
     console.warn("[google/callback] OAuth state rejected:", verified.reason);
     return redirectWithReason(appUrl, `invalid_state_${verified.reason}`);
@@ -44,6 +47,9 @@ export async function GET(request: NextRequest) {
   if (sessionUser.id !== userId) {
     console.warn("[google/callback] OAuth state user mismatch");
     return redirectWithReason(appUrl, "session_mismatch");
+  }
+  if (!(await consumeOAuthStateNonce(verified.payload))) {
+    return redirectWithReason(appUrl, "invalid_state_replay");
   }
 
   let allowedFeatures: GoogleIntegrationFeature[];

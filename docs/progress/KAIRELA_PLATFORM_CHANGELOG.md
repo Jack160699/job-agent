@@ -199,3 +199,28 @@
 - Typecheck, Prisma validation and production build: passed.
 - Playwright ATS/security suite: 7 passed.
 - Preview: `https://kairela-platform-completion-nw9chfsg3-jack160699s-projects.vercel.app`.
+
+## 2026-07-15 — Workstream 10 current-HEAD closure
+
+- Fixed password recovery so PKCE and token-hash callbacks preserve the reset
+  destination instead of redirecting authenticated recovery sessions.
+- Replaced process-local Workspace OAuth replay protection with expiring,
+  database-backed single-use nonces bound to the current user session.
+- Separated identity login from least-privilege Gmail, Drive, Sheets and Calendar
+  scopes; removed unused Gmail send permission.
+- Added proactive token refresh persistence, reconnect-required responses and
+  reconnect UI copy.
+- Enforced granted features before sync and limited API verification to selected
+  products without creating test spreadsheets.
+- Corrected Gmail direction parsing, base64url decoding and per-user message
+  deduplication.
+
+### Verification
+
+- Unit tests: 169 passed.
+- Security tests: 23 passed.
+- RLS/migration contracts: 13 passed.
+- Typecheck, Prisma validation and production build: passed.
+- Preview auth pages: 200; unauthenticated Workspace APIs: 401.
+- Signed-in reset and integration settings UI verified in browser.
+- Preview: `https://kairela-platform-completion-almev0ks4-jack160699s-projects.vercel.app`.

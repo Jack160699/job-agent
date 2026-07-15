@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { TEST_USER } from "./fixtures";
-import { createConfirmedUser, deleteUserByEmail } from "./helpers/auth";
+import { deleteUserByEmail } from "./helpers/auth";
 
 test.describe("Google Sign-In Auth", () => {
   test("login page shows Continue with Google button", async ({ page }) => {
