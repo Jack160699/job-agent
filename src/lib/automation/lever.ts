@@ -5,11 +5,8 @@ import type {
   BrowserAutomationClient,
   SubmissionResult,
 } from "@/lib/browser/types";
-import {
-  fillCommonFields,
-  findElement,
-  type PlatformAutomator,
-} from "./base";
+import type { PlatformAutomator } from "./base";
+import { prepareApplicationForm } from "./prepare-flow";
 
 export class LeverAutomator implements PlatformAutomator {
   platform = "LEVER";
@@ -56,53 +53,13 @@ export class LeverAutomator implements PlatformAutomator {
     documents: ApplicationDocuments,
     options?: { autoSubmit?: boolean }
   ): Promise<SubmissionResult> {
-    await browser.navigate(jobUrl);
-    await browser.waitForSelector("Apply", 20000);
-
-    const snap = await browser.snapshot();
-    const applyBtn = findElement(snap, [/apply for this job/i, /apply/i]);
-    if (applyBtn) await browser.click(applyBtn.ref);
-
-    await fillCommonFields(browser, profile);
-
-    if (documents.coverLetterText) {
-      const clField = findElement(await browser.snapshot(), [
-        /additional information/i,
-        /cover letter/i,
-        /why/i,
-      ]);
-      if (clField) {
-        await browser.type(clField.ref, documents.coverLetterText.slice(0, 5000));
-      }
-    }
-
-    const formData = { platform: "LEVER", jobUrl, profile: profile.email };
-
-    if (!options?.autoSubmit) {
-      return {
-        success: true,
-        status: "pending_review",
-        message: "Lever application filled — ready for review",
-        formData,
-      };
-    }
-
-    const submitBtn = findElement(await browser.snapshot(), [/submit application/i]);
-    if (submitBtn) {
-      await browser.click(submitBtn.ref);
-      return {
-        success: true,
-        status: "submitted",
-        message: "Lever application submitted",
-        formData,
-      };
-    }
-
-    return {
-      success: false,
-      status: "requires_manual",
-      message: "Could not find submit button on Lever form",
-      formData,
-    };
+    return prepareApplicationForm({
+      browser,
+      jobUrl,
+      platform: this.platform,
+      profile,
+      documents,
+      autoSubmit: options?.autoSubmit,
+    });
   }
 }

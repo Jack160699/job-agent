@@ -27,17 +27,38 @@ export async function enqueueBrowserTask(input: {
     if (existing) return existing;
   }
 
-  return prisma.browserTask.create({
-    data: {
-      userId: input.userId,
-      applicationId: input.applicationId,
-      type: input.type,
-      platform: input.platform,
-      payload: (input.payload ?? {}) as Prisma.InputJsonValue,
-      status: "pending",
-      progress: 0,
-    },
-  });
+  try {
+    return await prisma.browserTask.create({
+      data: {
+        userId: input.userId,
+        applicationId: input.applicationId,
+        type: input.type,
+        platform: input.platform,
+        payload: (input.payload ?? {}) as Prisma.InputJsonValue,
+        status: "pending",
+        progress: 0,
+      },
+    });
+  } catch (error) {
+    if (
+      input.applicationId &&
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return prisma.browserTask.findFirstOrThrow({
+        where: {
+          userId: input.userId,
+          applicationId: input.applicationId,
+          type: input.type,
+          status: { in: ["pending", "running"] },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+    throw error;
+  }
 }
 
 export async function getBrowserTask(taskId: string) {

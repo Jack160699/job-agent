@@ -9,6 +9,7 @@ import { findElementWithFallbacks } from "./resilient";
 
 export interface PlatformAutomator {
   platform: string;
+  canAutoApply?: boolean;
   canHandle(url: string): boolean;
   discoverJobs(boardSlug: string, query: string): Promise<DiscoveredJob[]>;
   prepareApplication(

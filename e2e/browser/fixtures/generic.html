@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Generic ATS Fixture</title></head>
+<body>
+  <h1>Operations Analyst</h1>
+  <button type="button">Start application</button>
+  <form id="application-form" style="display:none">
+    <label>First Name<input name="first_name" /></label>
+    <label>Last Name<input name="last_name" /></label>
+    <label>Email<input name="email" type="email" /></label>
+    <label>Phone<input name="phone" /></label>
+    <label>Location<input name="location" /></label>
+    <label>Resume<textarea name="resume"></textarea></label>
+    <label>Cover Letter<textarea name="cover_letter"></textarea></label>
+    <button type="submit">Submit Application</button>
+  </form>
+  <script>
+    document.querySelector('button').addEventListener('click', () => {
+      document.getElementById('application-form').style.display = 'block';
+    });
+  </script>
+</body>
+</html>

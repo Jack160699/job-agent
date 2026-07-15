@@ -26,7 +26,7 @@ describe("application automation policy", () => {
       )
     ).toEqual(
       expect.objectContaining({
-        status: "FAILED",
+        status: "BLOCKED_LOGIN",
         failureReason: "NEEDS_LOGIN",
       })
     );
@@ -42,7 +42,7 @@ describe("application automation policy", () => {
       )
     ).toEqual(
       expect.objectContaining({
-        status: "FAILED",
+        status: "BLOCKED_CAPTCHA",
         failureReason: "CAPTCHA_REQUIRED",
       })
     );
@@ -58,6 +58,23 @@ describe("application automation policy", () => {
         },
         false
       ).status
-    ).toBe("PENDING_REVIEW");
+    ).toBe("AWAITING_APPROVAL");
+  });
+
+  it("maps missing facts to needs information without guessing", () => {
+    expect(
+      mapSubmissionToApplicationStatus(
+        {
+          success: false,
+          status: "requires_manual",
+          message:
+            "Missing required information: work_authorization. Kairela will not invent answers.",
+        },
+        false
+      )
+    ).toMatchObject({
+      status: "NEEDS_INFORMATION",
+      failureReason: "NEEDS_INFORMATION",
+    });
   });
 });

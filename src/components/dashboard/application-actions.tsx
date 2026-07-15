@@ -5,6 +5,7 @@ import { FileDown, FileText, Send, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { shouldResumePreparation } from "@/lib/applications/preparation-state";
 
 export function ApplicationActions({
   applicationId,
@@ -27,7 +28,13 @@ export function ApplicationActions({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!browserTaskId || (status !== "SUBMITTING" && status !== "PENDING_REVIEW")) {
+    if (
+      !shouldResumePreparation({
+        browserTaskId,
+        applicationStatus: status,
+        taskStatus,
+      })
+    ) {
       return;
     }
 
@@ -60,7 +67,7 @@ export function ApplicationActions({
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [browserTaskId, router, status]);
+  }, [browserTaskId, router, status, taskStatus]);
 
   const downloadPdf = async () => {
     setLoading("pdf");
@@ -174,17 +181,29 @@ export function ApplicationActions({
     }
   };
 
-  const terminal = ["SUBMITTING", "SUBMITTED", "WITHDRAWN", "ACCEPTED"].includes(
-    status
-  );
+  const terminal = [
+    "SUBMITTING",
+    "SUBMITTED",
+    "WITHDRAWN",
+    "ACCEPTED",
+    "REJECTED",
+    "EXPIRED",
+  ].includes(status);
   const unavailable = ["EXPIRED", "CLOSED"].includes(jobStatus);
   const showGenerate = !terminal && !unavailable;
   const canPrepare =
     !unavailable &&
     hasDocuments &&
-    ["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "FAILED"].includes(
-      status
-    );
+    [
+      "PENDING_REVIEW",
+      "AWAITING_APPROVAL",
+      "NEEDS_INFORMATION",
+      "BLOCKED_CAPTCHA",
+      "BLOCKED_LOGIN",
+      "RESUME_GENERATED",
+      "COVER_LETTER_GENERATED",
+      "FAILED",
+    ].includes(status);
 
   return (
     <div className="flex flex-col items-end gap-1">

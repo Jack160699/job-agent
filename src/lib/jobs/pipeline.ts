@@ -624,6 +624,30 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     },
     data: { status: "EXPIRED" },
   });
+  await prisma.application.updateMany({
+    where: {
+      userId,
+      job: { status: "EXPIRED" },
+      status: {
+        in: [
+          "DISCOVERED",
+          "ANALYZED",
+          "MATCHED",
+          "SKIPPED",
+          "RESUME_GENERATED",
+          "COVER_LETTER_GENERATED",
+          "PENDING_REVIEW",
+          "NEEDS_INFORMATION",
+          "AWAITING_APPROVAL",
+          "BLOCKED_CAPTCHA",
+          "BLOCKED_LOGIN",
+          "UNSUPPORTED",
+          "FAILED",
+        ],
+      },
+    },
+    data: { status: "EXPIRED", failureReason: "JOB_EXPIRED" },
+  });
 
   for (const sourceResult of sourceResults) {
     if (!sourceResult.success) continue;
@@ -807,7 +831,7 @@ export async function processApplication(
     !options?.force &&
     application.tailoredResume &&
     application.coverLetter &&
-    ["PENDING_REVIEW", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "SUBMITTING", "SUBMITTED"].includes(
+    ["PENDING_REVIEW", "AWAITING_APPROVAL", "RESUME_GENERATED", "COVER_LETTER_GENERATED", "SUBMITTING", "SUBMITTED"].includes(
       application.status
     )
   ) {

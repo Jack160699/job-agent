@@ -57,7 +57,7 @@ export function mapSubmissionToApplicationStatus(
 
   if (submission.status === "pending_review") {
     return {
-      status: "PENDING_REVIEW",
+      status: "AWAITING_APPROVAL",
       failureReason: null,
       message:
         submission.message ||
@@ -68,7 +68,7 @@ export function mapSubmissionToApplicationStatus(
   const blocker = classifyAutomationMessage(submission.message || "");
   if (blocker === "needs_login") {
     return {
-      status: "FAILED",
+      status: "BLOCKED_LOGIN",
       failureReason: "NEEDS_LOGIN",
       message:
         "This platform requires you to sign in. Complete login yourself, then ask Kairela to continue preparation.",
@@ -76,10 +76,28 @@ export function mapSubmissionToApplicationStatus(
   }
   if (blocker === "captcha_required") {
     return {
-      status: "FAILED",
+      status: "BLOCKED_CAPTCHA",
       failureReason: "CAPTCHA_REQUIRED",
       message:
         "A CAPTCHA or challenge appeared. Kairela will not bypass it. Complete the challenge yourself, then retry.",
+    };
+  }
+  if (blocker === "missing_information") {
+    return {
+      status: "NEEDS_INFORMATION",
+      failureReason: "NEEDS_INFORMATION",
+      message:
+        submission.message ||
+        "Provide the missing information before Kairela continues. No answer was guessed.",
+    };
+  }
+  if (blocker === "unsupported_platform") {
+    return {
+      status: "UNSUPPORTED",
+      failureReason: "UNSUPPORTED_PLATFORM",
+      message:
+        submission.message ||
+        "This platform is not supported for automated preparation. Apply manually.",
     };
   }
   if (blocker === "manual_required" || submission.status === "requires_manual") {

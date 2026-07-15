@@ -22,6 +22,7 @@ import {
 } from "@/lib/jobs/pipeline";
 import type { Prisma } from "@prisma/client";
 import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-policy";
+import { preparationReuseDecision } from "@/lib/applications/preparation-state";
 import { assertCanUseFeature, recordUsage } from "@/lib/entitlements";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
@@ -187,6 +188,54 @@ export async function prepareApplicationSubmission(
       "Generate tailored resume and cover letter before preparing this application"
     );
   }
+  const persistedDocuments = application.documents as {
+    browserTaskId?: string;
+  } | null;
+  const activeTask = persistedDocuments?.browserTaskId
+    ? await prisma.browserTask.findFirst({
+        where: {
+          id: persistedDocuments.browserTaskId,
+          userId,
+          applicationId,
+          status: { in: ["pending", "running"] },
+        },
+      })
+    : null;
+  const reuseDecision = preparationReuseDecision({
+    applicationStatus: application.status,
+    autoSubmit: Boolean(options?.autoSubmit),
+    hasPersistedFormData: Boolean(application.formData),
+    activeTaskId: activeTask?.id,
+  });
+  if (reuseDecision === "already_submitted") {
+    return {
+      success: true,
+      status: "submitted" as const,
+      message: "Application was already submitted. Duplicate delivery was ignored.",
+      reused: true,
+    };
+  }
+  if (reuseDecision === "active_delivery") {
+    return {
+      success: true,
+      status:
+        application.status === "SUBMITTING"
+          ? ("submitting" as const)
+          : ("pending_review" as const),
+      message: "Application preparation is already active.",
+      formData: activeTask ? { browserTaskId: activeTask.id } : undefined,
+      reused: true,
+    };
+  }
+  if (reuseDecision === "already_prepared") {
+    return {
+      success: true,
+      status: "pending_review" as const,
+      message: "Prepared application is already waiting for your review.",
+      formData: application.formData as Record<string, unknown>,
+      reused: true,
+    };
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const resumeText = application.tailoredResume.rawText;
@@ -242,18 +291,38 @@ export async function prepareApplicationSubmission(
     await prisma.application.update({
       where: { id: applicationId },
       data: {
-        status: options?.autoSubmit ? "SUBMITTING" : "PENDING_REVIEW",
+        status: "UNSUPPORTED",
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
         } as Prisma.InputJsonValue,
+        failureReason: "UNSUPPORTED_PLATFORM",
       },
     });
     return {
-      success: true,
-      status: "pending_review" as const,
+      success: false,
+      status: "requires_manual" as const,
       message: "Documents generated — manual submission required for this platform",
     };
+  }
+
+  if (options?.autoSubmit) {
+    const acquired = await prisma.application.updateMany({
+      where: {
+        id: applicationId,
+        userId,
+        status: { notIn: ["SUBMITTING", "SUBMITTED"] },
+      },
+      data: { status: "SUBMITTING", lastAttemptAt: new Date() },
+    });
+    if (acquired.count === 0) {
+      return {
+        success: true,
+        status: "submitting" as const,
+        message: "Submission authorization is already being processed.",
+        reused: true,
+      };
+    }
   }
 
   if (shouldUseBrowserQueue() && !isBrowserBridgeAvailable()) {
@@ -344,7 +413,11 @@ export async function prepareApplicationSubmission(
         } as Prisma.InputJsonValue,
         failureReason: mapped.failureReason,
         lastAttemptAt: new Date(),
-        requiresReview: !options?.autoSubmit || mapped.status === "PENDING_REVIEW",
+        requiresReview:
+          !options?.autoSubmit ||
+          ["PENDING_REVIEW", "AWAITING_APPROVAL", "NEEDS_INFORMATION"].includes(
+            mapped.status
+          ),
       },
     });
 
@@ -357,7 +430,10 @@ export async function prepareApplicationSubmission(
     return {
       ...submission,
       message: mapped.message,
-      success: mapped.status === "SUBMITTED" || mapped.status === "PENDING_REVIEW",
+      success:
+        mapped.status === "SUBMITTED" ||
+        mapped.status === "PENDING_REVIEW" ||
+        mapped.status === "AWAITING_APPROVAL",
     };
   } finally {
     await browser.close();

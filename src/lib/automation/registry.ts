@@ -1,8 +1,8 @@
-import { detectJobSource } from "@/lib/jobs/types";
 import { GreenhouseAutomator } from "./greenhouse";
 import { LeverAutomator } from "./lever";
 import { AshbyAutomator } from "./ashby";
 import { WorkdayAutomator } from "./workday";
+import { GenericAtsAutomator } from "./generic";
 import type { PlatformAutomator } from "./base";
 
 const automators: PlatformAutomator[] = [
@@ -10,6 +10,7 @@ const automators: PlatformAutomator[] = [
   new LeverAutomator(),
   new AshbyAutomator(),
   new WorkdayAutomator(),
+  new GenericAtsAutomator(),
 ];
 
 export function getAutomatorForUrl(url: string): PlatformAutomator | null {
@@ -24,4 +25,10 @@ export function getAllAutomators() {
   return automators;
 }
 
-export { GreenhouseAutomator, LeverAutomator, AshbyAutomator, WorkdayAutomator };
+export {
+  GreenhouseAutomator,
+  LeverAutomator,
+  AshbyAutomator,
+  WorkdayAutomator,
+  GenericAtsAutomator,
+};

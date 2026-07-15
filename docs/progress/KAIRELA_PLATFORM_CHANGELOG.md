@@ -173,3 +173,29 @@
 ### Verification
 - Unit tests: 82 passed.
 - Typecheck: passed.
+
+## 2026-07-15 — Workstream 9 release closure
+
+- Added explicit application states for missing information, awaiting approval,
+  CAPTCHA, login, unsupported platforms and expired postings.
+- Added durable active-delivery uniqueness, preparation reuse, terminal replay
+  protection and worker timeout/restart recovery.
+- Kept final submission behind explicit per-attempt authorization; generic ATS
+  support is fill-for-review only.
+- Unified Greenhouse, Lever, Ashby and Workday fixtures on the grounded
+  preparation flow and added a generic ATS fixture.
+- Added CAPTCHA/login handoff detection without challenge bypass.
+- Expanded the application tracker with document readiness, chronological
+  milestones and an actionable next step.
+- Added `20260715200000_ws9_application_automation.sql` and documented remote
+  application as an owner/environment action.
+
+### Verification
+
+- Unit tests: 160 passed.
+- Integration tests: 158 passed.
+- Security tests: 20 passed.
+- RLS/migration contracts: 10 passed.
+- Typecheck, Prisma validation and production build: passed.
+- Playwright ATS/security suite: 7 passed.
+- Preview: `https://kairela-platform-completion-nw9chfsg3-jack160699s-projects.vercel.app`.

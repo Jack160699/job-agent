@@ -64,10 +64,29 @@ export async function PUT(
       update: parsed.data,
     });
     if (!parsed.data.relevant && parsed.data.reason === "expired") {
-      await prisma.job.update({
-        where: { id: jobId },
-        data: { status: "EXPIRED" },
-      });
+      await prisma.$transaction([
+        prisma.job.update({
+          where: { id: jobId },
+          data: { status: "EXPIRED" },
+        }),
+        prisma.application.updateMany({
+          where: {
+            userId: user.id,
+            jobId,
+            status: {
+              notIn: [
+                "SUBMITTED",
+                "INTERVIEWING",
+                "OFFERED",
+                "ACCEPTED",
+                "REJECTED",
+                "WITHDRAWN",
+              ],
+            },
+          },
+          data: { status: "EXPIRED", failureReason: "JOB_EXPIRED" },
+        }),
+      ]);
     } else if (
       !parsed.data.relevant &&
       (parsed.data.reason === "duplicate" ||

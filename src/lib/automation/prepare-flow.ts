@@ -1,5 +1,6 @@
 import { tmpdir } from "os";
 import { join } from "path";
+import { mkdir } from "fs/promises";
 import type {
   ApplicationDocuments,
   ApplicationProfile,
@@ -39,7 +40,7 @@ export async function prepareApplicationForm(input: {
   if (cancelled) return cancelled;
 
   await input.browser.navigate(input.jobUrl);
-  await input.browser.waitForSelector("Apply", 25000);
+  await input.browser.waitForSelector("Apply", 5000).catch(() => undefined);
 
   const snap = await input.browser.snapshot();
   const applyBtn = findElement(snap, [
@@ -53,12 +54,24 @@ export async function prepareApplicationForm(input: {
   const cancelledAfterApply = await continueOrStop();
   if (cancelledAfterApply) return cancelledAfterApply;
 
+  const handoff = detectRestrictedHandoff(await input.browser.snapshot());
+  if (handoff) {
+    return {
+      success: false,
+      status: "requires_manual",
+      message: handoff,
+      formData: { platform: input.platform, jobUrl: input.jobUrl },
+    };
+  }
+
   await fillCommonFields(input.browser, input.profile);
   const answered = await answerCommonQuestions(input.browser, input.profile);
+  const uploadDir = join(tmpdir(), "job-agent-uploads");
+  await mkdir(uploadDir, { recursive: true });
   await uploadDocuments(
     input.browser,
     input.documents,
-    join(tmpdir(), "job-agent-uploads")
+    uploadDir
   );
 
   if (answered.unanswered.length > 0) {
@@ -114,4 +127,24 @@ export async function prepareApplicationForm(input: {
     message: `${input.platform} application submitted`,
     formData,
   };
+}
+
+export function detectRestrictedHandoff(snapshot: {
+  elements: Array<{ name?: string; role?: string; tag?: string }>;
+}) {
+  const pageText = snapshot.elements
+    .map((element) => `${element.name ?? ""} ${element.role ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+  if (/captcha|recaptcha|hcaptcha|security challenge/.test(pageText)) {
+    return "CAPTCHA challenge requires manual completion. Kairela will not bypass it.";
+  }
+  if (
+    /sign in to (continue|apply)|log in to (continue|apply)|sso required/.test(
+      pageText
+    )
+  ) {
+    return "Login required. Sign in yourself, then retry preparation.";
+  }
+  return null;
 }
