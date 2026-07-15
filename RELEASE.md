@@ -13,7 +13,9 @@
 
 ## Branch
 
-`feat/kairela-product-v1`
+`release/kairela-v1-rc` (canonical active branch as of 2026-07-16; see
+`docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md`). `feat/kairela-product-v1` and
+`feat/kairela-platform-completion` are frozen historical branches.
 
 ## Rollback targets
 
@@ -48,8 +50,10 @@
 ## Deploy
 
 ```bash
-git push origin feat/kairela-product-v1
-npx vercel --prod
+git push origin release/kairela-v1-rc
+# npx vercel --prod is forbidden until explicit owner launch approval
+# (see docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md); use `npx vercel` for
+# preview deployments in the meantime.
 curl https://job-agent-mu-steel.vercel.app/api/health
 ```
 

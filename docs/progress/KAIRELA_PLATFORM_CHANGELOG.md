@@ -1,5 +1,24 @@
 # Kairela Platform Changelog
 
+## 2026-07-16 — Repository and deployment normalization
+
+- Created `release/kairela-v1-rc` from `e310f7e` as the sole active
+  Kairela engineering branch going forward.
+- `feat/kairela-product-v1` and `feat/kairela-platform-completion` are now
+  frozen historical branches; no work was discarded, no history was
+  rewritten, no branch was deleted or force-pushed.
+- Pushed recovery-only backup branches
+  `backup/kairela-combined-before-normalization` (`e310f7e`) and
+  `backup/kairela-platform-before-normalization` (`3b5e6ff`).
+- Created a clean worktree at `kairela-v1-rc` and linked it to the
+  canonical Vercel project `job-agent`
+  (`prj_WZSlraHQN3JuxKJtVjSiSLo5EX8J`).
+- Added `docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md` defining the branch and
+  Vercel project policy going forward.
+- Full detail: `docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md`.
+- Production (`job-agent-mu-steel.vercel.app`) and the Supabase schema were
+  not touched.
+
 ## 2026-07-16 — WS9/WS10 migration deployment
 
 - Merged `feat/kairela-platform-completion` (WS9 `094c00d`, WS10 `3b5e6ff`)

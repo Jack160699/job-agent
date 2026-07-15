@@ -1,12 +1,16 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-07-16T00:00:00.000Z",
-  "branch": "feat/kairela-product-v1",
-  "headCommit": "12eacc2",
-  "note": "feat/kairela-platform-completion (WS9 094c00d, WS10 3b5e6ff) merged into feat/kairela-product-v1 on 2026-07-16; see docs/progress/WS9_WS10_MIGRATION_DEPLOYMENT.md",
-  "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion",
-  "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\job apply agent",
-  "mainWorktreeBranch": "feat/kairela-product-v1",
+  "branch": "release/kairela-v1-rc",
+  "headCommit": "e310f7e",
+  "note": "release/kairela-v1-rc is now the canonical active branch, created from e310f7e (feat/kairela-product-v1 with feat/kairela-platform-completion WS9 094c00d / WS10 3b5e6ff merged in). Both feat/kairela-product-v1 and feat/kairela-platform-completion are now frozen historical branches. See docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md and docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md.",
+  "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-v1-rc",
+  "frozenWorktreePaths": {
+    "feat/kairela-product-v1": "C:\\Users\\shriyansh chandrakar\\job apply agent",
+    "feat/kairela-platform-completion": "C:\\Users\\shriyansh chandrakar\\kairela-platform-completion"
+  },
+  "mainWorktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-v1-rc",
+  "mainWorktreeBranch": "release/kairela-v1-rc",
   "codexOwnsLanding": true,
   "doNotTouchPaths": [
     "src/app/page.tsx",
@@ -47,6 +51,7 @@
     "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md"
   },
   "manualOwnerActions": [
+    "Coordinate with Codex on transitioning in-progress landing-page work off feat/kairela-product-v1 (now frozen historical) onto release/kairela-v1-rc; uncommitted landing changes on feat/kairela-product-v1 were left untouched during normalization",
     "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",

@@ -1,13 +1,18 @@
 # Kairela Platform Remaining Work
 
 Status: in progress  
-Branch: `feat/kairela-platform-completion`  
-Worktree: `../kairela-platform-completion`  
+Branch: `release/kairela-v1-rc` (canonical as of 2026-07-16 — see `docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md`)  
+Worktree: `C:\Users\shriyansh chandrakar\kairela-v1-rc`  
 Production fallback: https://job-agent-mu-steel.vercel.app
+
+`feat/kairela-platform-completion` and `feat/kairela-product-v1` are now
+frozen historical branches; their prior worktrees at
+`../kairela-platform-completion` and `../job apply agent` still exist for
+reference but should not receive new work.
 
 ## Concurrency note
 
-Codex is rebuilding the public landing page on `feat/kairela-product-v1` with uncommitted changes to `app/page.tsx`, `components/landing/**`, and `docs/design/**`. Platform work runs in an isolated worktree/branch and must not touch landing-page files.
+Codex was rebuilding the public landing page on `feat/kairela-product-v1` with uncommitted changes to `app/page.tsx`, `components/landing/**`, and `docs/design/**`. That branch is now frozen historical; the owner needs to coordinate moving this in-progress landing work onto `release/kairela-v1-rc`. Platform work runs in an isolated worktree/branch and must not touch landing-page files.
 
 ## Workstream status
 
@@ -32,6 +37,15 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 16 | Product copy and polish | Partial — misleading defaults and cover-letter placeholder fixed |
 | 17 | Landing-page integration | Blocked on Codex |
 | 18 | Final prelaunch release candidate | Pending |
+
+## 2026-07-16 — Repository and deployment normalization
+
+`release/kairela-v1-rc` created from `e310f7e` as the sole active branch.
+`feat/kairela-product-v1` and `feat/kairela-platform-completion` are frozen
+historical. Backup branches
+`backup/kairela-combined-before-normalization` and
+`backup/kairela-platform-before-normalization` pushed for recovery. See
+`docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md`.
 
 ## Open carryovers
 
