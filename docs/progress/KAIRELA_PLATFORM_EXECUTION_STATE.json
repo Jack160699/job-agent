@@ -23,6 +23,7 @@
   "blockedWorkstreams": [17],
   "pendingWorkstreams": [18],
   "latestVerifiedCommits": [
+    "aff6bb9 fix(resumes): restore history affordance and harden upload errors",
     "67944ff feat(search): improve preference-aware discovery and relevance"
   ],
   "verification": {
