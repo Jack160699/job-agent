@@ -39,15 +39,10 @@ function parseDate(value: unknown): Date | undefined {
 
 function boardsFor(
   filters: JobSearchFilters,
-  platform: "greenhouse" | "lever" | "ashby" | "workday",
-  envKey: string
+  platform: "greenhouse" | "lever" | "ashby" | "workday"
 ): string[] {
   const fromDiscovery = filters.discoveryBoards?.[platform] || [];
-  const fromEnv = (process.env[envKey] || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [...new Set([...fromDiscovery, ...fromEnv])];
+  return [...new Set(fromDiscovery)];
 }
 
 export class GreenhouseAdapter {
@@ -55,7 +50,7 @@ export class GreenhouseAdapter {
   name = "Greenhouse";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const boards = boardsFor(filters, "greenhouse", "JOB_SEARCH_GREENHOUSE_BOARDS");
+    const boards = boardsFor(filters, "greenhouse");
     if (boards.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
@@ -104,7 +99,7 @@ export class LeverAdapter {
   name = "Lever";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const companies = boardsFor(filters, "lever", "JOB_SEARCH_LEVER_COMPANIES");
+    const companies = boardsFor(filters, "lever");
     if (companies.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
@@ -172,7 +167,7 @@ export class AshbyAdapter {
   name = "Ashby";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const boards = boardsFor(filters, "ashby", "JOB_SEARCH_ASHBY_BOARDS");
+    const boards = boardsFor(filters, "ashby");
     if (boards.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
@@ -249,7 +244,7 @@ export class WorkdayAdapter {
   name = "Workday";
 
   async search(filters: JobSearchFilters): Promise<DiscoveredJob[]> {
-    const companies = boardsFor(filters, "workday", "JOB_SEARCH_WORKDAY_COMPANIES");
+    const companies = boardsFor(filters, "workday");
     if (companies.length === 0) return [];
 
     const automator = getAllAutomators().find((a) => a.platform === "WORKDAY")!;

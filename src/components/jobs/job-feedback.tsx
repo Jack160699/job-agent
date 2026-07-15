@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -11,8 +11,12 @@ const REASONS = [
   ["wrong_seniority", "Wrong seniority"],
   ["wrong_salary", "Wrong salary"],
   ["wrong_work_mode", "Wrong work mode"],
+  ["wrong_industry", "Wrong industry"],
+  ["duplicate", "Duplicate"],
+  ["expired", "Expired"],
   ["not_interested", "Not interested"],
   ["misleading_posting", "Misleading posting"],
+  ["company_not_preferred", "Company not preferred"],
   ["other", "Other"],
 ] as const;
 
@@ -54,6 +58,25 @@ export function JobFeedbackControl({
     }
   };
 
+  const undo = async () => {
+    const previous = feedback;
+    setFeedback(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/feedback`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Undo failed.");
+      toast.success("Feedback removed");
+    } catch (error) {
+      setFeedback(previous);
+      toast.error(error instanceof Error ? error.message : "Undo failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Match feedback">
       <span className="mr-1 text-xs text-[var(--ink-tertiary)]">Useful?</span>
@@ -87,6 +110,19 @@ export function JobFeedbackControl({
         <label className="sr-only" htmlFor={`feedback-reason-${jobId}`}>
           Why is this job not relevant?
         </label>
+      )}
+      {feedback && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 px-2 text-xs"
+          disabled={saving}
+          onClick={() => void undo()}
+        >
+          <RotateCcw className="h-3 w-3" />
+          Undo
+        </Button>
       )}
       {feedback?.relevant === false && (
         <select

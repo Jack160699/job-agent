@@ -287,6 +287,24 @@ export function JobSearchWorkflow({
                   <span>Queue: #{progress.queuePosition}</span>
                 )}
               </div>
+              {Array.isArray((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources) &&
+                ((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources?.length ?? 0) >
+                  0 && (
+                  <div className="mt-2 space-y-1">
+                    {((progress as { failedSources?: Array<{ source: string; error?: string }> }).failedSources ?? []).map(
+                      (source) => (
+                        <p key={source.source} className="text-[var(--warning)]">
+                          {source.source}: {source.error || "temporarily unavailable"}
+                        </p>
+                      )
+                    )}
+                  </div>
+                )}
+              {(progress as { summary?: string | null }).summary && (
+                <p className="mt-2 text-[var(--ink-secondary)]">
+                  {(progress as { summary?: string | null }).summary}
+                </p>
+              )}
               {progress.logs?.slice(0, 5).map((log, i) => (
                 <p key={i} className="mt-1 truncate font-mono text-[10px]">
                   {log.message}

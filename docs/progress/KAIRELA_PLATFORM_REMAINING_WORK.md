@@ -20,8 +20,8 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 4 | Live Kairela AI career agent | **Complete (code)** — conversations, proposals, confirm route; streaming endpoint exists |
 | 5 | Proactive career relationship manager | **Complete** |
 | 6 | Complete job-seeker journey | **Complete (core loop)** — Generate docs, prepare gate, browser poll, agent resume; inbox/interview manual create remain polish |
-| 7 | Search quality and relevance | **Complete** |
-| 8 | Resume and document intelligence | **Complete** |
+| 7 | Search quality and relevance | **Complete (gap pass)** — India-first plans, classification, source health, dedup/expiry, views |
+| 8 | Resume and document intelligence | **Complete** — residual polish may remain |
 | 9 | Application agent and ATS automation | **Complete** — policy + no invented answers + no scheduled auto-submit |
 | 10 | Authentication and Google integrations | **Complete (code)** — connect lifecycle, revoke, merge tokens/scopes; real Google E2E still external |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |
@@ -36,9 +36,14 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 ## Open carryovers
 
 - Authenticated production E2E once Supabase egress recovers
-- Apply production migrations through `20260715160000_consultant_conversations.sql`
+- Apply production migrations through `20260715170000_ws7_search_quality.sql`
 - Owner approval for `kairela.com` attach and human acceptance
 - Stripe billing activation remains external
+
+## Optional P2 backlog
+
+- Inbox mark-as-read / sync polish
+- Manual interview creation
 
 ## Deferred final actions
 

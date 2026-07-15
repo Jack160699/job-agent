@@ -16,8 +16,12 @@ const feedbackSchema = z.object({
       "wrong_seniority",
       "wrong_salary",
       "wrong_work_mode",
+      "wrong_industry",
+      "duplicate",
+      "expired",
       "not_interested",
       "misleading_posting",
+      "company_not_preferred",
       "other",
     ])
     .nullable()
@@ -59,6 +63,21 @@ export async function PUT(
       create: { userId: user.id, jobId, ...parsed.data },
       update: parsed.data,
     });
+    if (!parsed.data.relevant && parsed.data.reason === "expired") {
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { status: "EXPIRED" },
+      });
+    } else if (
+      !parsed.data.relevant &&
+      (parsed.data.reason === "duplicate" ||
+        parsed.data.reason === "misleading_posting")
+    ) {
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { status: "ARCHIVED" },
+      });
+    }
     await createAuditLog({
       userId: user.id,
       action: "JOB_FEEDBACK_UPDATED",
@@ -95,6 +114,10 @@ export async function DELETE(
     const { id: jobId } = await params;
     await prisma.jobFeedback.deleteMany({
       where: { userId: user.id, jobId },
+    });
+    await prisma.job.updateMany({
+      where: { id: jobId, userId: user.id },
+      data: { status: "ACTIVE" },
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

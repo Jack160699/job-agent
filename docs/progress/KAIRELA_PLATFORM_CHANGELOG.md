@@ -64,11 +64,24 @@
 - Added per-job relevance feedback with reason codes, authenticated API ownership, RLS, and dashboard controls.
 - Applied bounded feedback adjustments to later searches without overriding hard preference rejections.
 
+### WS7 gap completion (preference-aware discovery)
+
+- Audited the search pipeline in `docs/progress/WS7_SEARCH_QUALITY_AUDIT.md`.
+- Added per-user search plans with explainable queries and durable `search_plans`.
+- Added India-first location aliases and remote-scope handling (Pune not replaced by SF).
+- Added role/seniority normalization with hard rejections for inappropriate seniority.
+- Switched classifications to transparent `STRONG` / `POSSIBLE` / `LOW` / `REJECTED` with versioned factors.
+- Stopped shared env board leakage; discovery boards are user-scoped.
+- Added semantic/URL/fingerprint deduplication with provenance, source-health tracking, and expiry transitions.
+- Expanded feedback reasons and undo; broadened result views (Recommended/Possible/Saved/Imported/Excluded/Expired).
+- Mapped backend progress stages to user-facing search journey labels.
+
 ### Verification
-- Unit tests: 65 passed, including ATS extraction, source failure, freshness, and feedback ranking.
+- Unit tests: 115 passed.
 - Typecheck: passed.
-- Lint: passed with 8 pre-existing warnings.
-- Production build: passed (52 routes).
+- Lint: passed with pre-existing warnings.
+- Production build: passed.
+- Playwright WS7 fail-closed suite: 4 passed.
 
 ## 2026-07-15 — Workstream 8
 

@@ -105,6 +105,72 @@ export async function getJobs(filters?: {
   }, []);
 }
 
+export type JobResultsView =
+  | "recommended"
+  | "possible"
+  | "saved"
+  | "imported"
+  | "excluded"
+  | "expired";
+
+export async function getJobsForView(view: JobResultsView) {
+  return safe(async () => {
+    const user = await getDbUser();
+    if (!user) return [];
+
+    let where;
+    if (view === "expired") {
+      where = { userId: user.id, status: "EXPIRED" as const };
+    } else if (view === "excluded") {
+      where = { userId: user.id, status: "ARCHIVED" as const };
+    } else if (view === "saved") {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        feedback: { some: { userId: user.id, relevant: true } },
+      };
+    } else if (view === "imported") {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        imports: { some: { userId: user.id } },
+      };
+    } else if (view === "recommended") {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        matchAnalysis: { path: ["classification"], equals: "STRONG" },
+      };
+    } else {
+      where = {
+        userId: user.id,
+        status: "ACTIVE" as const,
+        OR: [
+          { matchAnalysis: { path: ["classification"], equals: "POSSIBLE" } },
+          { matchAnalysis: { path: ["classification"], equals: "LOW" } },
+        ],
+      };
+    }
+
+    return prisma.job.findMany({
+      where,
+      orderBy:
+        view === "recommended" || view === "possible"
+          ? [{ matchScore: "desc" }, { discoveredAt: "desc" }]
+          : { discoveredAt: "desc" },
+      take: 100,
+      include: {
+        applications: {
+          include: { tailoredResume: true, coverLetter: true },
+        },
+        imports: true,
+        feedback: { where: { userId: user.id }, take: 1 },
+        provenance: true,
+      },
+    });
+  }, []);
+}
+
 export async function getExcludedJobs() {
   return safe(async () => {
     const user = await getDbUser();

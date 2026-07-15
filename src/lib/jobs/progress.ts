@@ -17,6 +17,8 @@ export interface JobRunProgress {
   jobsNew: number;
   jobsRelevant: number;
   jobsExcluded: number;
+  failedSources: Array<{ source: string; error?: string }>;
+  summary: string | null;
   currentCompany: string | null;
   currentAts: string | null;
   queuePosition: number | null;
@@ -110,7 +112,9 @@ function buildProgress(
       ? job.source === "interactive"
         ? "Starting your search…"
         : "Waiting in queue"
-      : SEARCH_STAGE_LABELS[stage as SearchProgressStage] || stage;
+      : (typeof meta.label === "string" && meta.label) ||
+        SEARCH_STAGE_LABELS[stage as SearchProgressStage] ||
+        stage;
 
   let progress = job.progressPercent;
   if (job.status === "completed") progress = 100;
@@ -132,6 +136,29 @@ function buildProgress(
   const jobsExcluded = discoverMatch
     ? parseInt(discoverMatch[4], 10)
     : (meta.excluded as number) || 0;
+  const sources = Array.isArray(meta.sources)
+    ? (meta.sources as Array<{
+        source?: string;
+        success?: boolean;
+        error?: string;
+      }>)
+    : [];
+  const failedSources = sources
+    .filter((source) => source.source && !source.success)
+    .map((source) => ({
+      source: String(source.source),
+      error: source.error,
+    }));
+  const summary =
+    job.status === "completed"
+      ? `Found ${jobsFound} raw roles, ${jobsRelevant} relevant, ${jobsNew} new, ${jobsExcluded} excluded${
+          typeof meta.duplicates === "number"
+            ? `, removed ${meta.duplicates} duplicates`
+            : ""
+        }.`
+      : typeof meta.label === "string"
+        ? meta.label
+        : null;
 
   const heartbeatStale =
     job.status === "running" &&
@@ -154,6 +181,8 @@ function buildProgress(
     jobsNew,
     jobsRelevant,
     jobsExcluded,
+    failedSources,
+    summary,
     currentCompany: (meta.company as string) || null,
     currentAts: (meta.ats as string) || null,
     queuePosition: job.status === "pending" ? queuePosition : null,

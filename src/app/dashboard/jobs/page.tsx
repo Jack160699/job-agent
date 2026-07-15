@@ -1,15 +1,20 @@
 import { DashboardHeader } from "@/components/dashboard/sidebar";
-import { MatchScoreBadge, StatusBadge, EmptyState } from "@/components/dashboard/shared";
+import { StatusBadge, EmptyState } from "@/components/dashboard/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getJobs, getExcludedJobs, getUserSettings } from "@/lib/data/dashboard";
-import { Search, ExternalLink, MapPin } from "lucide-react";
+import {
+  getJobsForView,
+  getUserSettings,
+  type JobResultsView,
+} from "@/lib/data/dashboard";
+import { Search, ExternalLink, MapPin, BriefcaseBusiness } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { JobsPageClient } from "@/components/dashboard/jobs-page-client";
 import prisma from "@/lib/db";
 import { getDbUser } from "@/lib/auth/server";
 import { JobLinkImportButton } from "@/components/jobs/job-link-import";
 import { JobFeedbackControl } from "@/components/jobs/job-feedback";
+import { JobResultActions } from "@/components/jobs/job-result-actions";
 
 export default async function JobsPage({
   searchParams,
@@ -17,14 +22,22 @@ export default async function JobsPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const { view } = await searchParams;
-  const showExcluded = view === "excluded";
+  const supportedViews: JobResultsView[] = [
+    "recommended",
+    "possible",
+    "saved",
+    "imported",
+    "excluded",
+    "expired",
+  ];
+  const activeView = supportedViews.includes(view as JobResultsView)
+    ? (view as JobResultsView)
+    : "recommended";
   const user = await getDbUser();
-  const [jobs, excludedJobs, settings] = await Promise.all([
-    showExcluded ? Promise.resolve([]) : getJobs(),
-    showExcluded ? getExcludedJobs() : Promise.resolve([]),
+  const [displayJobs, settings] = await Promise.all([
+    getJobsForView(activeView),
     getUserSettings(),
   ]);
-  const displayJobs = showExcluded ? excludedJobs : jobs;
 
   let lastSearchAt: string | null = null;
   let lastResultCount = 0;
@@ -57,16 +70,18 @@ export default async function JobsPage({
         preferencesComplete={settings?.preferencesComplete ?? false}
         lastSearchAt={lastSearchAt}
         lastResultCount={lastResultCount}
-        activeView={showExcluded ? "excluded" : "matches"}
+        activeView={activeView}
       />
 
       <div id="job-results" className="mt-6">
         {displayJobs.length === 0 ? (
           <EmptyState
-            title={showExcluded ? "No excluded jobs saved" : "No matching jobs yet"}
+            title={`No ${activeView} jobs`}
             description={
-              showExcluded
+              activeView === "excluded"
                 ? "Jobs filtered out by your preferences appear here with the exclusion reason."
+                : activeView === "expired"
+                  ? "Expired or removed jobs appear here instead of disappearing from saved history."
                 : settings?.preferencesComplete
                   ? "Run a job search to discover roles that match your preferences."
                   : "Complete your job search preferences, then run a search."
@@ -81,7 +96,10 @@ export default async function JobsPage({
                 exclusions?: string[];
                 classification?: string;
                 recommendation?: string;
+                concerns?: string[];
+                uncertain?: string[];
               } | null;
+              const application = job.applications?.[0];
               return (
                 <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
                   <CardContent className="flex items-start justify-between p-4">
@@ -90,8 +108,10 @@ export default async function JobsPage({
                         <h3 className="text-base font-semibold text-[var(--ink)]">
                           {job.title}
                         </h3>
-                        {job.matchScore != null && (
-                          <MatchScoreBadge score={job.matchScore} size="sm" />
+                        {analysis?.classification && (
+                          <span className="rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                            {analysis.classification}
+                          </span>
                         )}
                       </div>
                       <p className="mt-1 text-sm text-[var(--ink-tertiary)]">{job.company}</p>
@@ -105,12 +125,42 @@ export default async function JobsPage({
                         <span className="rounded bg-[var(--surface-sunken)] px-2 py-0.5">
                           {job.source}
                         </span>
-                        <span>{formatRelativeTime(job.discoveredAt)}</span>
+                        {job.workMode !== "UNKNOWN" && (
+                          <span>{job.workMode.toLowerCase()}</span>
+                        )}
+                        {job.employmentType !== "UNKNOWN" && (
+                          <span className="flex items-center gap-1">
+                            <BriefcaseBusiness className="h-3 w-3" />
+                            {job.employmentType.toLowerCase().replace(/_/g, " ")}
+                          </span>
+                        )}
+                        <span>
+                          {job.postedAt
+                            ? `Posted ${formatRelativeTime(job.postedAt)}`
+                            : `Found ${formatRelativeTime(job.discoveredAt)}`}
+                        </span>
                       </div>
+                      {(job.salaryMin != null || job.salaryMax != null) && (
+                        <p className="mt-2 text-xs text-[var(--ink-secondary)]">
+                          Salary: {job.salaryCurrency ?? "Currency unknown"}{" "}
+                          {[job.salaryMin, job.salaryMax]
+                            .filter((value) => value != null)
+                            .join(" – ")}
+                        </p>
+                      )}
+                      {(job.experienceMin != null || job.experienceMax != null) && (
+                        <p className="mt-1 text-xs text-[var(--ink-secondary)]">
+                          Experience:{" "}
+                          {[job.experienceMin, job.experienceMax]
+                            .filter((value) => value != null)
+                            .join("–")}{" "}
+                          years
+                        </p>
+                      )}
                       {analysis?.reasons && analysis.reasons.length > 0 && (
                         <p className="mt-2 text-xs text-[var(--ink-secondary)]">
-                          {showExcluded ? "Excluded:" : "Match:"}{" "}
-                          {(showExcluded
+                          {activeView === "excluded" ? "Excluded:" : "Match:"}{" "}
+                          {(activeView === "excluded"
                             ? analysis.exclusions
                             : analysis.reasons
                           )
@@ -118,9 +168,13 @@ export default async function JobsPage({
                             .join(" · ")}
                         </p>
                       )}
-                      {analysis?.classification && (
-                        <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ink-tertiary)]">
-                          {analysis.classification.replace(/_/g, " ")}
+                      {(analysis?.concerns?.length ||
+                        analysis?.uncertain?.length) && (
+                        <p className="mt-1 text-xs text-[var(--warning)]">
+                          Important gaps:{" "}
+                          {[...(analysis.concerns ?? []), ...(analysis.uncertain ?? [])]
+                            .slice(0, 2)
+                            .join(" · ")}
                         </p>
                       )}
                       {job.requiredSkills.length > 0 && (
@@ -156,6 +210,26 @@ export default async function JobsPage({
                                 reason: job.feedback[0].reason,
                               }
                             : null
+                        }
+                      />
+                      <JobResultActions
+                        job={{
+                          id: job.id,
+                          title: job.title,
+                          company: job.company,
+                        }}
+                        application={
+                          application
+                            ? {
+                                id: application.id,
+                                status: application.status,
+                                failureReason: application.failureReason,
+                                hasDocuments: Boolean(
+                                  application.tailoredResume &&
+                                    application.coverLetter
+                                ),
+                              }
+                            : undefined
                         }
                       />
                     </div>

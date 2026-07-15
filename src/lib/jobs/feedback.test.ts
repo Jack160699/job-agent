@@ -8,19 +8,26 @@ import type { JobFilterResult } from "@/lib/jobs/preferences";
 const baseResult: JobFilterResult = {
   accepted: true,
   score: 75,
-  classification: "POSSIBLE_MATCH",
+  classification: "POSSIBLE",
   reasons: ["Base preference match"],
   exclusions: [],
   concerns: [],
+  uncertain: [],
   breakdown: {
     roleMatch: 90,
     skillMatch: 75,
     locationMatch: 85,
     salaryMatch: 50,
     experienceMatch: 85,
+    seniorityMatch: 85,
+    workModeMatch: 85,
+    industryMatch: 50,
+    employmentTypeMatch: 50,
+    visaMatch: 50,
     freshnessScore: 75,
   },
   recommendation: "Possible match",
+  classificationVersion: "test",
 };
 
 describe("job feedback ranking", () => {
@@ -46,7 +53,7 @@ describe("job feedback ranking", () => {
     );
 
     expect(result.score).toBe(81);
-    expect(result.classification).toBe("STRONG_MATCH");
+    expect(result.classification).toBe("STRONG");
   });
 
   it("can exclude an exact role repeatedly marked wrong", () => {
@@ -81,7 +88,7 @@ describe("job feedback ranking", () => {
       ...baseResult,
       accepted: false,
       score: 0,
-      classification: "REJECTED_BY_PREFERENCES" as const,
+      classification: "REJECTED" as const,
     };
     const profile = buildFeedbackProfile([
       {

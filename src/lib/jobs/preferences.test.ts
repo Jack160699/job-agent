@@ -68,7 +68,7 @@ describe("preference-aware discovery", () => {
       baseSettings({ locations: ["Pune"], workModes: ["HYBRID", "REMOTE"], matchThreshold: 50 })
     );
     expect(result.accepted).toBe(true);
-    expect(result.classification).not.toBe("REJECTED_BY_PREFERENCES");
+    expect(result.classification).not.toBe("REJECTED");
   });
 
   it("rejects San Francisco onsite role for Pune profile", () => {
@@ -81,7 +81,7 @@ describe("preference-aware discovery", () => {
       baseSettings({ locations: ["Pune"], workModes: ["REMOTE"], willingToRelocate: false })
     );
     expect(result.accepted).toBe(false);
-    expect(result.classification).toBe("REJECTED_BY_PREFERENCES");
+    expect(result.classification).toBe("REJECTED");
   });
 
   it("accepts remote India role for remote India profile", () => {
@@ -148,7 +148,7 @@ describe("preference-aware discovery", () => {
 
     expect(fresh.score).toBeGreaterThan(stale.score);
     expect(fresh.breakdown.freshnessScore).toBe(100);
-    expect(stale.concerns.some((concern) => concern.includes("120 days"))).toBe(
+    expect(stale.exclusions.some((reason) => reason.includes("120 days"))).toBe(
       true
     );
   });
@@ -159,7 +159,45 @@ describe("preference-aware discovery", () => {
       baseSettings({ matchThreshold: 50 })
     );
 
-    expect(result.concerns).toContain("Posting date is unavailable");
+    expect(result.uncertain).toContain("Posting date is unavailable");
     expect(result.breakdown.freshnessScore).toBe(50);
+  });
+
+  it("rejects senior roles for a fresher with an explanation", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        title: "Senior Frontend Developer",
+        description: "Senior React TypeScript frontend role.",
+      }),
+      baseSettings({ experienceYears: 0, matchThreshold: 50 })
+    );
+    expect(result.classification).toBe("REJECTED");
+    expect(result.exclusions.join(" ")).toMatch(/seniority|exceeds/i);
+  });
+
+  it("does not compare salaries with different currencies", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        salaryMin: 100_000,
+        salaryMax: 120_000,
+        salaryCurrency: "USD",
+      }),
+      baseSettings({
+        salaryMin: 800_000,
+        salaryMax: 1_500_000,
+        salaryCurrency: "INR",
+        matchThreshold: 50,
+      })
+    );
+    expect(result.uncertain.join(" ")).toContain("cannot be compared");
+  });
+
+  it("rejects expired closing dates", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({ closesAt: new Date("2020-01-01T00:00:00Z") }),
+      baseSettings({ matchThreshold: 50 })
+    );
+    expect(result.classification).toBe("REJECTED");
+    expect(result.exclusions).toContain("Application closing date has passed");
   });
 });

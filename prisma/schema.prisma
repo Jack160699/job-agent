@@ -141,6 +141,9 @@ model User {
   browserTasks      BrowserTask[]
   jobImports        JobImport[]
   jobFeedback       JobFeedback[]
+  searchPlans       SearchPlan[]
+  sourceHealth      JobSourceHealth[]
+  jobProvenance     JobProvenance[]
   proactiveRecommendations ProactiveRecommendation[]
   consultantMessages ConsultantMessage[]
   consultantConversations ConsultantConversation[]
@@ -244,6 +247,8 @@ model Job {
   externalId      String?        @map("external_id")
   source          JobSource
   sourceUrl       String         @map("source_url")
+  canonicalUrl    String?        @map("canonical_url")
+  descriptionFingerprint String? @map("description_fingerprint")
   title           String
   company         String
   companySize     String?        @map("company_size")
@@ -263,6 +268,8 @@ model Job {
   matchAnalysis   Json?          @map("match_analysis")
   status          JobStatus      @default(ACTIVE)
   postedAt        DateTime?      @map("posted_at")
+  closesAt        DateTime?      @map("closes_at")
+  removedAt       DateTime?      @map("removed_at")
   discoveredAt    DateTime       @default(now()) @map("discovered_at")
   analyzedAt      DateTime?      @map("analyzed_at")
   metadata        Json?
@@ -275,12 +282,73 @@ model Job {
   coverLetters    CoverLetter[]
   imports         JobImport[]
   feedback        JobFeedback[]
+  provenance      JobProvenance[]
 
   @@unique([userId, source, externalId])
   @@index([userId, status])
   @@index([userId, matchScore])
   @@index([source])
+  @@index([userId, canonicalUrl])
+  @@index([userId, descriptionFingerprint])
   @@map("jobs")
+}
+
+model SearchPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  version   String
+  plan      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("search_plans")
+}
+
+model JobSourceHealth {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  source              JobSource
+  requests            Int       @default(0)
+  successfulResponses Int       @default(0) @map("successful_responses")
+  emptyResponses      Int       @default(0) @map("empty_responses")
+  invalidJobs         Int       @default(0) @map("invalid_jobs")
+  duplicateJobs       Int       @default(0) @map("duplicate_jobs")
+  expiredJobs         Int       @default(0) @map("expired_jobs")
+  failures            Int       @default(0)
+  relevanceTotal      Float     @default(0) @map("relevance_total")
+  relevanceSamples    Int       @default(0) @map("relevance_samples")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastSuccessfulFetch DateTime? @map("last_successful_fetch")
+  disabledUntil       DateTime? @map("disabled_until")
+  lastError           String?   @map("last_error") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source])
+  @@index([userId, disabledUntil])
+  @@map("job_source_health")
+}
+
+model JobProvenance {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  jobId      String    @map("job_id") @db.Uuid
+  source     JobSource
+  sourceUrl  String    @map("source_url")
+  externalId String?   @map("external_id")
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, sourceUrl])
+  @@index([jobId])
+  @@map("job_provenance")
 }
 
 model JobFeedback {

@@ -1,5 +1,15 @@
 import type { UserSettings, WorkMode, EmploymentType } from "@prisma/client";
 import type { DiscoveredJob } from "./types";
+import {
+  detectSeniority,
+  isSeniorityCompatible,
+  locationsAreCompatible,
+  normalizeText,
+  seniorityForExperience,
+  titlesAreRelated,
+} from "./normalization";
+
+export const MATCH_CLASSIFICATION_VERSION = "2026-07-v2";
 
 export type SearchProgressStage =
   | "validating_preferences"
@@ -13,13 +23,13 @@ export type SearchProgressStage =
   | "failed";
 
 export const SEARCH_STAGE_LABELS: Record<SearchProgressStage, string> = {
-  validating_preferences: "Validating preferences",
-  discovering_sources: "Discovering sources",
-  fetching_jobs: "Fetching jobs",
-  filtering: "Filtering by preferences",
-  deduplicating: "Deduplicating",
-  scoring: "Scoring matches",
-  saving: "Saving results",
+  validating_preferences: "Building your search plan",
+  discovering_sources: "Checking target companies",
+  fetching_jobs: "Searching relevant sources",
+  filtering: "Evaluating requirements",
+  deduplicating: "Removing duplicates",
+  scoring: "Ranking opportunities",
+  saving: "Preparing results",
   completed: "Complete",
   failed: "Failed",
 };
@@ -28,8 +38,8 @@ export const SEARCH_STAGE_ORDER: SearchProgressStage[] = [
   "validating_preferences",
   "discovering_sources",
   "fetching_jobs",
-  "filtering",
   "deduplicating",
+  "filtering",
   "scoring",
   "saving",
   "completed",
@@ -74,11 +84,10 @@ export function hasMinimumPreferences(settings: UserSettings | null): boolean {
 }
 
 export type MatchClassification =
-  | "STRONG_MATCH"
-  | "POSSIBLE_MATCH"
-  | "LOW_MATCH"
-  | "REJECTED_BY_PREFERENCES"
-  | "MISSING_INFORMATION";
+  | "STRONG"
+  | "POSSIBLE"
+  | "LOW"
+  | "REJECTED";
 
 export interface MatchBreakdown {
   roleMatch: number;
@@ -86,6 +95,11 @@ export interface MatchBreakdown {
   locationMatch: number;
   salaryMatch: number;
   experienceMatch: number;
+  seniorityMatch: number;
+  workModeMatch: number;
+  industryMatch: number;
+  employmentTypeMatch: number;
+  visaMatch: number;
   freshnessScore: number;
 }
 
@@ -96,23 +110,24 @@ export interface JobFilterResult {
   reasons: string[];
   exclusions: string[];
   concerns: string[];
+  uncertain: string[];
   breakdown: MatchBreakdown;
   recommendation: string;
+  classificationVersion: string;
 }
 
 function normalize(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+  return normalizeText(text);
 }
 
 function titleMatches(jobTitle: string, preferredTitles: string[]): boolean {
-  const t = normalize(jobTitle);
-  return preferredTitles.some((pref) => {
-    const p = normalize(pref);
-    return t.includes(p) || p.includes(t);
-  });
+  return preferredTitles.some((preferred) =>
+    titlesAreRelated(preferred, jobTitle)
+  );
 }
 
-function detectWorkMode(job: DiscoveredJob): WorkMode {
+export function detectWorkMode(job: DiscoveredJob): WorkMode {
+  if (job.workMode && job.workMode !== "UNKNOWN") return job.workMode;
   const loc = normalize(job.location || "");
   const desc = normalize(job.description || "");
   if (loc.includes("remote") || desc.includes("remote")) return "REMOTE";
@@ -123,42 +138,20 @@ function detectWorkMode(job: DiscoveredJob): WorkMode {
 
 function locationMatches(
   job: DiscoveredJob,
-  settings: UserSettings,
-  workMode: WorkMode
+  settings: UserSettings
 ): { ok: boolean; reason?: string } {
-  if (workMode === "REMOTE" && settings.workModes.includes("REMOTE")) {
-    return { ok: true, reason: "Remote role matches remote preference" };
-  }
-
-  const prefs = settings.locations.map(normalize).filter(Boolean);
-  if (prefs.length === 0) return { ok: true };
-
-  const loc = normalize(job.location || "");
-  if (!loc) {
-    if (settings.willingToRelocate) return { ok: true, reason: "Relocation enabled" };
-    return { ok: false, reason: "Location unknown and relocation disabled" };
-  }
-
-  const matched = prefs.some(
-    (p) => loc.includes(p) || p.includes(loc) || (p === "remote" && workMode === "REMOTE")
-  );
-  if (matched) return { ok: true, reason: `Location matches ${job.location}` };
-
-  if (settings.willingToRelocate) {
-    return { ok: true, reason: "Outside preferred locations but relocation enabled" };
-  }
-
-  return {
-    ok: false,
-    reason: `Location "${job.location}" not in preferred locations`,
-  };
+  const result = locationsAreCompatible(settings.locations, job.location, {
+    remotePreferred: settings.workModes.includes("REMOTE"),
+    willingToRelocate: settings.willingToRelocate,
+  });
+  return { ok: result.matched, reason: result.reason };
 }
 
 function classifyScore(score: number, accepted: boolean): MatchClassification {
-  if (!accepted) return "REJECTED_BY_PREFERENCES";
-  if (score >= 80) return "STRONG_MATCH";
-  if (score >= 65) return "POSSIBLE_MATCH";
-  return "LOW_MATCH";
+  if (!accepted) return "REJECTED";
+  if (score >= 80) return "STRONG";
+  if (score >= 65) return "POSSIBLE";
+  return "LOW";
 }
 
 export function evaluateJobAgainstPreferences(
@@ -168,27 +161,41 @@ export function evaluateJobAgainstPreferences(
   const reasons: string[] = [];
   const exclusions: string[] = [];
   const concerns: string[] = [];
-  let score = 50;
+  const uncertain: string[] = [];
+  let score = 35;
   const breakdown: MatchBreakdown = {
     roleMatch: 0,
     skillMatch: 0,
     locationMatch: 0,
     salaryMatch: 50,
     experienceMatch: 50,
+    seniorityMatch: 50,
+    workModeMatch: 50,
+    industryMatch: 50,
+    employmentTypeMatch: 50,
+    visaMatch: 50,
     freshnessScore: 50,
   };
 
+  const result = (
+    accepted: boolean,
+    recommendation: string
+  ): JobFilterResult => ({
+    accepted,
+    score: accepted ? Math.min(100, Math.max(0, score)) : 0,
+    classification: classifyScore(score, accepted),
+    reasons,
+    exclusions,
+    concerns,
+    uncertain,
+    breakdown,
+    recommendation,
+    classificationVersion: MATCH_CLASSIFICATION_VERSION,
+  });
+
   if (!job.location && !job.description) {
-    return {
-      accepted: false,
-      score: 0,
-      classification: "MISSING_INFORMATION",
-      reasons: [],
-      exclusions: ["Insufficient job information to evaluate"],
-      concerns: [],
-      breakdown,
-      recommendation: "Skipped — missing location and description",
-    };
+    exclusions.push("Insufficient job information to evaluate");
+    return result(false, "Rejected — missing location and description");
   }
 
   const companyNorm = normalize(job.company);
@@ -196,16 +203,7 @@ export function evaluateJobAgainstPreferences(
     settings.excludedCompanies?.some((c) => companyNorm.includes(normalize(c)))
   ) {
     exclusions.push(`Company "${job.company}" is excluded`);
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Excluded company",
-    };
+    return result(false, "Rejected — excluded company");
   }
 
   if (settings.targetCompanies?.length) {
@@ -220,86 +218,80 @@ export function evaluateJobAgainstPreferences(
 
   if (!titleMatches(job.title, settings.jobTitles)) {
     exclusions.push(`Title "${job.title}" does not match desired roles`);
-    breakdown.roleMatch = 0;
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Role mismatch",
-    };
+    return result(false, "Rejected — role mismatch");
   }
-  breakdown.roleMatch = 90;
-  reasons.push(`Title matches desired role`);
+  breakdown.roleMatch = 100;
+  score += 20;
+  reasons.push("Title matches a target or explicitly adjacent role");
+
+  const userSeniority = seniorityForExperience(settings.experienceYears);
+  const roleSeniority = detectSeniority(`${job.title} ${job.description}`);
+  const seniority = isSeniorityCompatible(
+    userSeniority,
+    roleSeniority,
+    settings.employmentTypes.includes("INTERNSHIP")
+  );
+  if (!seniority.compatible) {
+    breakdown.seniorityMatch = 0;
+    exclusions.push(seniority.reason ?? "Seniority mismatch");
+    return result(false, "Rejected — seniority mismatch");
+  }
+  breakdown.seniorityMatch =
+    roleSeniority === "UNKNOWN" ? 50 : roleSeniority === userSeniority ? 100 : 75;
+  if (roleSeniority === "UNKNOWN") {
+    uncertain.push("Seniority was not stated");
+  } else {
+    reasons.push(`Seniority ${roleSeniority.toLowerCase()} is compatible`);
+  }
 
   const workMode = detectWorkMode(job);
   if (settings.workModes?.length && !settings.workModes.includes(workMode)) {
     if (workMode !== "UNKNOWN") {
       exclusions.push(`Work mode ${workMode} not in your preferences`);
-      breakdown.locationMatch = 0;
-      return {
-        accepted: false,
-        score: 0,
-        classification: "REJECTED_BY_PREFERENCES",
-        reasons,
-        exclusions,
-        concerns,
-        breakdown,
-        recommendation: "Work mode mismatch",
-      };
+      breakdown.workModeMatch = 0;
+      return result(false, "Rejected — work mode mismatch");
     }
   }
-  if (workMode !== "UNKNOWN") reasons.push(`Work mode: ${workMode}`);
+  if (workMode !== "UNKNOWN") {
+    breakdown.workModeMatch = 100;
+    score += 5;
+    reasons.push(`Work mode ${workMode.toLowerCase()} is selected`);
+  } else {
+    uncertain.push("Work mode was not stated");
+  }
 
-  const locCheck = locationMatches(job, settings, workMode);
+  const locCheck = locationMatches(job, settings);
   breakdown.locationMatch = locCheck.ok ? 85 : 0;
   if (!locCheck.ok) {
     exclusions.push(locCheck.reason || "Location mismatch");
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Location mismatch",
-    };
+    return result(false, "Rejected — location mismatch");
   }
+  score += 10;
   if (locCheck.reason) reasons.push(locCheck.reason);
 
-  if (settings.salaryMin && job.salaryMax && job.salaryMax < settings.salaryMin) {
-    exclusions.push(`Salary below minimum (${settings.salaryMin})`);
+  const salaryComparable =
+    !job.salaryCurrency ||
+    normalize(job.salaryCurrency) === normalize(settings.salaryCurrency);
+  if (
+    settings.salaryMin &&
+    job.salaryMax &&
+    salaryComparable &&
+    job.salaryMax < settings.salaryMin
+  ) {
+    exclusions.push(
+      `Salary ${job.salaryMax} ${job.salaryCurrency ?? settings.salaryCurrency} is below minimum ${settings.salaryMin} ${settings.salaryCurrency}`
+    );
     breakdown.salaryMatch = 0;
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Salary below range",
-    };
+    return result(false, "Rejected — salary below range");
   }
-  if (settings.salaryMax && job.salaryMin && job.salaryMin > settings.salaryMax) {
-    exclusions.push(`Salary above maximum (${settings.salaryMax})`);
-    breakdown.salaryMatch = 0;
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Salary above range",
-    };
+  if ((settings.salaryMin || settings.salaryMax) && !salaryComparable) {
+    uncertain.push(
+      `Salary currency ${job.salaryCurrency} cannot be compared with ${settings.salaryCurrency}`
+    );
+  } else if (settings.salaryMin || settings.salaryMax) {
+    breakdown.salaryMatch = job.salaryMin || job.salaryMax ? 90 : 50;
+    if (!job.salaryMin && !job.salaryMax) uncertain.push("Salary was not stated");
   }
-  if (settings.salaryMin || settings.salaryMax) breakdown.salaryMatch = 80;
 
   const jobText = normalize(`${job.title} ${job.description}`);
   const matchedSkills = settings.requiredSkills.filter((s) =>
@@ -307,17 +299,7 @@ export function evaluateJobAgainstPreferences(
   );
   if (matchedSkills.length === 0 && settings.requiredSkills.length > 0) {
     exclusions.push("Missing required skills");
-    breakdown.skillMatch = 0;
-    return {
-      accepted: false,
-      score: 0,
-      classification: "REJECTED_BY_PREFERENCES",
-      reasons,
-      exclusions,
-      concerns,
-      breakdown,
-      recommendation: "Skill mismatch",
-    };
+    return result(false, "Rejected — verified skills do not match");
   }
   breakdown.skillMatch = Math.min(100, matchedSkills.length * 25);
   score += Math.min(25, matchedSkills.length * 8);
@@ -332,19 +314,74 @@ export function evaluateJobAgainstPreferences(
   if (settings.experienceYears != null) {
     const exp = settings.experienceYears;
     if (job.experienceMin != null && exp < job.experienceMin) {
-      concerns.push(`Role may require ${job.experienceMin}+ years`);
-      breakdown.experienceMatch = 40;
+      exclusions.push(
+        `Role requires ${job.experienceMin}+ years; profile has ${exp}`
+      );
+      breakdown.experienceMatch = 0;
+      return result(false, "Rejected — experience requirement mismatch");
     } else {
       breakdown.experienceMatch = 85;
-      reasons.push(`Experience level ~${exp} years`);
+      reasons.push(`Experience requirement is compatible with ${exp} years`);
     }
-    if (exp >= 5) score += 5;
   }
 
   if (settings.visaSponsorshipRequired && job.visaSponsorship === false) {
-    concerns.push("Visa sponsorship may not be available");
+    exclusions.push("Visa sponsorship is required but unavailable");
+    breakdown.visaMatch = 0;
+    return result(false, "Rejected — sponsorship constraint");
+  }
+  if (settings.visaSponsorshipRequired && job.visaSponsorship == null) {
+    uncertain.push("Visa sponsorship availability is unknown");
+  } else {
+    breakdown.visaMatch = 100;
   }
 
+  if (
+    job.employmentType &&
+    job.employmentType !== "UNKNOWN" &&
+    settings.employmentTypes.length > 0
+  ) {
+    if (!settings.employmentTypes.includes(job.employmentType)) {
+      exclusions.push(
+        `Employment type ${job.employmentType} was not selected`
+      );
+      breakdown.employmentTypeMatch = 0;
+      return result(false, "Rejected — employment type mismatch");
+    }
+    breakdown.employmentTypeMatch = 100;
+    reasons.push(`Employment type ${job.employmentType.toLowerCase()} is selected`);
+  } else if (settings.employmentTypes.length > 0) {
+    uncertain.push("Employment type was not stated");
+  }
+
+  if (settings.industries.length > 0) {
+    const industryText = normalize(
+      `${job.industry ?? ""} ${String(job.metadata?.industry ?? "")} ${job.description}`
+    );
+    const industryMatched = settings.industries.some((industry) =>
+      industryText.includes(normalize(industry))
+    );
+    if (industryMatched) {
+      breakdown.industryMatch = 100;
+      reasons.push("Industry matches a selected industry");
+      score += 5;
+    } else if (job.industry || job.metadata?.industry) {
+      exclusions.push("Industry does not match selected industries");
+      breakdown.industryMatch = 0;
+      return result(false, "Rejected — industry mismatch");
+    } else {
+      uncertain.push("Industry was not stated");
+    }
+  }
+
+  if (job.closesAt && job.closesAt.getTime() < Date.now()) {
+    exclusions.push("Application closing date has passed");
+    return result(false, "Rejected — posting expired");
+  }
+  if (job.removedAt) {
+    exclusions.push("The source removed this posting");
+    return result(false, "Rejected — posting removed");
+  }
   if (job.postedAt) {
     const ageDays = Math.max(
       0,
@@ -359,12 +396,12 @@ export function evaluateJobAgainstPreferences(
       score += 5;
       reasons.push(`Posted ${ageDays} days ago`);
     } else if (ageDays > 90) {
-      breakdown.freshnessScore = 20;
-      score -= 10;
-      concerns.push(`Posting is ${ageDays} days old and may no longer be active`);
+      breakdown.freshnessScore = 0;
+      exclusions.push(`Posting is ${ageDays} days old`);
+      return result(false, "Rejected — posting is stale");
     }
   } else {
-    concerns.push("Posting date is unavailable");
+    uncertain.push("Posting date is unavailable");
   }
 
   score = Math.min(100, Math.max(0, score));
@@ -378,24 +415,15 @@ export function evaluateJobAgainstPreferences(
   }
 
   const recommendation =
-    classification === "STRONG_MATCH"
+    classification === "STRONG"
       ? "Strong match — review and consider applying"
-      : classification === "POSSIBLE_MATCH"
+      : classification === "POSSIBLE"
         ? "Possible match — review concerns before applying"
-        : classification === "LOW_MATCH"
+        : classification === "LOW"
           ? "Low match — only pursue if you want to broaden search"
           : "Rejected by your preferences";
 
-  return {
-    accepted,
-    score,
-    classification,
-    reasons,
-    exclusions,
-    concerns,
-    breakdown,
-    recommendation,
-  };
+  return result(accepted, recommendation);
 }
 
 export function buildDiscoveryBoards(settings: UserSettings): {
@@ -404,19 +432,17 @@ export function buildDiscoveryBoards(settings: UserSettings): {
   ashby: string[];
   workday: string[];
 } {
-  const envBoards = (key: string) =>
-    (process.env[key] || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-  const userBoards = settings.targetCompanies || [];
+  // Discovery boards are deliberately user-scoped. Shared environment board
+  // lists caused unrelated companies and locations to leak into every search.
+  const userBoards = (settings.targetCompanies || [])
+    .map((company) => company.trim())
+    .filter(Boolean);
 
   return {
-    greenhouse: [...new Set([...userBoards, ...envBoards("JOB_SEARCH_GREENHOUSE_BOARDS")])],
-    lever: [...new Set([...userBoards, ...envBoards("JOB_SEARCH_LEVER_COMPANIES")])],
-    ashby: [...new Set([...userBoards, ...envBoards("JOB_SEARCH_ASHBY_BOARDS")])],
-    workday: [...new Set([...userBoards, ...envBoards("JOB_SEARCH_WORKDAY_COMPANIES")])],
+    greenhouse: [...new Set(userBoards)],
+    lever: [...new Set(userBoards)],
+    ashby: [...new Set(userBoards)],
+    workday: [...new Set(userBoards)],
   };
 }
 
