@@ -41,6 +41,12 @@ const SKILLS = [
   "Spring",
   "Microservices",
   "System Design",
+  "Excel",
+  "Power BI",
+  "Tableau",
+  "SAP",
+  "Jira",
+  "Selenium",
 ];
 
 const SECTION_HEADINGS = new Set([

@@ -150,6 +150,15 @@ export function MasterResumeCard({
         <Button
           type="button"
           size="sm"
+          variant="outline"
+          onClick={() => void toggleVersions()}
+        >
+          <History className="mr-1 h-3.5 w-3.5" />
+          {showVersions ? "Hide history" : "History"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
           variant="ghost"
           disabled={deleting}
           onClick={() => void remove()}

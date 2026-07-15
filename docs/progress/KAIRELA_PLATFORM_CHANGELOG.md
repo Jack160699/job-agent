@@ -91,6 +91,13 @@
 - Added ownership-checked tailored resume PDF downloads.
 - Documented intake, versioning, and no-invention policies.
 
+### WS8 residual polish
+
+- Exposed master-resume History from the default card view (not only the edit path).
+- Mapped common parser/validation failures to HTTP 400 instead of 500.
+- Expanded detected skill vocabulary with common non-invented India-market skills.
+- Added fail-closed Playwright coverage for mutating resume APIs and tailored PDF export.
+
 ### Verification
 - Unit tests: 69 passed, including resume parser cases.
 - Typecheck: passed.

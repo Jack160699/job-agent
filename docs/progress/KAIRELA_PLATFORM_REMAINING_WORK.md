@@ -21,7 +21,7 @@ Codex is rebuilding the public landing page on `feat/kairela-product-v1` with un
 | 5 | Proactive career relationship manager | **Complete** |
 | 6 | Complete job-seeker journey | **Complete (core loop)** — Generate docs, prepare gate, browser poll, agent resume; inbox/interview manual create remain polish |
 | 7 | Search quality and relevance | **Complete (gap pass)** — India-first plans, classification, source health, dedup/expiry, views |
-| 8 | Resume and document intelligence | **Complete** — residual polish may remain |
+| 8 | Resume and document intelligence | **Complete** — history affordance restored; parse errors return 400; fail-closed E2E |
 | 9 | Application agent and ATS automation | **Complete** — policy + no invented answers + no scheduled auto-submit |
 | 10 | Authentication and Google integrations | **Complete (code)** — connect lifecycle, revoke, merge tokens/scopes; real Google E2E still external |
 | 11 | Employer, recruiter and agency modes | Scaffold (flagged off) |

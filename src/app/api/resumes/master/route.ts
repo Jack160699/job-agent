@@ -20,8 +20,12 @@ export async function GET() {
       where: { userId: user.id },
     });
     return NextResponse.json(resume);
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unauthorized";
+    return NextResponse.json(
+      { error: message === "Unauthorized" ? "Unauthorized" : message },
+      { status: message === "Unauthorized" ? 401 : 500 }
+    );
   }
 }
 
@@ -123,7 +127,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(resume);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
-    const status = message === "Unauthorized" ? 401 : 500;
+    const status =
+      message === "Unauthorized"
+        ? 401
+        : /upload|empty|mb or smaller|enough readable text|scanned pdfs|choose a pdf/i.test(
+              message
+            )
+          ? 400
+          : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
