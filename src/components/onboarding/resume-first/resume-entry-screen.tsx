@@ -58,6 +58,8 @@ export function ResumeEntryScreen({ onUploaded, onSkip, skipping }: ResumeEntryS
           title: data.title,
           version: data.version,
           profile: data.profile,
+          atsScore: data.atsScore,
+          enrichmentPending: Boolean(data.enrichmentPending),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Upload failed";

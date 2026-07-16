@@ -1,10 +1,13 @@
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 
 export interface MasterResumeUploadResult {
   id: string;
   title: string;
   version: number;
   profile: ParsedCareerProfile;
+  atsScore: AtsReadinessScore;
+  enrichmentPending: boolean;
 }
 
 export type UploadStatus = "idle" | "uploading" | "processing" | "success" | "error";

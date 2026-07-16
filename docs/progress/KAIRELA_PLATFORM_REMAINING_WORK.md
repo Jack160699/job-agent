@@ -47,6 +47,20 @@ historical. Backup branches
 `backup/kairela-platform-before-normalization` pushed for recovery. See
 `docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md`.
 
+## 2026-07-16 — Performance, ATS Intelligence, and Job-Search Reliability V1
+
+Implemented on temporary branch `feat/performance-ats-search-v1` (NOT merged
+to master, NOT deployed to Production — preview only). See
+`docs/progress/PERFORMANCE_ATS_SEARCH_V1_IMPLEMENTATION.md`. Delivered:
+ATS Readiness Score engine, instant (non-AI-blocking) resume upload,
+parallel job-search sources, N+1 persistence fix, targeted interactive
+job-claim kick, Server-Timing instrumentation, and a scoped set of
+dashboard performance improvements. Explicitly deferred: job-specific ATS
+scoring, tailored before/after scoring, full inline-editable resume review
+sections, search-quality/location-synonym work, and progressive
+Retry/Cancel/Broaden search UX — see the implementation doc's "Remaining
+limitations" for the complete list and reasoning.
+
 ## 2026-07-16 — Priority Product Upgrade 2: LinkedIn OIDC sign-in
 
 Implemented, tested, and pushed to `release/kairela-v1-rc`; preview deployment

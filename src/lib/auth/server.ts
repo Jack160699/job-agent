@@ -1,8 +1,14 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/db";
 import { resolveKairelaUser } from "./resolve-user";
 
-export async function getAuthUser() {
+/**
+ * React's cache() memoizes per request: the dashboard layout, page, and any
+ * server actions on the same request all resolve the same Supabase/DB user
+ * lookup once instead of repeating the round trips on every call site.
+ */
+export const getAuthUser = cache(async () => {
   try {
     const supabase = await createClient();
     const {
@@ -12,9 +18,9 @@ export async function getAuthUser() {
   } catch {
     return null;
   }
-}
+});
 
-export async function getDbUser() {
+export const getDbUser = cache(async () => {
   try {
     const authUser = await getAuthUser();
     if (!authUser) return null;
@@ -43,7 +49,7 @@ export async function getDbUser() {
     console.error("getDbUser failed:", error);
     return null;
   }
-}
+});
 
 export async function requireDbUser() {
   const user = await getDbUser();

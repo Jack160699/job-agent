@@ -23,6 +23,7 @@ import {
   shouldTemporarilyDisableSource,
   type SourceFetchResult,
 } from "./source-health";
+import { partitionByExistence } from "./job-matching";
 import {
   assertCanUseFeature,
   consumeFeature,
@@ -55,6 +56,7 @@ export async function archiveLegacyJobs(userId: string) {
 }
 
 export async function searchJobs(userId: string, backgroundJobId?: string) {
+  const searchStart = Date.now();
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   if (!settings) throw new Error("User settings not found");
 
@@ -154,13 +156,27 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   });
   const discovered: DiscoveredJob[] = [];
   const sourceResults: SourceFetchResult[] = [];
+  const sourceFetchMs: Record<string, number> = {};
 
-  for (const adapter of adapters) {
-    if (!enabled.includes(adapter.source as JobSource)) continue;
+  const SOURCE_TIMEOUT_MS = Number(process.env.JOB_SOURCE_TIMEOUT_MS) || 10_000;
+  const SOURCE_CONCURRENCY = 4; // Greenhouse, Lever, Ashby, Workday — one slot each today.
+
+  async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Source timed out after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer!);
+    }
+  }
+
+  /** One source's full fetch + health-bookkeeping — runs independently so one slow/failed source cannot block the others. */
+  async function fetchSource(adapter: (typeof adapters)[number]): Promise<void> {
     const currentHealth = await prisma.jobSourceHealth.findUnique({
-      where: {
-        userId_source: { userId, source: adapter.source as JobSource },
-      },
+      where: { userId_source: { userId, source: adapter.source as JobSource } },
     });
     const healthDecision = shouldTemporarilyDisableSource({
       requests: currentHealth?.requests ?? 0,
@@ -182,9 +198,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
           currentHealth.disabledUntil.getTime() !== healthDecision.until.getTime())
       ) {
         await prisma.jobSourceHealth.upsert({
-          where: {
-            userId_source: { userId, source: adapter.source as JobSource },
-          },
+          where: { userId_source: { userId, source: adapter.source as JobSource } },
           create: {
             userId,
             source: adapter.source as JobSource,
@@ -208,13 +222,11 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
         relevant: 0,
         error: healthDecision.reason,
       });
-      continue;
+      return;
     }
+
+    const fetchStart = Date.now();
     try {
-      await progress("fetching_jobs", {
-        label: "Searching relevant sources",
-        ats: adapter.source,
-      });
       await createAuditLog({
         userId,
         action: "JOB_SEARCH_PROGRESS",
@@ -222,44 +234,38 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
         level: "INFO",
         metadata: { ats: adapter.source },
       });
-      const jobs = await adapter.search(filters);
+      const jobs = await withTimeout(adapter.search(filters), SOURCE_TIMEOUT_MS);
+      sourceFetchMs[adapter.source] = Date.now() - fetchStart;
       discovered.push(...jobs);
+      const invalidCount = jobs.filter(
+        (job) => !job.title || !job.company || !job.sourceUrl
+      ).length;
       sourceResults.push({
         source: adapter.source,
         requested: true,
         success: true,
         fetched: jobs.length,
-        invalid: jobs.filter(
-          (job) => !job.title || !job.company || !job.sourceUrl
-        ).length,
+        invalid: invalidCount,
         duplicates: 0,
         expired: 0,
         relevant: 0,
       });
       await prisma.jobSourceHealth.upsert({
-        where: {
-          userId_source: { userId, source: adapter.source as JobSource },
-        },
+        where: { userId_source: { userId, source: adapter.source as JobSource } },
         create: {
           userId,
           source: adapter.source as JobSource,
           requests: 1,
           successfulResponses: 1,
           emptyResponses: jobs.length === 0 ? 1 : 0,
-          invalidJobs: jobs.filter(
-            (job) => !job.title || !job.company || !job.sourceUrl
-          ).length,
+          invalidJobs: invalidCount,
           lastSuccessfulFetch: new Date(),
         },
         update: {
           requests: { increment: 1 },
           successfulResponses: { increment: 1 },
           emptyResponses: jobs.length === 0 ? { increment: 1 } : undefined,
-          invalidJobs: {
-            increment: jobs.filter(
-              (job) => !job.title || !job.company || !job.sourceUrl
-            ).length,
-          },
+          invalidJobs: { increment: invalidCount },
           consecutiveFailures: 0,
           lastSuccessfulFetch: new Date(),
           lastError: null,
@@ -271,9 +277,10 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
         action: "JOB_SEARCH_ADAPTER_DONE",
         message: `Fetched ${jobs.length} jobs from ${adapter.name}`,
         level: "INFO",
-        metadata: { ats: adapter.source, count: jobs.length },
+        metadata: { ats: adapter.source, count: jobs.length, durationMs: sourceFetchMs[adapter.source] },
       });
     } catch (error) {
+      sourceFetchMs[adapter.source] = Date.now() - fetchStart;
       const message = error instanceof Error ? error.message : String(error);
       sourceResults.push({
         source: adapter.source,
@@ -287,9 +294,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
         error: message,
       });
       await prisma.jobSourceHealth.upsert({
-        where: {
-          userId_source: { userId, source: adapter.source as JobSource },
-        },
+        where: { userId_source: { userId, source: adapter.source as JobSource } },
         create: {
           userId,
           source: adapter.source as JobSource,
@@ -314,6 +319,33 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     }
   }
 
+  await progress("fetching_jobs", {
+    label: "Searching relevant sources",
+    sources: adapters
+      .filter((a) => enabled.includes(a.source as JobSource))
+      .map((a) => a.source),
+  });
+
+  // Bounded concurrency: every enabled source fetches independently
+  // (Promise.allSettled), each with its own timeout, so one slow or failing
+  // source (e.g. Workday) can never block the others. Current source count
+  // (4) is within SOURCE_CONCURRENCY, so this already runs fully in
+  // parallel; the cap exists so adding future sources stays bounded.
+  const toFetch = adapters.filter((a) => enabled.includes(a.source as JobSource));
+  for (let i = 0; i < toFetch.length; i += SOURCE_CONCURRENCY) {
+    const batch = toFetch.slice(i, i + SOURCE_CONCURRENCY);
+    await Promise.allSettled(batch.map((adapter) => fetchSource(adapter)));
+  }
+
+  await createAuditLog({
+    userId,
+    action: "JOB_SEARCH_SOURCES_COMPLETE",
+    message: `Fetched from ${sourceResults.filter((r) => r.requested).length} sources in parallel`,
+    level: "INFO",
+    metadata: { sourceFetchMs, sourceResults: sourceResults.map((r) => ({ source: r.source, success: r.success, fetched: r.fetched })) },
+  });
+
+  const dedupeStart = Date.now();
   await progress("deduplicating", {
     label: "Removing duplicates",
     rawCount: discovered.length,
@@ -323,7 +355,9 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       (job) => Boolean(job.title && job.company && job.sourceUrl)
     )
   );
+  const deduplicationMs = Date.now() - dedupeStart;
 
+  const filterStart = Date.now();
   await progress("filtering", {
     label: "Evaluating requirements",
     rawCount: discovered.length,
@@ -371,99 +405,29 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     }
   }
 
+  const filteringMs = Date.now() - filterStart;
+  const persistStart = Date.now();
   await progress("scoring", {
     label: "Ranking opportunities",
     unique: filtered.length,
   });
-  let newCount = 0;
-  let relevantCount = 0;
 
-  for (const job of filtered) {
-    const existing = await prisma.job.findFirst({
-      where: {
-        userId,
-        OR: [
-          ...(job.externalId
-            ? [{ source: job.source, externalId: job.externalId }]
-            : []),
-          { canonicalUrl: job.canonicalUrl },
-          { descriptionFingerprint: job.fingerprint },
-        ],
-      },
-    });
-    if (existing) {
-      await prisma.job.update({
-        where: { id: existing.id },
-        data: {
-          status: "ACTIVE",
-          matchScore: job.score,
-          matchAnalysis: {
-            reasons: job.reasons,
-            concerns: job.analysis.concerns,
-            uncertain: job.analysis.uncertain,
-            exclusions: job.analysis.exclusions,
-            classification: job.analysis.classification,
-            classificationVersion: job.analysis.classificationVersion,
-            breakdown: job.analysis.breakdown,
-            recommendation: job.analysis.recommendation,
-            preferenceMatched: true,
-            searchPlanId: storedPlan.id,
-          } as unknown as Prisma.InputJsonValue,
-          removedAt: null,
-        },
-      });
-      for (const provenance of job.provenance) {
-        await prisma.jobProvenance.upsert({
-          where: {
-            userId_source_sourceUrl: {
-              userId,
-              source: provenance.source,
-              sourceUrl: provenance.sourceUrl,
-            },
-          },
-          create: {
-            userId,
-            jobId: existing.id,
-            ...provenance,
-          },
-          update: {
-            jobId: existing.id,
-            externalId: provenance.externalId,
-            lastSeenAt: new Date(),
-          },
-        });
-      }
-      relevantCount++;
-      continue;
-    }
+  interface PersistCandidate {
+    origin: "filtered" | "excluded";
+    job: DeduplicatedJob;
+    provenance: ScoredJob["provenance"];
+    matchScore: number;
+    matchAnalysis: Prisma.InputJsonValue;
+    status: "ACTIVE" | "ARCHIVED";
+    extraMetadata?: Record<string, unknown>;
+  }
 
-    await progress("saving", {
-      label: "Preparing results",
-      title: job.title,
-      company: job.company,
-    });
-
-    await prisma.job.create({
-      data: {
-        userId,
-        externalId: job.externalId,
-        source: job.source,
-        sourceUrl: job.sourceUrl,
-        canonicalUrl: job.canonicalUrl,
-        descriptionFingerprint: job.fingerprint,
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        description: job.description,
-        postedAt: job.postedAt,
-        closesAt: job.closesAt,
-        removedAt: job.removedAt,
-        workMode: job.workMode,
-        employmentType: job.employmentType,
-        salaryMin: job.salaryMin,
-        salaryMax: job.salaryMax,
-        salaryCurrency: job.salaryCurrency,
-        visaSponsorship: job.visaSponsorship,
+  const candidates: PersistCandidate[] = [
+    ...filtered.map(
+      (job): PersistCandidate => ({
+        origin: "filtered",
+        job,
+        provenance: job.provenance,
         matchScore: job.score,
         matchAnalysis: {
           reasons: job.reasons,
@@ -477,82 +441,15 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
           preferenceMatched: true,
           searchPlanId: storedPlan.id,
         } as unknown as Prisma.InputJsonValue,
-        metadata: {
-          ...(job.metadata ?? {}),
-          preferenceFiltered: true,
-        } as unknown as Prisma.InputJsonValue,
-        applications: {
-          create: { userId, status: "DISCOVERED", matchScore: job.score },
-        },
-        provenance: {
-          create: job.provenance.map((entry) => ({
-            userId,
-            ...entry,
-          })),
-        },
-      },
-    });
-    newCount++;
-    relevantCount++;
-  }
-
-  for (const ex of excluded.slice(0, 50)) {
-    const existing = await prisma.job.findFirst({
-      where: {
-        userId,
-        OR: [
-          ...(ex.job.externalId
-            ? [{ source: ex.job.source, externalId: ex.job.externalId }]
-            : []),
-          { canonicalUrl: ex.job.canonicalUrl },
-          { descriptionFingerprint: ex.job.fingerprint },
-        ],
-      },
-    });
-    if (existing) {
-      await prisma.job.update({
-        where: { id: existing.id },
-        data: {
-          status: "ARCHIVED",
-          matchScore: ex.analysis.score,
-          matchAnalysis: {
-            classification: ex.analysis.classification,
-            classificationVersion: ex.analysis.classificationVersion,
-            exclusions: ex.analysis.exclusions,
-            concerns: ex.analysis.concerns,
-            uncertain: ex.analysis.uncertain,
-            breakdown: ex.analysis.breakdown,
-            recommendation: ex.analysis.recommendation,
-            excludedByPreferences: true,
-            searchPlanId: storedPlan.id,
-          } as unknown as Prisma.InputJsonValue,
-        },
-      });
-      continue;
-    }
-
-    await prisma.job.create({
-      data: {
-        userId,
-        externalId: ex.job.externalId,
-        source: ex.job.source,
-        sourceUrl: ex.job.sourceUrl,
-        canonicalUrl: ex.job.canonicalUrl,
-        descriptionFingerprint: ex.job.fingerprint,
-        title: ex.job.title,
-        company: ex.job.company,
-        location: ex.job.location,
-        description: ex.job.description,
-        postedAt: ex.job.postedAt,
-        closesAt: ex.job.closesAt,
-        removedAt: ex.job.removedAt,
-        workMode: ex.job.workMode,
-        employmentType: ex.job.employmentType,
-        salaryMin: ex.job.salaryMin,
-        salaryMax: ex.job.salaryMax,
-        salaryCurrency: ex.job.salaryCurrency,
-        visaSponsorship: ex.job.visaSponsorship,
-        status: "ARCHIVED",
+        status: "ACTIVE",
+        extraMetadata: { preferenceFiltered: true },
+      })
+    ),
+    ...excluded.slice(0, 50).map(
+      (ex): PersistCandidate => ({
+        origin: "excluded",
+        job: ex.job,
+        provenance: ex.job.provenance,
         matchScore: ex.analysis.score,
         matchAnalysis: {
           classification: ex.analysis.classification,
@@ -565,18 +462,138 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
           excludedByPreferences: true,
           searchPlanId: storedPlan.id,
         } as unknown as Prisma.InputJsonValue,
-        metadata: {
-          excludedView: true,
-          exclusionReason: ex.reason,
-        } as unknown as Prisma.InputJsonValue,
-        provenance: {
-          create: ex.job.provenance.map((entry) => ({
-            userId,
-            ...entry,
-          })),
-        },
-      },
+        status: "ARCHIVED",
+        extraMetadata: { excludedView: true, exclusionReason: ex.reason },
+      })
+    ),
+  ];
+
+  // Bulk existence lookup: one query for every candidate instead of one
+  // findFirst per job. Builds in-memory maps so each candidate is matched
+  // against the same three identity keys the original per-job OR used.
+  const orConditions: Prisma.JobWhereInput[] = [];
+  const canonicalUrls = new Set<string>();
+  const fingerprints = new Set<string>();
+  for (const c of candidates) {
+    if (c.job.externalId) {
+      orConditions.push({ source: c.job.source, externalId: c.job.externalId });
+    }
+    canonicalUrls.add(c.job.canonicalUrl);
+    fingerprints.add(c.job.fingerprint);
+  }
+  if (canonicalUrls.size > 0) {
+    orConditions.push({ canonicalUrl: { in: Array.from(canonicalUrls) } });
+  }
+  if (fingerprints.size > 0) {
+    orConditions.push({ descriptionFingerprint: { in: Array.from(fingerprints) } });
+  }
+
+  const existingJobs =
+    orConditions.length > 0
+      ? await prisma.job.findMany({ where: { userId, OR: orConditions } })
+      : [];
+
+  const { toUpdate, toCreate } = partitionByExistence(
+    candidates.map((c) => ({
+      ...c,
+      source: c.job.source,
+      externalId: c.job.externalId,
+      canonicalUrl: c.job.canonicalUrl,
+      fingerprint: c.job.fingerprint,
+    })),
+    existingJobs
+  );
+
+  let newCount = 0;
+  let relevantCount = 0;
+
+  if (toUpdate.length > 0) {
+    await prisma.$transaction(
+      toUpdate.map(({ id, candidate: c }) =>
+        prisma.job.update({
+          where: { id },
+          data: {
+            status: c.status,
+            matchScore: c.matchScore,
+            matchAnalysis: c.matchAnalysis,
+            ...(c.status === "ACTIVE" ? { removedAt: null } : {}),
+          },
+        })
+      )
+    );
+
+    const provenanceOps = toUpdate.flatMap(({ id, candidate: c }) =>
+      c.provenance.map((p) =>
+        prisma.jobProvenance.upsert({
+          where: {
+            userId_source_sourceUrl: { userId, source: p.source, sourceUrl: p.sourceUrl },
+          },
+          create: { userId, jobId: id, ...p },
+          update: { jobId: id, externalId: p.externalId, lastSeenAt: new Date() },
+        })
+      )
+    );
+    if (provenanceOps.length > 0) await prisma.$transaction(provenanceOps);
+
+    relevantCount += toUpdate.filter(({ candidate }) => candidate.origin === "filtered").length;
+  }
+
+  if (toCreate.length > 0) {
+    await progress("saving", {
+      label: "Preparing results",
+      count: toCreate.length,
     });
+
+    const jobIds = toCreate.map(() => crypto.randomUUID());
+    const jobRows: Prisma.JobCreateManyInput[] = toCreate.map((c, i) => ({
+      id: jobIds[i],
+      userId,
+      externalId: c.job.externalId,
+      source: c.job.source,
+      sourceUrl: c.job.sourceUrl,
+      canonicalUrl: c.job.canonicalUrl,
+      descriptionFingerprint: c.job.fingerprint,
+      title: c.job.title,
+      company: c.job.company,
+      location: c.job.location,
+      description: c.job.description,
+      postedAt: c.job.postedAt,
+      closesAt: c.job.closesAt,
+      removedAt: c.job.removedAt,
+      workMode: c.job.workMode,
+      employmentType: c.job.employmentType,
+      salaryMin: c.job.salaryMin,
+      salaryMax: c.job.salaryMax,
+      salaryCurrency: c.job.salaryCurrency,
+      visaSponsorship: c.job.visaSponsorship,
+      status: c.status,
+      matchScore: c.matchScore,
+      matchAnalysis: c.matchAnalysis,
+      metadata: {
+        ...(c.job.metadata ?? {}),
+        ...(c.extraMetadata ?? {}),
+      } as unknown as Prisma.InputJsonValue,
+    }));
+
+    const appRows: Prisma.ApplicationCreateManyInput[] = [];
+    const provRows: Prisma.JobProvenanceCreateManyInput[] = [];
+    toCreate.forEach((c, i) => {
+      if (c.origin === "filtered") {
+        appRows.push({ userId, jobId: jobIds[i], status: "DISCOVERED", matchScore: c.matchScore });
+      }
+      for (const p of c.provenance) {
+        provRows.push({ userId, jobId: jobIds[i], ...p });
+      }
+    });
+
+    await prisma.$transaction([
+      prisma.job.createMany({ data: jobRows }),
+      ...(appRows.length ? [prisma.application.createMany({ data: appRows })] : []),
+      ...(provRows.length ? [prisma.jobProvenance.createMany({ data: provRows })] : []),
+    ]);
+
+    newCount = toCreate.filter((c) => c.origin === "filtered").length;
+    relevantCount += newCount;
   }
 
   const expiryCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -652,6 +669,16 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     });
   }
 
+  const persistenceMs = Date.now() - persistStart;
+  const totalSearchMs = Date.now() - searchStart;
+  const timings = {
+    sourceFetchMs,
+    deduplicationMs,
+    filteringMs,
+    persistenceMs,
+    totalSearchMs,
+  };
+
   await progress("completed", {
     label: "Complete",
     discovered: discovered.length,
@@ -662,12 +689,13 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     expired: expiredExisting.count,
     sources: sourceResults,
     searchPlanId: storedPlan.id,
+    timings,
   });
 
   await createAuditLog({
     userId,
     action: "JOB_SEARCH_COMPLETE",
-    message: `Found ${discovered.length} raw, ${relevantCount} relevant, ${newCount} new (${excluded.length} excluded)`,
+    message: `Found ${discovered.length} raw, ${relevantCount} relevant, ${newCount} new (${excluded.length} excluded) in ${totalSearchMs}ms`,
     level: "INFO",
     metadata: {
       searchPlanId: storedPlan.id,
@@ -675,6 +703,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       expired: expiredExisting.count,
       sources: sourceResults,
       excluded: excluded.slice(0, 10),
+      timings,
     },
   });
 
@@ -688,6 +717,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     sources: sourceResults,
     searchPlanId: storedPlan.id,
     excludedSample: excluded.slice(0, 5),
+    timings,
   };
 }
 

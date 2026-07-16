@@ -149,13 +149,44 @@ export async function getJobsForView(view: JobResultsView) {
       };
     }
 
+    // Card-summary fields only (Phase 2 performance budget): the job list
+    // view never renders full tailored-resume/cover-letter bodies, so we
+    // only need to know whether they exist (for a "documents ready" badge),
+    // not their content. Detailed relations load only when a job's drawer
+    // or detail page is opened (see getJobDetail below).
     return prisma.job.findMany({
       where,
       orderBy:
         view === "recommended" || view === "possible"
           ? [{ matchScore: "desc" }, { discoveredAt: "desc" }]
           : { discoveredAt: "desc" },
-      take: 100,
+      take: 20,
+      include: {
+        applications: {
+          select: {
+            id: true,
+            status: true,
+            matchScore: true,
+            failureReason: true,
+            tailoredResume: { select: { id: true } },
+            coverLetter: { select: { id: true } },
+          },
+        },
+        imports: { select: { id: true } },
+        feedback: { where: { userId: user.id }, take: 1 },
+        provenance: { select: { id: true, source: true } },
+      },
+    });
+  }, []);
+}
+
+/** Full relations for a single job — used by the job drawer/detail view only. */
+export async function getJobDetail(jobId: string) {
+  return safe(async () => {
+    const user = await getDbUser();
+    if (!user) return null;
+    return prisma.job.findFirst({
+      where: { id: jobId, userId: user.id },
       include: {
         applications: {
           include: { tailoredResume: true, coverLetter: true },
@@ -165,7 +196,7 @@ export async function getJobsForView(view: JobResultsView) {
         provenance: true,
       },
     });
-  }, []);
+  }, null);
 }
 
 export async function getExcludedJobs() {

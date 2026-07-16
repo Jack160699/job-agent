@@ -1,19 +1,68 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUser, createAuditLog, prisma } from "@/lib/api/auth";
-import {
-  parseResumeFile,
-  parseResumeStructure,
-  type ParsedResume,
-} from "@/lib/resumes/parser";
+import { parseResumeFile, parseResumeStructure } from "@/lib/resumes/parser";
 import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/career-profile";
 import { enhanceCareerProfileWithAI } from "@/lib/resumes/career-profile-ai";
+import { calculateAtsReadinessScore, type AtsReadinessScore } from "@/lib/resumes/ats-score";
 import type { Prisma } from "@prisma/client";
 
-async function buildCareerProfile(parsed: ParsedResume): Promise<ParsedCareerProfile> {
-  const deterministic = extractCareerProfile(parsed);
-  return enhanceCareerProfileWithAI(deterministic, parsed.rawText);
+type StoredContent = {
+  sections: unknown;
+  source: unknown;
+  profile: ParsedCareerProfile;
+  atsScore: AtsReadinessScore;
+  enrichment: { status: "pending" | "complete" | "skipped" | "failed"; completedAt?: string };
+};
+
+/**
+ * Runs after the response has already been sent (Phase 3: the user must
+ * never wait on OpenAI for the initial result). Enriches the deterministic
+ * profile, recomputes the score against the richer profile, and persists —
+ * the UI picks this up on its next fetch/poll. Never overwrites a field the
+ * deterministic pass (or the user) already confirmed; enhanceCareerProfileWithAI
+ * only fills gaps and is itself grounded against the raw resume text.
+ */
+async function enrichResumeInBackground(resumeId: string, rawText: string, deterministic: ParsedCareerProfile) {
+  const current = await prisma.masterResume.findUnique({ where: { id: resumeId } });
+  if (!current) return; // resume was deleted/replaced before enrichment finished
+  const currentContent = (current.content as Partial<StoredContent> | null) ?? {};
+
+  try {
+    const enriched = await enhanceCareerProfileWithAI(deterministic, rawText);
+    const enrichedScore = calculateAtsReadinessScore(enriched, rawText);
+
+    await prisma.masterResume.update({
+      where: { id: resumeId },
+      data: {
+        content: {
+          ...currentContent,
+          profile: enriched,
+          atsScore: enrichedScore,
+          enrichment: { status: "complete", completedAt: new Date().toISOString() },
+        } as unknown as Prisma.InputJsonValue,
+        experience: enriched.experience.value as unknown as Prisma.InputJsonValue,
+        education: enriched.education.value as unknown as Prisma.InputJsonValue,
+        projects: enriched.projects.value as unknown as Prisma.InputJsonValue,
+      },
+    });
+  } catch {
+    // Enrichment is best-effort — the deterministic result already stands on
+    // its own and was already returned to the user. Just clear the "pending"
+    // marker so the UI stops waiting for an update that isn't coming.
+    await prisma.masterResume
+      .update({
+        where: { id: resumeId },
+        data: {
+          content: {
+            ...currentContent,
+            enrichment: { status: "failed" },
+          } as unknown as Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => {});
+  }
 }
 
 const resumeSchema = z.object({
@@ -27,8 +76,17 @@ export async function GET() {
     const resume = await prisma.masterResume.findUnique({
       where: { userId: user.id },
     });
-    const content = resume?.content as { profile?: ParsedCareerProfile } | undefined;
-    return NextResponse.json(resume ? { ...resume, profile: content?.profile ?? null } : null);
+    const content = resume?.content as Partial<StoredContent> | undefined;
+    return NextResponse.json(
+      resume
+        ? {
+            ...resume,
+            profile: content?.profile ?? null,
+            atsScore: content?.atsScore ?? null,
+            enrichmentPending: content?.enrichment?.status === "pending",
+          }
+        : null
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unauthorized";
     return NextResponse.json(
@@ -82,9 +140,23 @@ export async function POST(request: NextRequest) {
         parser: "manual",
       });
     }
+    const parseCompletedAt = Date.now();
     const { rawText, skills, content } = parsedResume;
-    const profile = await buildCareerProfile(parsedResume);
-    const contentWithProfile = { ...content, profile } as unknown as Prisma.InputJsonValue;
+
+    // Instant path (Phase 3): deterministic extraction + baseline ATS score
+    // only — no AI call — so the response never waits on OpenAI.
+    const deterministicStart = Date.now();
+    const profile = extractCareerProfile(parsedResume);
+    const deterministicExtractionMs = Date.now() - deterministicStart;
+    const atsScore = calculateAtsReadinessScore(profile, rawText);
+    const aiConfigured = Boolean(process.env.OPENAI_API_KEY);
+
+    const contentWithProfile = {
+      ...content,
+      profile,
+      atsScore,
+      enrichment: { status: aiConfigured ? "pending" : "skipped" },
+    } as unknown as Prisma.InputJsonValue;
 
     const resume = await prisma.$transaction(async (tx) => {
       const existing = await tx.masterResume.findUnique({
@@ -139,9 +211,31 @@ export async function POST(request: NextRequest) {
       resourceId: resume.id,
       message: `Master resume updated with ${skills.length} skills detected`,
       level: "AUDIT",
+      metadata: { atsScore: atsScore.totalScore, deterministicExtractionMs },
     });
 
-    return NextResponse.json({ ...resume, profile });
+    // Phase 3: AI enrichment (if configured) runs after the response is
+    // sent — the user already has their baseline score and profile.
+    if (aiConfigured) {
+      after(() => {
+        enrichResumeInBackground(resume.id, rawText, profile).catch((err) =>
+          console.error("[resumes/master] background enrichment failed:", err)
+        );
+      });
+    }
+
+    const totalMs = Date.now() - parseCompletedAt;
+    const response = NextResponse.json({
+      ...resume,
+      profile,
+      atsScore,
+      enrichmentPending: aiConfigured,
+    });
+    response.headers.set(
+      "Server-Timing",
+      `deterministicExtractionMs;dur=${deterministicExtractionMs}, totalMs;dur=${totalMs}`
+    );
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
     const status =

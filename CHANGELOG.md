@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — 2026-07-16 — Performance, ATS Intelligence, and Job-Search Reliability V1
+
+- New Kairela ATS Readiness Score engine (`src/lib/resumes/ats-score.ts`) —
+  deterministic, 9-category, 0-100 score with strengths/issues/quick-fixes,
+  shown immediately after resume upload.
+- Resume upload no longer waits on OpenAI: deterministic extraction + the
+  baseline ATS score are computed and returned immediately; AI enrichment
+  (when configured) runs after the response via `after()` and updates the
+  stored resume in the background.
+- Job search: replaced the sequential Greenhouse/Lever/Ashby/Workday fetch
+  loop with bounded-concurrency `Promise.allSettled`, each source with its
+  own timeout, so one slow/failing source can't block the others.
+- Job search: replaced the per-job `findFirst` + individual create/update
+  persistence loop with one bulk existence lookup
+  (`src/lib/jobs/job-matching.ts`) plus batched `createMany`/transactional
+  updates — removes the N+1 pattern flagged in the audit.
+- Interactive job search: added a targeted `claimAndProcessJob(jobId)` kick
+  (used via `after()`) instead of draining the whole background-job queue
+  behind a fresh search; hardened the secondary remote kick with a timeout
+  and visible failure logging instead of silent swallowing.
+- Added `Server-Timing` headers and structured timing fields
+  (`queueCreationMs`, `queueClaimLatencyMs`, `sourceFetchMs` by source,
+  `deduplicationMs`, `filteringMs`, `persistenceMs`, `totalSearchMs`,
+  `deterministicExtractionMs`) to `/api/jobs/search` and
+  `/api/resumes/master`.
+- Dashboard: `getDbUser`/`getAuthUser` now use React `cache()` (per-request
+  memoization); job list query trimmed from 100 fully-hydrated jobs with
+  nested tailored-resume/cover-letter bodies to 20 card-summary jobs, with a
+  new `getJobDetail()` for full relations on demand; added `loading.tsx`
+  skeletons for `/dashboard/jobs`, `/dashboard/applications`,
+  `/dashboard/settings`; added dashboard-route prefetching on mount.
+- See `docs/progress/PERFORMANCE_ATS_SEARCH_V1_IMPLEMENTATION.md` for full
+  detail, baseline evidence, and what was intentionally deferred.
+
 ## Unreleased — 2026-07-16 — LinkedIn OIDC sign-in
 
 - Added "Continue with LinkedIn" (official Supabase `linkedin_oidc`

@@ -69,6 +69,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ""; };
   }, [moreOpen]);
 
+  // Warm the router cache for the most-visited dashboard routes once,
+  // regardless of how the user reached the dashboard (email/password,
+  // Google, or LinkedIn) — internal navigation to these should already be
+  // cached and feel instant.
+  useEffect(() => {
+    for (const href of [
+      "/dashboard",
+      "/dashboard/jobs",
+      "/dashboard/resumes",
+      "/dashboard/applications",
+      "/dashboard/settings",
+    ]) {
+      router.prefetch(href);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogout = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut({ scope: "global" });

@@ -38,6 +38,15 @@ function logWorker(event: string, data: Record<string, unknown> = {}): void {
   );
 }
 
+const WORKER_KICK_TIMEOUT_MS = 4000;
+
+/**
+ * Best-effort remote kick — used as a secondary signal alongside the
+ * request-scoped after() call in the API routes that create jobs. Bounded to
+ * a short timeout so a slow/unreachable self-fetch can never hang the caller,
+ * and failures are logged (never silently swallowed) so a broken kick is
+ * visible instead of silently degrading every search to the cron fallback.
+ */
 export function triggerWorkerRemote(): void {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -49,6 +58,9 @@ export function triggerWorkerRemote(): void {
     return;
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), WORKER_KICK_TIMEOUT_MS);
+
   fetch(`${getAppBaseUrl()}/api/jobs/worker`, {
     method: "POST",
     headers: {
@@ -56,7 +68,15 @@ export function triggerWorkerRemote(): void {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ source: "enqueue" }),
-  }).catch(() => triggerBackgroundProcessing().catch(() => {}));
+    signal: controller.signal,
+  })
+    .catch((err) => {
+      logWorker("worker_trigger_remote_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return triggerBackgroundProcessing().catch(() => {});
+    })
+    .finally(() => clearTimeout(timeout));
 }
 
 export async function recoverStaleJobs() {
@@ -240,16 +260,214 @@ export function triggerBackgroundProcessing() {
   return processingPromise;
 }
 
+type WorkerResult = {
+  id: string;
+  status: string;
+  result?: unknown;
+  error?: string;
+};
+
+/**
+ * Atomically claims and fully executes a single job row, if it is still
+ * pending. Extracted so a targeted interactive kick (claimAndProcessJob) and
+ * the batch drain (processBackgroundJobs) share identical claim/execute/
+ * complete/fail semantics — no duplicate-claim risk, no divergent behavior.
+ */
+async function claimAndRunJob(job: {
+  id: string;
+  type: string;
+  priority: number;
+  source: string;
+  attempts: number;
+  maxAttempts: number;
+  queuedAt: Date;
+  payload: unknown;
+}): Promise<WorkerResult | null> {
+  const payload = (job.payload as JobPayload) || {};
+  const claimTime = new Date();
+
+  try {
+    const claimed = await prisma.backgroundJob.updateMany({
+      where: { id: job.id, status: "pending" },
+      data: {
+        status: "running",
+        claimedAt: claimTime,
+        startedAt: claimTime,
+        heartbeatAt: claimTime,
+        attempts: { increment: 1 },
+      },
+    });
+
+    if (claimed.count === 0) return null;
+
+    logWorker("worker_picked_job", {
+      jobId: job.id,
+      type: job.type,
+      priority: job.priority,
+      source: job.source,
+      userId: payload.userId,
+      queueClaimLatencyMs: claimTime.getTime() - job.queuedAt.getTime(),
+    });
+
+    let result: unknown;
+
+    switch (job.type as JobType) {
+      case "SEARCH_JOBS":
+        if (payload.userId) {
+          result = await searchJobs(payload.userId, job.id);
+        } else {
+          throw new Error("SEARCH_JOBS missing userId");
+        }
+        break;
+      case "ANALYZE_JOBS":
+        if (payload.userId && payload.jobId) {
+          const { analyzeJob } = await import("@/lib/jobs/pipeline");
+          result = await analyzeJob(payload.userId, payload.jobId);
+        }
+        break;
+      case "PROCESS_APPLICATIONS":
+        if (payload.userId && payload.applicationId) {
+          const { processApplication } = await import("@/lib/jobs/pipeline");
+          result = await processApplication(
+            payload.userId,
+            payload.applicationId
+          );
+        }
+        break;
+      case "SYNC_GMAIL":
+        if (payload.userId) {
+          const { syncGmail } = await import("@/lib/google/gmail");
+          result = await syncGmail(payload.userId);
+        }
+        break;
+      case "SYNC_SHEETS":
+        if (payload.userId) {
+          const { syncApplicationsToSheet } = await import("@/lib/google/sheets");
+          result = await syncApplicationsToSheet(payload.userId);
+        }
+        break;
+      case "SYNC_CALENDAR":
+        if (payload.userId) {
+          const { syncInterviewsToCalendar } = await import("@/lib/google/calendar");
+          result = await syncInterviewsToCalendar(payload.userId);
+        }
+        break;
+      case "RUN_AGENT":
+        if (payload.userId) {
+          const { runAutonomousAgent } = await import("@/lib/agent/orchestrator");
+          result = await runAutonomousAgent(payload.userId);
+        }
+        break;
+      case "GENERATE_RECOMMENDATIONS":
+        if (payload.userId) {
+          const { generateProactiveRecommendations } = await import(
+            "@/lib/proactive/service"
+          );
+          result = await generateProactiveRecommendations(payload.userId);
+        } else {
+          throw new Error("GENERATE_RECOMMENDATIONS missing userId");
+        }
+        break;
+      case "RETRY_FAILED":
+        result = await retryFailedApplications(payload.userId);
+        break;
+      default:
+        throw new Error(`Unknown job type: ${job.type}`);
+    }
+
+    const completed = await prisma.backgroundJob.updateMany({
+      where: { id: job.id, status: "running" },
+      data: {
+        status: "completed",
+        completedAt: new Date(),
+        heartbeatAt: new Date(),
+        progressStage: "completed",
+        progressPercent: 100,
+        error: null,
+        progressMeta: result as Prisma.InputJsonValue,
+      },
+    });
+
+    if (completed.count === 0) {
+      const current = await prisma.backgroundJob.findUnique({
+        where: { id: job.id },
+        select: { status: true },
+      });
+      if (current?.status === "cancelled") {
+        return { id: job.id, status: "cancelled" };
+      }
+      throw new Error("JOB_STATE_CHANGED");
+    }
+
+    logWorker("job_completed", { jobId: job.id, type: job.type });
+    return { id: job.id, status: "completed", result };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg === "JOB_CANCELLED") {
+      await prisma.backgroundJob.update({
+        where: { id: job.id },
+        data: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          error: "Cancelled by user",
+          progressStage: "cancelled",
+        },
+      });
+      return { id: job.id, status: "cancelled" };
+    }
+    const attemptsAfterFail = job.attempts + 1;
+    const isDeadLetter = attemptsAfterFail >= job.maxAttempts;
+    const willRetry = !isDeadLetter;
+
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: {
+        status: isDeadLetter ? "dead_letter" : willRetry ? "pending" : "failed",
+        error: errorMsg,
+        failedAt: isDeadLetter || !willRetry ? new Date() : null,
+        progressStage: "failed",
+        scheduledAt: willRetry
+          ? new Date(Date.now() + 5 * 60 * 1000)
+          : new Date(),
+        claimedAt: null,
+        startedAt: null,
+        heartbeatAt: null,
+      },
+    });
+
+    logWorker(isDeadLetter ? "job_dead_letter" : willRetry ? "job_retry_scheduled" : "job_failed", {
+      jobId: job.id,
+      type: job.type,
+      error: errorMsg,
+    });
+
+    return {
+      id: job.id,
+      status: isDeadLetter ? "dead_letter" : willRetry ? "retry" : "failed",
+      error: errorMsg,
+    };
+  }
+}
+
+/**
+ * Targeted interactive kick: claims and runs exactly one known job, without
+ * draining the whole queue behind it. This is what the enqueue path should
+ * call for a fast, predictable claim latency instead of waiting behind
+ * whatever else happens to be pending. Falls through silently (returns null)
+ * if the job was already claimed by another invocation (idempotent) or no
+ * longer exists/pending — the cron drain remains the recovery path.
+ */
+export async function claimAndProcessJob(jobId: string): Promise<WorkerResult | null> {
+  const job = await prisma.backgroundJob.findUnique({ where: { id: jobId } });
+  if (!job || job.status !== "pending") return null;
+  return claimAndRunJob(job);
+}
+
 export async function processBackgroundJobs() {
   await recoverStaleJobs();
   await archiveStaleScheduledJobs();
 
-  const allResults: Array<{
-    id: string;
-    status: string;
-    result?: unknown;
-    error?: string;
-  }> = [];
+  const allResults: WorkerResult[] = [];
 
   while (true) {
     const jobs = await prisma.backgroundJob.findMany({
@@ -274,172 +492,8 @@ export async function processBackgroundJobs() {
     logWorker("worker_batch_started", { count: jobs.length });
 
     for (const job of jobs) {
-      const payload = (job.payload as JobPayload) || {};
-      const claimTime = new Date();
-
-      try {
-        const claimed = await prisma.backgroundJob.updateMany({
-          where: { id: job.id, status: "pending" },
-          data: {
-            status: "running",
-            claimedAt: claimTime,
-            startedAt: claimTime,
-            heartbeatAt: claimTime,
-            attempts: { increment: 1 },
-          },
-        });
-
-        if (claimed.count === 0) continue;
-
-        logWorker("worker_picked_job", {
-          jobId: job.id,
-          type: job.type,
-          priority: job.priority,
-          source: job.source,
-          userId: payload.userId,
-          claimLatencyMs: claimTime.getTime() - job.queuedAt.getTime(),
-        });
-
-        let result: unknown;
-
-        switch (job.type as JobType) {
-          case "SEARCH_JOBS":
-            if (payload.userId) {
-              result = await searchJobs(payload.userId, job.id);
-            } else {
-              throw new Error("SEARCH_JOBS missing userId");
-            }
-            break;
-          case "ANALYZE_JOBS":
-            if (payload.userId && payload.jobId) {
-              const { analyzeJob } = await import("@/lib/jobs/pipeline");
-              result = await analyzeJob(payload.userId, payload.jobId);
-            }
-            break;
-          case "PROCESS_APPLICATIONS":
-            if (payload.userId && payload.applicationId) {
-              const { processApplication } = await import("@/lib/jobs/pipeline");
-              result = await processApplication(
-                payload.userId,
-                payload.applicationId
-              );
-            }
-            break;
-          case "SYNC_GMAIL":
-            if (payload.userId) {
-              const { syncGmail } = await import("@/lib/google/gmail");
-              result = await syncGmail(payload.userId);
-            }
-            break;
-          case "SYNC_SHEETS":
-            if (payload.userId) {
-              const { syncApplicationsToSheet } = await import("@/lib/google/sheets");
-              result = await syncApplicationsToSheet(payload.userId);
-            }
-            break;
-          case "SYNC_CALENDAR":
-            if (payload.userId) {
-              const { syncInterviewsToCalendar } = await import("@/lib/google/calendar");
-              result = await syncInterviewsToCalendar(payload.userId);
-            }
-            break;
-          case "RUN_AGENT":
-            if (payload.userId) {
-              const { runAutonomousAgent } = await import("@/lib/agent/orchestrator");
-              result = await runAutonomousAgent(payload.userId);
-            }
-            break;
-          case "GENERATE_RECOMMENDATIONS":
-            if (payload.userId) {
-              const { generateProactiveRecommendations } = await import(
-                "@/lib/proactive/service"
-              );
-              result = await generateProactiveRecommendations(payload.userId);
-            } else {
-              throw new Error("GENERATE_RECOMMENDATIONS missing userId");
-            }
-            break;
-          case "RETRY_FAILED":
-            result = await retryFailedApplications(payload.userId);
-            break;
-          default:
-            throw new Error(`Unknown job type: ${job.type}`);
-        }
-
-        const completed = await prisma.backgroundJob.updateMany({
-          where: { id: job.id, status: "running" },
-          data: {
-            status: "completed",
-            completedAt: new Date(),
-            heartbeatAt: new Date(),
-            progressStage: "completed",
-            progressPercent: 100,
-            error: null,
-            progressMeta: result as Prisma.InputJsonValue,
-          },
-        });
-
-        if (completed.count === 0) {
-          const current = await prisma.backgroundJob.findUnique({
-            where: { id: job.id },
-            select: { status: true },
-          });
-          if (current?.status === "cancelled") {
-            allResults.push({ id: job.id, status: "cancelled" });
-            continue;
-          }
-          throw new Error("JOB_STATE_CHANGED");
-        }
-
-        logWorker("job_completed", { jobId: job.id, type: job.type });
-        allResults.push({ id: job.id, status: "completed", result });
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        if (errorMsg === "JOB_CANCELLED") {
-          await prisma.backgroundJob.update({
-            where: { id: job.id },
-            data: {
-              status: "cancelled",
-              cancelledAt: new Date(),
-              error: "Cancelled by user",
-              progressStage: "cancelled",
-            },
-          });
-          allResults.push({ id: job.id, status: "cancelled" });
-          continue;
-        }
-        const attemptsAfterFail = job.attempts + 1;
-        const isDeadLetter = attemptsAfterFail >= job.maxAttempts;
-        const willRetry = !isDeadLetter;
-
-        await prisma.backgroundJob.update({
-          where: { id: job.id },
-          data: {
-            status: isDeadLetter ? "dead_letter" : willRetry ? "pending" : "failed",
-            error: errorMsg,
-            failedAt: isDeadLetter || !willRetry ? new Date() : null,
-            progressStage: "failed",
-            scheduledAt: willRetry
-              ? new Date(Date.now() + 5 * 60 * 1000)
-              : new Date(),
-            claimedAt: null,
-            startedAt: null,
-            heartbeatAt: null,
-          },
-        });
-
-        logWorker(isDeadLetter ? "job_dead_letter" : willRetry ? "job_retry_scheduled" : "job_failed", {
-          jobId: job.id,
-          type: job.type,
-          error: errorMsg,
-        });
-
-        allResults.push({
-          id: job.id,
-          status: isDeadLetter ? "dead_letter" : willRetry ? "retry" : "failed",
-          error: errorMsg,
-        });
-      }
+      const outcome = await claimAndRunJob(job);
+      if (outcome) allResults.push(outcome);
     }
 
     if (jobs.length < BATCH_SIZE) break;

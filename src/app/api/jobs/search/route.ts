@@ -4,8 +4,8 @@ import { searchJobs } from "@/lib/jobs/pipeline";
 import { resolveApiUser } from "@/lib/api/auth";
 import {
   cancelActiveJob,
+  claimAndProcessJob,
   enqueueInteractiveSearch,
-  processBackgroundJobs,
 } from "@/lib/jobs/background";
 import { hasMinimumPreferences } from "@/lib/jobs/preferences";
 import { EntitlementError } from "@/lib/entitlements";
@@ -17,11 +17,17 @@ export async function POST(request: NextRequest) {
   const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
   if (limited) return limited;
 
+  const requestStart = Date.now();
   try {
+    const authStart = Date.now();
     const user = await resolveApiUser();
+    const authResolutionMs = Date.now() - authStart;
+
+    const dbStart = Date.now();
     const settings = await prisma.userSettings.findUnique({
       where: { userId: user.id },
     });
+    const databaseQueryMs = Date.now() - dbStart;
 
     if (!hasMinimumPreferences(settings)) {
       return NextResponse.json(
@@ -39,19 +45,35 @@ export async function POST(request: NextRequest) {
       request.headers.get("x-async-search") === "true";
 
     if (asyncMode) {
+      const queueStart = Date.now();
       const { job, deduped } = await enqueueInteractiveSearch(user.id);
-      after(() => {
-        processBackgroundJobs().catch((err) =>
-          console.error("[jobs/search] after() failed:", err)
-        );
-      });
-      return NextResponse.json({
+      const queueCreationMs = Date.now() - queueStart;
+
+      // Targeted kick: claim and run this specific job only, rather than
+      // draining the whole queue behind it. The remote fetch inside
+      // enqueueInteractiveSearch() is a secondary best-effort signal; this
+      // after() call is the primary, reliable one since it runs in the same
+      // request-scoped execution context.
+      if (!deduped) {
+        after(() => {
+          claimAndProcessJob(job.id).catch((err) =>
+            console.error("[jobs/search] after() claim failed:", err)
+          );
+        });
+      }
+
+      const response = NextResponse.json({
         queued: true,
         status: job.status,
         jobId: job.id,
         deduped,
         queuedAt: job.queuedAt.toISOString(),
       });
+      response.headers.set(
+        "Server-Timing",
+        `authResolutionMs;dur=${authResolutionMs}, databaseQueryMs;dur=${databaseQueryMs}, queueCreationMs;dur=${queueCreationMs}, totalMs;dur=${Date.now() - requestStart}`
+      );
+      return response;
     }
 
     const result = await Promise.race([

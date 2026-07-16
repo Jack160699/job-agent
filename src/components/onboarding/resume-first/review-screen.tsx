@@ -7,12 +7,16 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, RefreshCcw, Upload } from "lucide-react";
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import type { FieldMergeOutcome } from "@/lib/onboarding/merge-policy";
 import { trackOnboardingEvent } from "@/lib/analytics/events";
 import { ChipListEditor } from "./chip-list-editor";
+import { AtsScoreCard } from "./ats-score-card";
 
 interface ReviewScreenProps {
   profile: ParsedCareerProfile;
+  atsScore?: AtsReadinessScore | null;
+  enrichmentPending?: boolean;
   onReupload: () => void;
   onCompleted: () => void;
 }
@@ -34,7 +38,13 @@ const SCALAR_LABELS: Record<ScalarKey, string> = {
   portfolioUrl: "Portfolio URL",
 };
 
-export function ReviewScreen({ profile, onReupload, onCompleted }: ReviewScreenProps) {
+export function ReviewScreen({
+  profile,
+  atsScore,
+  enrichmentPending,
+  onReupload,
+  onCompleted,
+}: ReviewScreenProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [outcomes, setOutcomes] = useState<FieldMergeOutcome[]>([]);
@@ -155,6 +165,8 @@ export function ReviewScreen({ profile, onReupload, onCompleted }: ReviewScreenP
           Review and edit anything before it becomes part of your profile.
         </p>
       </div>
+
+      {atsScore && <AtsScoreCard score={atsScore} enrichmentPending={enrichmentPending} />}
 
       {conflicts.length > 0 && (
         <section

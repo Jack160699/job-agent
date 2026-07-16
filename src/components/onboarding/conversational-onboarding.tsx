@@ -18,6 +18,7 @@ import {
 import { FEATURE_FLAGS } from "@/lib/feature-flags";
 import { trackOnboardingEvent } from "@/lib/analytics/events";
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import { RESUME_FIRST_TOKENS } from "./resume-first/tokens";
 import { ResumeEntryScreen } from "./resume-first/resume-entry-screen";
 import { ReviewScreen } from "./resume-first/review-screen";
@@ -32,6 +33,8 @@ export function ConversationalOnboarding() {
   const [draft, setDraft] = useState<OnboardingDraft>({});
   const [completionPct, setCompletionPct] = useState(0);
   const [profile, setProfile] = useState<ParsedCareerProfile | null>(null);
+  const [atsScore, setAtsScore] = useState<AtsReadinessScore | null>(null);
+  const [enrichmentPending, setEnrichmentPending] = useState(false);
   const reviewFetchStartedRef = useRef(false);
   const [hiringGoal, setHiringGoal] = useState("");
 
@@ -63,8 +66,13 @@ export function ConversationalOnboarding() {
     fetch("/api/resumes/master")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.profile) setProfile(data.profile);
-        else setStep("resume");
+        if (data?.profile) {
+          setProfile(data.profile);
+          setAtsScore(data.atsScore ?? null);
+          setEnrichmentPending(Boolean(data.enrichmentPending));
+        } else {
+          setStep("resume");
+        }
       })
       .catch(() => setStep("resume"));
   }, [step, profile]);
@@ -223,6 +231,8 @@ export function ConversationalOnboarding() {
               onSkip={handleSkipResume}
               onUploaded={(result: MasterResumeUploadResult) => {
                 setProfile(result.profile);
+                setAtsScore(result.atsScore);
+                setEnrichmentPending(result.enrichmentPending);
                 setStep("review");
               }}
             />
@@ -242,8 +252,11 @@ export function ConversationalOnboarding() {
             <CardContent className="pt-6">
               <ReviewScreen
                 profile={profile}
+                atsScore={atsScore}
+                enrichmentPending={enrichmentPending}
                 onReupload={() => {
                   setProfile(null);
+                  setAtsScore(null);
                   setStep("resume");
                 }}
                 onCompleted={() => {
