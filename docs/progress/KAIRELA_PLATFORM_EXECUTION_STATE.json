@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-16T00:00:00.000Z",
+  "updatedAt": "2026-07-16T06:30:00.000Z",
   "branch": "release/kairela-v1-rc",
-  "headCommit": "e310f7e",
-  "note": "release/kairela-v1-rc is now the canonical active branch, created from e310f7e (feat/kairela-product-v1 with feat/kairela-platform-completion WS9 094c00d / WS10 3b5e6ff merged in). Both feat/kairela-product-v1 and feat/kairela-platform-completion are now frozen historical branches. See docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md and docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md.",
+  "headCommit": "chore(ci): reconcile Codex residuals and validate release branch (see git log on release/kairela-v1-rc for exact SHA)",
+  "note": "release/kairela-v1-rc is now the canonical active branch. The three uncommitted Codex landing-page files found on the frozen feat/kairela-product-v1 worktree (e2e/landing-page.spec.ts, src/app/globals.css, src/app/layout.tsx — a display-typography addition) were preserved in backup/codex-uncommitted-landing-work and reconciled onto release/kairela-v1-rc. See docs/progress/CODEX_RESIDUAL_AND_CI_RECONCILIATION.md, docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md, and docs/REPOSITORY_AND_DEPLOYMENT_POLICY.md.",
   "worktreePath": "C:\\Users\\shriyansh chandrakar\\kairela-v1-rc",
   "frozenWorktreePaths": {
     "feat/kairela-product-v1": "C:\\Users\\shriyansh chandrakar\\job apply agent",
@@ -51,7 +51,8 @@
     "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md"
   },
   "manualOwnerActions": [
-    "Coordinate with Codex on transitioning in-progress landing-page work off feat/kairela-product-v1 (now frozen historical) onto release/kairela-v1-rc; uncommitted landing changes on feat/kairela-product-v1 were left untouched during normalization",
+    "Tell Codex to target release/kairela-v1-rc for all future landing-page work; feat/kairela-product-v1 is frozen and the previously-uncommitted display-typography change has already been reconciled onto the canonical branch (docs/progress/CODEX_RESIDUAL_AND_CI_RECONCILIATION.md)",
+    "Decide whether to make the CI landing-page smoke test blocking once its visual baselines are proven stable in the ubuntu-latest CI environment (currently continue-on-error: true — see .github/workflows/release-validation.yml)",
     "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
@@ -63,7 +64,7 @@
     "Custom domain attach requires explicit owner approval",
     "Final human acceptance is owner-owned",
     "Authenticated production E2E blocked by Supabase egress quota exhaustion",
-    "Landing page completion owned by Codex on feat/kairela-product-v1",
+    "Landing page completion owned by Codex, now on release/kairela-v1-rc",
     "Live Google API consent, refresh and revoke verification requires an approved OAuth test user / project owner"
   ],
   "nextActions": [

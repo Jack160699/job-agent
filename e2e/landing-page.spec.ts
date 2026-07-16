@@ -37,6 +37,19 @@ test.describe("Kairela public homepage", () => {
     }
   });
 
+  test("uses the display face for headings while keeping UI copy in Geist", async ({ page }) => {
+    await page.goto("/");
+
+    const fonts = await page.evaluate(() => ({
+      heading: getComputedStyle(document.querySelector("h1")!).fontFamily,
+      body: getComputedStyle(document.body).fontFamily,
+    }));
+
+    expect(fonts.heading).toContain("Bricolage");
+    expect(fonts.body).toContain("Geist");
+    expect(fonts.body).not.toContain("Bricolage");
+  });
+
   test("has no serious or critical automated accessibility violations", async ({ page }) => {
     await page.goto("/");
     await page.emulateMedia({ reducedMotion: "reduce" });

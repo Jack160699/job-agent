@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Bricolage_Grotesque } from "next/font/google";
 import localFont from "next/font/local";
 import { BRAND } from "@/lib/brand";
 import { getCanonicalOrigin } from "@/lib/brand/urls";
@@ -10,6 +11,13 @@ const KairelaSans = localFont({
   variable: "--font-geist-sans",
   weight: "100 900",
   display: "optional",
+});
+
+const KairelaDisplay = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: "variable",
+  variable: "--font-kairela-display",
+  display: "swap",
 });
 
 const title = `${BRAND.name} — ${BRAND.tagline}`;
@@ -87,7 +95,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${KairelaSans.variable} h-full antialiased`}
+      className={`${KairelaSans.variable} ${KairelaDisplay.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

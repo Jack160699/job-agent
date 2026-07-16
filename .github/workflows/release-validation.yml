@@ -3,12 +3,13 @@ name: Release Validation
 on:
   push:
     branches:
+      - release/kairela-v1-rc
       - feat/kairela-platform-completion
       - feat/kairela-product-v1
   pull_request:
     branches:
       - master
-      - feat/kairela-product-v1
+      - release/kairela-v1-rc
 
 jobs:
   validate:
@@ -49,8 +50,18 @@ jobs:
       - name: Security tests
         run: npm run test:security
 
+      - name: Migration-contract tests
+        run: npm run test:rls
+
       - name: Production build
         run: npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Landing page smoke test (diagnostic — visual snapshots are environment-sensitive)
+        run: npm run test:landing
+        continue-on-error: true
 
       - name: Secret scan
         run: |

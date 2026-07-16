@@ -8,6 +8,7 @@
 
 @theme inline {
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-kairela-display), "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --color-canvas: var(--canvas);
