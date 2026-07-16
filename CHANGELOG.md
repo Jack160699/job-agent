@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-07-16 — Resume-first onboarding
+
+- Job-seeker onboarding now leads with resume upload; extraction is
+  reviewed and edited before any job-search preferences are asked, and only
+  preferences the resume couldn't answer are collected afterward.
+- See `docs/product/RESUME_FIRST_ONBOARDING.md` and
+  `docs/progress/RESUME_FIRST_ONBOARDING_IMPLEMENTATION.md`.
+
 ## [0.4.0-rc.1] — 2026-07-13 — Kairela Product V1
 
 ### Phase 1 — Rebrand

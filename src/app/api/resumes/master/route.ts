@@ -5,8 +5,16 @@ import { resolveApiUser, createAuditLog, prisma } from "@/lib/api/auth";
 import {
   parseResumeFile,
   parseResumeStructure,
+  type ParsedResume,
 } from "@/lib/resumes/parser";
+import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import { enhanceCareerProfileWithAI } from "@/lib/resumes/career-profile-ai";
 import type { Prisma } from "@prisma/client";
+
+async function buildCareerProfile(parsed: ParsedResume): Promise<ParsedCareerProfile> {
+  const deterministic = extractCareerProfile(parsed);
+  return enhanceCareerProfileWithAI(deterministic, parsed.rawText);
+}
 
 const resumeSchema = z.object({
   title: z.string().trim().min(1).max(120).default("Master Resume"),
@@ -19,7 +27,8 @@ export async function GET() {
     const resume = await prisma.masterResume.findUnique({
       where: { userId: user.id },
     });
-    return NextResponse.json(resume);
+    const content = resume?.content as { profile?: ParsedCareerProfile } | undefined;
+    return NextResponse.json(resume ? { ...resume, profile: content?.profile ?? null } : null);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unauthorized";
     return NextResponse.json(
@@ -74,6 +83,8 @@ export async function POST(request: NextRequest) {
       });
     }
     const { rawText, skills, content } = parsedResume;
+    const profile = await buildCareerProfile(parsedResume);
+    const contentWithProfile = { ...content, profile } as unknown as Prisma.InputJsonValue;
 
     const resume = await prisma.$transaction(async (tx) => {
       const existing = await tx.masterResume.findUnique({
@@ -84,9 +95,12 @@ export async function POST(request: NextRequest) {
           data: {
             userId: user.id,
             title,
-            content,
+            content: contentWithProfile,
             rawText,
             skills,
+            experience: profile.experience.value as unknown as Prisma.InputJsonValue,
+            education: profile.education.value as unknown as Prisma.InputJsonValue,
+            projects: profile.projects.value as unknown as Prisma.InputJsonValue,
             version: 1,
           },
         });
@@ -107,9 +121,12 @@ export async function POST(request: NextRequest) {
         where: { id: existing.id },
         data: {
           title,
-          content,
+          content: contentWithProfile,
           rawText,
           skills,
+          experience: profile.experience.value as unknown as Prisma.InputJsonValue,
+          education: profile.education.value as unknown as Prisma.InputJsonValue,
+          projects: profile.projects.value as unknown as Prisma.InputJsonValue,
           version: { increment: 1 },
         },
       });
@@ -124,7 +141,7 @@ export async function POST(request: NextRequest) {
       level: "AUDIT",
     });
 
-    return NextResponse.json(resume);
+    return NextResponse.json({ ...resume, profile });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
     const status =

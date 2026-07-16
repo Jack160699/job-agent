@@ -36,29 +36,31 @@
   ],
   "verification": {
     "typecheck": "pass",
-    "unitTests": "169 passed",
+    "unitTests": "199 passed (was 169; +30 from resume-first onboarding)",
     "integrationTests": "158 passed",
     "securityTests": "23 passed",
     "lint": "pass with preexisting warnings",
     "rlsContracts": "13 passed",
-    "build": "pass",
+    "build": "pass, 59 routes (was 58; +/api/analytics/onboarding)",
     "e2eWs7": "5 passed",
     "e2eWs8": "3 passed (1 flaky retry)",
     "e2eWs9": "7 passed",
     "previewUrl": "https://kairela-platform-completion-almev0ks4-jack160699s-projects.vercel.app",
     "reconciliationDoc": "docs/progress/WS7_WS8_CURRENT_HEAD_RECONCILIATION.md",
     "ws9ClosureDoc": "docs/progress/WS9_APPLICATION_AUTOMATION_CLOSURE.md",
-    "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md"
+    "ws10ClosureDoc": "docs/progress/WS10_AUTH_GOOGLE_CLOSURE.md",
+    "resumeFirstOnboardingDoc": "docs/progress/RESUME_FIRST_ONBOARDING_IMPLEMENTATION.md"
   },
   "manualOwnerActions": [
     "Tell Codex to target release/kairela-v1-rc for all future landing-page work; feat/kairela-product-v1 is frozen and the previously-uncommitted display-typography change has already been reconciled onto the canonical branch (docs/progress/CODEX_RESIDUAL_AND_CI_RECONCILIATION.md)",
     "Decide whether to make the CI landing-page smoke test blocking once its visual baselines are proven stable in the ubuntu-latest CI environment (currently continue-on-error: true — see .github/workflows/release-validation.yml)",
-    "Confirm DATABASE_URL/DIRECT_URL on preview/production Vercel envs",
+    "Confirm DATABASE_URL/DIRECT_URL/Supabase keys on the Preview Vercel environment (currently Production-only; blocks DB-backed verification of the new resume-first onboarding preview deployment)",
     "Set BROWSER_WORKER_TOKEN, OAUTH_STATE_SECRET, KAIRELA_ADMIN_EMAILS",
     "Approve custom domain production attach when ready",
     "Rotate shared E2E password after demo period",
     "Pin search_path on public.current_app_user_id() in a follow-up migration (Supabase security advisor: function_search_path_mutable)",
-    "Enable Supabase Auth leaked-password protection and additional MFA methods (project rcnigoakmxzlqipsaqvu)"
+    "Enable Supabase Auth leaked-password protection and additional MFA methods (project rcnigoakmxzlqipsaqvu)",
+    "Run e2e/resume-first-onboarding.spec.ts against the preview URL once Preview env vars are set"
   ],
   "externalBlockers": [
     "Custom domain attach requires explicit owner approval",

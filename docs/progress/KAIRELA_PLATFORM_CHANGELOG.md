@@ -1,5 +1,29 @@
 # Kairela Platform Changelog
 
+## 2026-07-16 — Priority Product Upgrade 1: Resume-first onboarding
+
+- Redesigned job-seeker onboarding so the first action after auth is resume
+  upload; extraction runs through a new grounded `ParsedCareerProfile`
+  extractor (deterministic, with an optional AI-assisted, fabrication-guarded
+  enhancement) reusing the existing trusted `/api/resumes/master` path.
+- Added an editable review screen and a preferences step that only asks
+  what the resume (or explicit skip) didn't already answer.
+- No database migration: persistence reuses existing `MasterResume`,
+  `User`, and `UserSettings` columns with a safe merge/conflict policy that
+  never silently overwrites a user-confirmed value.
+- Backup branch `backup/kairela-before-resume-first-onboarding` pushed at
+  `e4e2e8b` before this work began.
+- Unit tests: 169 → 199 passed (+30). Security (23) and migration-contract
+  (13) baselines unchanged. Build: 58 → 59 routes
+  (+`/api/analytics/onboarding`).
+- Full detail: `docs/product/RESUME_FIRST_ONBOARDING.md` and
+  `docs/progress/RESUME_FIRST_ONBOARDING_IMPLEMENTATION.md`.
+- Confirmed the pre-existing "Confirm DATABASE_URL/DIRECT_URL on
+  preview/production Vercel envs" owner action (already tracked below) is
+  what blocks full DB-backed verification of this feature's preview
+  deployment; Preview environment currently only has `OPENAI_API_KEY`, not
+  Supabase/DB credentials.
+
 ## 2026-07-16 — Repository and deployment normalization
 
 - Created `release/kairela-v1-rc` from `e310f7e` as the sole active

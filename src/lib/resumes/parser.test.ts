@@ -65,4 +65,27 @@ describe("resume parsing", () => {
       })
     ).toThrow("Scanned PDFs require OCR");
   });
+
+  it("rejects an empty file", async () => {
+    await expect(
+      parseResumeFile({ name: "resume.txt", type: "text/plain", bytes: new Uint8Array(0) })
+    ).rejects.toThrow("empty");
+  });
+
+  it("rejects a file larger than the 5 MB limit", async () => {
+    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+    await expect(
+      parseResumeFile({ name: "resume.txt", type: "text/plain", bytes: oversized })
+    ).rejects.toThrow("5 MB or smaller");
+  });
+
+  it("rejects a DOCX-extension file whose bytes are not a real DOCX (magic-byte mismatch)", async () => {
+    await expect(
+      parseResumeFile({
+        name: "resume.docx",
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        bytes: new TextEncoder().encode(resumeText),
+      })
+    ).rejects.toThrow("valid PDF, DOCX, or plain-text");
+  });
 });

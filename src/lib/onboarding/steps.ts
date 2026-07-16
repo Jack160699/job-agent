@@ -2,14 +2,9 @@ import type { UserPersona } from "@prisma/client";
 
 export type OnboardingStepId =
   | "welcome"
-  | "basics"
-  | "goals"
-  | "location"
-  | "skills"
-  | "compensation"
-  | "companies"
   | "resume"
-  | "apply_prefs"
+  | "review"
+  | "preferences"
   | "hiring_basics"
   | "complete";
 
@@ -53,14 +48,9 @@ export const PERSONA_CHOICES: PersonaChoice[] = [
 
 export const JOB_SEEKER_STEPS: OnboardingStepId[] = [
   "welcome",
-  "basics",
-  "goals",
-  "location",
-  "skills",
-  "compensation",
-  "companies",
   "resume",
-  "apply_prefs",
+  "review",
+  "preferences",
   "complete",
 ];
 
@@ -72,28 +62,20 @@ export const HIRING_STEPS: OnboardingStepId[] = [
 
 export const STEP_LABELS: Record<OnboardingStepId, string> = {
   welcome: "What would you like Kairela to help you accomplish?",
-  basics: "Let's start with the basics",
-  goals: "What role are you targeting?",
-  location: "Where do you want to work?",
-  skills: "What skills should we match on?",
-  compensation: "Compensation and availability",
-  companies: "Company preferences",
-  resume: "Your master resume",
-  apply_prefs: "Application preferences",
+  resume: "Start with your resume",
+  review: "We found these details",
+  preferences: "Tell us what your resume can't",
   hiring_basics: "Tell us about your hiring needs",
   complete: "You're all set",
 };
 
 export const STEP_WHY: Record<OnboardingStepId, string> = {
   welcome: "This helps Kairela personalize your dashboard and recommendations.",
-  basics: "We use your name and location to tailor job matches and timezone-aware alerts.",
-  goals: "Target titles and experience help filter irrelevant listings before you see them.",
-  location: "Location and work mode prevent mismatched roles like onsite-only jobs far from you.",
-  skills: "Skills drive honest match scores — we only surface roles that fit your profile.",
-  compensation: "Salary and notice period help exclude roles outside your range.",
-  companies: "Include or exclude companies so discovery respects your preferences.",
-  resume: "A master resume is required before any autonomous application can run.",
-  apply_prefs: "You control whether Kairela applies automatically or waits for your review.",
+  resume:
+    "Upload your resume and Kairela will prepare most of your career profile for you.",
+  review: "Review and edit everything before it becomes part of your profile.",
+  preferences:
+    "We only ask what your resume couldn't answer — target roles, locations, and how you want to apply.",
   hiring_basics: "This prepares your hiring workspace for when employer features launch.",
   complete: "Your profile is ready. You can update any of this in Settings.",
 };
@@ -159,6 +141,7 @@ export interface OnboardingDraft {
     jobTitles?: string[];
   };
   resumeAccepted?: boolean;
+  resumeSkipped?: boolean;
   hiringGoal?: string;
   companyName?: string;
   companySize?: string;
@@ -191,7 +174,7 @@ export function computeCompletionPct(
     { check: Boolean(draft.requiredSkills?.length), weight: 12 },
     { check: Boolean(draft.salaryMin != null || draft.salaryMax != null), weight: 8 },
     { check: Boolean(draft.matchThreshold != null), weight: 6 },
-    { check: hasResume || Boolean(draft.resumeText), weight: 20 },
+    { check: hasResume || Boolean(draft.resumeText) || Boolean(draft.resumeSkipped), weight: 20 },
     { check: draft.requireReview != null || draft.autoSubmitEnabled != null, weight: 10 },
   ];
 

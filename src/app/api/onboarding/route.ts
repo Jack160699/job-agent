@@ -3,9 +3,12 @@ import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUser } from "@/lib/api/auth";
 import {
   completeOnboarding,
+  computeReviewMerge,
+  confirmReview,
   getOrCreateOnboardingState,
   isOnboardingComplete,
   loadOnboardingDraft,
+  resolveEntryStep,
   saveOnboardingProgress,
 } from "@/lib/onboarding/service";
 import {
@@ -17,11 +20,13 @@ import {
   type OnboardingStepId,
 } from "@/lib/onboarding/steps";
 import { FEATURE_FLAGS, hiringPersonaEnabled } from "@/lib/feature-flags";
+import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 import type { UserPersona } from "@prisma/client";
 
 export async function GET() {
   try {
     const user = await resolveApiUser();
+    await resolveEntryStep(user.id);
     const [draft, state, complete] = await Promise.all([
       loadOnboardingDraft(user.id),
       getOrCreateOnboardingState(user.id),
@@ -65,35 +70,41 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ ok: true, ...result });
     }
 
-    if (action === "parse_resume" && body.resumeText) {
-      const text = String(body.resumeText);
-      const skills = text
-        .toLowerCase()
-        .split(/\W+/)
-        .filter(Boolean);
-      const known = [
-        "typescript", "javascript", "react", "node", "python", "java",
-        "sql", "aws", "docker", "postgres", "graphql",
-      ].filter((k) => skills.some((s) => s.includes(k)));
-
-      const yearsMatch = text.match(/(\d+)\+?\s*years?/i);
-      const titleMatch = text.match(
-        /(?:software|frontend|backend|full[\s-]?stack|data)\s+\w+/i
+    if (action === "skip_resume") {
+      const state = await getOrCreateOnboardingState(user.id);
+      const completedSteps = Array.from(
+        new Set([...state.completedSteps, "welcome", "resume"])
       );
-
-      const parsed = {
-        skills: known,
-        experienceYears: yearsMatch ? parseInt(yearsMatch[1], 10) : null,
-        jobTitles: titleMatch ? [titleMatch[0]] : [],
-      };
-
       const result = await saveOnboardingProgress(user.id, {
-        resumeText: text,
-        resumeParsed: parsed,
-        currentStep: body.currentStep,
+        resumeSkipped: true,
+        currentStep: "preferences",
+        completedSteps,
       });
+      return NextResponse.json({ ok: true, ...result });
+    }
 
-      return NextResponse.json({ parsed, ...result });
+    if (action === "review_preview") {
+      const profile = body.profile as ParsedCareerProfile | undefined;
+      if (!profile) {
+        return NextResponse.json({ error: "A parsed resume profile is required." }, { status: 400 });
+      }
+      const { outcomes, conflicts } = await computeReviewMerge(user.id, profile);
+      return NextResponse.json({ outcomes, conflicts });
+    }
+
+    if (action === "confirm_review") {
+      const profile = body.profile as ParsedCareerProfile | undefined;
+      if (!profile) {
+        return NextResponse.json({ error: "A parsed resume profile is required." }, { status: 400 });
+      }
+      const outcome = await confirmReview(user.id, profile, {
+        resolutions: body.resolutions,
+        edits: body.edits,
+      });
+      if (!outcome.ok) {
+        return NextResponse.json({ ok: false, conflicts: outcome.conflicts }, { status: 409 });
+      }
+      return NextResponse.json(outcome);
     }
 
     const persona = (body.persona ?? body.draft?.persona) as UserPersona | undefined;

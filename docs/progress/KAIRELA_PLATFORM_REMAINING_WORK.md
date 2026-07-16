@@ -47,6 +47,26 @@ historical. Backup branches
 `backup/kairela-platform-before-normalization` pushed for recovery. See
 `docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md`.
 
+## 2026-07-16 — Priority Product Upgrade 1: Resume-first onboarding
+
+Implemented, tested, and pushed to `release/kairela-v1-rc`; preview deployment
+created (not promoted to production, not merged to `master`). See
+`docs/product/RESUME_FIRST_ONBOARDING.md` and
+`docs/progress/RESUME_FIRST_ONBOARDING_IMPLEMENTATION.md` for full detail.
+Remaining follow-ups:
+
+- Run `e2e/resume-first-onboarding.spec.ts` against the preview URL once
+  Preview-environment DB credentials are configured (see next item).
+- Preview Vercel environment is missing `DATABASE_URL`/`DIRECT_URL`/Supabase
+  keys (only `Production` has them) — this was already tracked below and now
+  also blocks live verification of this feature's preview deployment.
+- Consider inline editing of individual experience/education/project entries
+  on the review screen (currently read-only display with chip-based editing
+  for skills/job titles only).
+- LinkedIn login, the full site-wide white/blue redesign, and
+  employer/recruiter onboarding remain explicitly out of scope for this
+  change and are tracked as separate future work.
+
 ## Open carryovers
 
 - Authenticated production E2E once Supabase egress recovers

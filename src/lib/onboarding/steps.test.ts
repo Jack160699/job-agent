@@ -14,8 +14,9 @@ describe("onboarding steps", () => {
   });
 
   it("advances to next step", () => {
-    expect(nextStep("JOB_SEEKER", "welcome")).toBe("basics");
-    expect(nextStep("JOB_SEEKER", "basics")).toBe("goals");
+    expect(nextStep("JOB_SEEKER", "welcome")).toBe("resume");
+    expect(nextStep("JOB_SEEKER", "resume")).toBe("review");
+    expect(nextStep("JOB_SEEKER", "review")).toBe("preferences");
   });
 
   it("computes completion percentage for partial profile", () => {
