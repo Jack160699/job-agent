@@ -23,7 +23,7 @@ export async function loginWithSharedAccount(page: Page) {
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 }
 
-function getAdminClient() {
+export function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {

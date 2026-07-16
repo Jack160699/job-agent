@@ -64,3 +64,30 @@ See `docs/FINAL_HUMAN_TEST_PLAN.md` (to be created at Workstream 18).
 
 - Verify OAuth redirect URIs include production callback URLs
 - Workspace integration scopes approved for production use
+
+## LinkedIn OIDC sign-in (Priority Product Upgrade 2)
+
+Code is complete and feature-flagged off (`NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED`,
+unset/`false` by default). Not usable until:
+
+1. Create a LinkedIn Developer application, associate it with a LinkedIn
+   Page, and request **"Sign In with LinkedIn using OpenID Connect"**.
+2. In the LinkedIn app's settings, add the Supabase Auth callback URL:
+   `https://<SUPABASE_PROJECT_REF>.supabase.co/auth/v1/callback`.
+3. In Supabase Dashboard → Authentication → Providers → **LinkedIn (OIDC)**,
+   enable the provider and enter the Client ID/Secret. Do not put these in
+   this repo or in Vercel `NEXT_PUBLIC_*` variables.
+4. Add Kairela's preview and production URLs to Supabase's redirect allow
+   list.
+5. Set `NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED=true` only on the intended Vercel
+   environment.
+6. Confirm whether Supabase manual identity linking is enabled for this
+   project (required for the Settings → Connect LinkedIn action to work for
+   already-signed-in users).
+7. Run `e2e/linkedin-oidc-auth.spec.ts` against a live environment with the
+   flag on.
+
+Live verification of this feature is currently **BLOCKED** — this change
+was made without access to the Supabase Dashboard or any LinkedIn Developer
+credentials. See `docs/product/LINKEDIN_OIDC_AUTH.md` and
+`docs/progress/LINKEDIN_OIDC_IMPLEMENTATION.md`.

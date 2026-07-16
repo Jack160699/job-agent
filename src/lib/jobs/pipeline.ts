@@ -29,38 +29,6 @@ import {
   recordUsage,
 } from "@/lib/entitlements";
 
-export async function getOrCreateUser(supabaseId: string, email: string) {
-  let user = await prisma.user.findUnique({ where: { supabaseId } });
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        supabaseId,
-        email,
-        settings: {
-          create: {
-            jobTitles: [],
-            locations: [],
-            enabledSources: [
-              "LINKEDIN",
-              "INDEED",
-              "GREENHOUSE",
-              "LEVER",
-              "ASHBY",
-            ],
-          },
-        },
-      },
-    });
-    await createAuditLog({
-      userId: user.id,
-      action: "USER_CREATED",
-      message: `New user registered: ${email}`,
-      level: "AUDIT",
-    });
-  }
-  return user;
-}
-
 export async function archiveLegacyJobs(userId: string) {
   const jobs = await prisma.job.findMany({
     where: { userId, status: "ACTIVE" },

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Save, Link2, CheckCircle2, RefreshCw, Unplug } from "lucide-react";
+import { ConnectedAccounts } from "@/components/dashboard/connected-accounts";
 
 interface Settings {
   jobTitles: string[];
@@ -332,6 +333,7 @@ export function SettingsForm({
         <TabsTrigger value="automation">Automation</TabsTrigger>
         <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
         <TabsTrigger value="integrations">Integrations</TabsTrigger>
+        <TabsTrigger value="account">Account</TabsTrigger>
       </TabsList>
 
       <TabsContent value="filters">
@@ -677,6 +679,17 @@ export function SettingsForm({
                 <p className="text-xs text-[var(--ink-tertiary)]">Sync interview schedule</p>
               </div>
             </label>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="account">
+        <Card>
+          <CardHeader>
+            <CardTitle>Connected accounts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ConnectedAccounts />
           </CardContent>
         </Card>
       </TabsContent>

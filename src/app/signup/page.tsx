@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
-import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { SocialAuthButton } from "@/components/auth/social-auth-button";
 import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { isPasswordAcceptable, evaluatePasswordStrength } from "@/lib/auth/password-strength";
+import { FEATURE_FLAGS } from "@/lib/feature-flags";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -76,7 +77,16 @@ export default function SignupPage() {
     >
       <Card>
         <CardContent className="p-6">
-          <GoogleAuthButton mode="signup" className="h-11 w-full" />
+          <div className="space-y-2">
+            <SocialAuthButton provider="google" mode="signup" className="h-11 w-full" />
+            <SocialAuthButton provider="linkedin_oidc" mode="signup" className="h-11 w-full" />
+          </div>
+          {FEATURE_FLAGS.linkedinAuth && (
+            <p className="mt-3 text-center text-xs text-[var(--ink-tertiary)]">
+              LinkedIn is used for sign-in and basic account details. Your resume remains the
+              source for career history and skills.
+            </p>
+          )}
 
           <AuthDivider />
 

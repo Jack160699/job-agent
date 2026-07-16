@@ -8,6 +8,8 @@ export const FEATURE_FLAGS = {
   billing: process.env.FEATURE_BILLING === "true",
   aiConsultant: process.env.FEATURE_AI_CONSULTANT !== "false",
   proactiveAssistant: process.env.FEATURE_PROACTIVE_ASSISTANT !== "false",
+  /** Public (client-safe) flag — must stay NEXT_PUBLIC_ prefixed so it inlines into the browser bundle. */
+  linkedinAuth: process.env.NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED === "true",
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURE_FLAGS;

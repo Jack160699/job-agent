@@ -1,5 +1,37 @@
 # Kairela Platform Changelog
 
+## 2026-07-16 — Priority Product Upgrade 2: LinkedIn OIDC sign-in and account linking
+
+- Added official Supabase `linkedin_oidc` sign-in via a shared
+  `SocialAuthButton` architecture (replacing the Google-only
+  `GoogleAuthButton`), feature-flagged off by default
+  (`NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED`).
+- Replaced the callback's email-assuming `getOrCreateUser()` and a latent
+  unsafe upsert-by-email in `getDbUser()` with one shared, safe resolver
+  (`resolveKairelaUser`) that never links accounts on an unverified email
+  and never creates a duplicate Prisma user for an existing verified email.
+- Added `/auth/complete-email` for LinkedIn responses with no email
+  (session-gated, anti-enumeration, refresh-safe).
+- Added a fill-only-if-empty profile bootstrap (`fullName`/`avatarUrl`
+  only) — no career data, no LinkedIn URL, no employment/education is ever
+  inferred from LinkedIn OIDC.
+- Added a Connected Accounts section in Settings
+  (`supabase.auth.getUserIdentities/linkIdentity/unlinkIdentity`) with
+  unlink-your-only-method protection and graceful degradation when manual
+  linking isn't enabled on the Supabase project.
+- No database migration: provider identity stays in Supabase's own
+  `auth.identities`, never duplicated into Prisma.
+- Backup branch `backup/kairela-before-linkedin-oidc` pushed at `b2a35db`
+  before this work began.
+- Unit tests: 199 → 245 passed (+46). Security (23) and migration-contract
+  (13) baselines unchanged. Build: 59 → 61 routes
+  (+`/api/analytics/auth`, +`/auth/complete-email`).
+- Live LinkedIn provider verification is **BLOCKED** — no Supabase
+  Dashboard or LinkedIn Developer credentials available to this change;
+  the feature flag stays off until the owner completes provider setup.
+- Full detail: `docs/product/LINKEDIN_OIDC_AUTH.md` and
+  `docs/progress/LINKEDIN_OIDC_IMPLEMENTATION.md`.
+
 ## 2026-07-16 — Priority Product Upgrade 1: Resume-first onboarding
 
 - Redesigned job-seeker onboarding so the first action after auth is resume

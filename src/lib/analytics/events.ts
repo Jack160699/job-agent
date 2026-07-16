@@ -11,7 +11,23 @@ export const ONBOARDING_ANALYTICS_EVENTS = [
 
 export type OnboardingAnalyticsEvent = (typeof ONBOARDING_ANALYTICS_EVENTS)[number];
 
-/** Keys allowed in event metadata — deliberately non-identifying (no names, emails, resume text). */
+export const AUTH_ANALYTICS_EVENTS = [
+  "linkedin_auth_started",
+  "linkedin_auth_succeeded",
+  "linkedin_auth_failed",
+  "linkedin_email_completion_required",
+  "linkedin_identity_linked",
+  "linkedin_identity_unlinked",
+] as const;
+
+export type AuthAnalyticsEvent = (typeof AUTH_ANALYTICS_EVENTS)[number];
+
+/**
+ * Keys allowed in event metadata — deliberately non-identifying. Never add a
+ * key that could carry an email, name, provider subject identifier, OAuth
+ * code/token, or profile photo URL; see sanitizeAnalyticsMetadata below,
+ * which also caps string length as a second guard.
+ */
 const ALLOWED_METADATA_KEYS = new Set([
   "fileType",
   "fileSizeBucket",
@@ -22,6 +38,7 @@ const ALLOWED_METADATA_KEYS = new Set([
   "fieldsNeedingReview",
   "hasResume",
   "step",
+  "provider",
 ]);
 
 export function sanitizeAnalyticsMetadata(
@@ -52,5 +69,27 @@ export function trackOnboardingEvent(
     }).catch(() => {});
   } catch {
     // Analytics must never break the onboarding flow.
+  }
+}
+
+/**
+ * Client-side helper for auth/LinkedIn events. Works both signed-out
+ * (e.g. linkedin_auth_started, fired before the OAuth redirect) and
+ * signed-in — fire-and-forget, never throws, never blocks the auth flow.
+ */
+export function trackAuthEvent(
+  event: AuthAnalyticsEvent,
+  metadata?: Record<string, unknown>
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    void fetch("/api/analytics/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, metadata: sanitizeAnalyticsMetadata(metadata) }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Analytics must never break the auth flow.
   }
 }

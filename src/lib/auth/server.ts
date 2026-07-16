@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/db";
+import { resolveKairelaUser } from "./resolve-user";
 
 export async function getAuthUser() {
   try {
@@ -16,38 +17,28 @@ export async function getAuthUser() {
 export async function getDbUser() {
   try {
     const authUser = await getAuthUser();
-    if (!authUser?.email) return null;
+    if (!authUser) return null;
 
     const existingByIdentity = await prisma.user.findUnique({
       where: { supabaseId: authUser.id },
       include: { settings: true },
     });
-
     if (existingByIdentity) return existingByIdentity;
 
-    // Upsert by the globally unique email so parallel Server Component requests
-    // cannot race while provisioning the same newly authenticated user.
-    const user = await prisma.user.upsert({
-      where: { email: authUser.email },
-      update: {
-        supabaseId: authUser.id,
-        fullName: (authUser.user_metadata?.full_name as string) || undefined,
-      },
-      create: {
-        supabaseId: authUser.id,
-        email: authUser.email,
-        fullName: (authUser.user_metadata?.full_name as string) || null,
-        settings: {
-          create: {
-            jobTitles: ["Software Engineer"],
-            locations: ["Remote"],
-          },
-        },
-      },
+    // Not yet resolved to a Prisma user under this Supabase id (e.g. first
+    // page load right after an OAuth callback race, or a legacy session).
+    // Reuse the same safe resolution used by /auth/callback: never links on
+    // an unverified email, never creates a duplicate for an existing email.
+    // A brand-new user here (rather than at the callback) is unusual but
+    // possible if the callback's own resolution failed transiently; give it
+    // the same default preferences as before.
+    const resolution = await resolveKairelaUser(authUser);
+    if (resolution.status !== "resolved") return null;
+
+    return prisma.user.findUnique({
+      where: { id: resolution.user.id },
       include: { settings: true },
     });
-
-    return user;
   } catch (error) {
     console.error("getDbUser failed:", error);
     return null;

@@ -9,10 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthLayout, AuthDivider } from "@/components/auth/auth-layout";
 import { BRAND } from "@/lib/brand";
-import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { SocialAuthButton } from "@/components/auth/social-auth-button";
 import { ErrorCallout } from "@/components/ui/error-callout";
 import { createClient } from "@/lib/supabase/client";
 import { isUserEmailVerified } from "@/lib/auth/verify";
+import { sanitizeProviderParam, providerAuthFailedMessage } from "@/lib/auth/provider-errors";
+import { FEATURE_FLAGS } from "@/lib/feature-flags";
 import { toast } from "sonner";
 
 function LoginForm() {
@@ -23,6 +25,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackError = searchParams.get("error");
+  const callbackProvider = sanitizeProviderParam(searchParams.get("provider"));
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,13 +72,22 @@ function LoginForm() {
             <ErrorCallout
               className="mb-6"
               title="Sign in failed"
-              what="Google authentication could not be completed."
+              what={providerAuthFailedMessage(callbackProvider)}
               why="The OAuth callback returned an error or expired."
               fix="Try signing in again, or use email and password."
             />
           )}
 
-          <GoogleAuthButton mode="signin" className="h-11 w-full" />
+          <div className="space-y-2">
+            <SocialAuthButton provider="google" mode="signin" className="h-11 w-full" />
+            <SocialAuthButton provider="linkedin_oidc" mode="signin" className="h-11 w-full" />
+          </div>
+          {FEATURE_FLAGS.linkedinAuth && (
+            <p className="mt-3 text-center text-xs text-[var(--ink-tertiary)]">
+              LinkedIn is used for sign-in and basic account details. Your resume remains the
+              source for career history and skills.
+            </p>
+          )}
 
           <AuthDivider />
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — 2026-07-16 — LinkedIn OIDC sign-in
+
+- Added "Continue with LinkedIn" (official Supabase `linkedin_oidc`
+  provider) alongside Google and email/password, feature-flagged off by
+  default via `NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED`.
+- Safe account resolution: never creates a duplicate user for an existing
+  verified email, never links on an unverified email, handles LinkedIn
+  responses with no email via a dedicated `/auth/complete-email` flow.
+- Only fills `fullName`/`avatarUrl` when empty — never overwrites a
+  resume-confirmed profile, never infers career data from LinkedIn.
+- New "Account" tab in Settings shows connected sign-in methods and lets
+  users connect/disconnect LinkedIn, with unlink-your-only-method
+  protection.
+- See `docs/product/LINKEDIN_OIDC_AUTH.md` and
+  `docs/progress/LINKEDIN_OIDC_IMPLEMENTATION.md`.
+
 ## Unreleased — 2026-07-16 — Resume-first onboarding
 
 - Job-seeker onboarding now leads with resume upload; extraction is

@@ -47,6 +47,25 @@ historical. Backup branches
 `backup/kairela-platform-before-normalization` pushed for recovery. See
 `docs/progress/BRANCH_AND_DEPLOYMENT_NORMALIZATION.md`.
 
+## 2026-07-16 — Priority Product Upgrade 2: LinkedIn OIDC sign-in
+
+Implemented, tested, and pushed to `release/kairela-v1-rc`; preview deployment
+created (not promoted to production, not merged to `master`). Feature flag
+(`NEXT_PUBLIC_LINKEDIN_AUTH_ENABLED`) left off everywhere. See
+`docs/product/LINKEDIN_OIDC_AUTH.md` and
+`docs/progress/LINKEDIN_OIDC_IMPLEMENTATION.md` for full detail. Remaining
+follow-ups:
+
+- Complete LinkedIn Developer app + Supabase provider setup (owner-only —
+  Client ID/Secret never belong in this repo).
+- Live LinkedIn verification is BLOCKED — no Supabase Dashboard or
+  LinkedIn credentials were available to this change.
+- Run `e2e/linkedin-oidc-auth.spec.ts` against the preview URL once
+  Preview-environment DB credentials are configured (same gap tracked
+  below for resume-first onboarding) and the flag is enabled there.
+- Confirm whether Supabase manual identity linking is enabled for this
+  project (needed for the Settings "Connect LinkedIn" action).
+
 ## 2026-07-16 — Priority Product Upgrade 1: Resume-first onboarding
 
 Implemented, tested, and pushed to `release/kairela-v1-rc`; preview deployment
