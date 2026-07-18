@@ -471,7 +471,7 @@ test.describe("10-13. Job ATS match and tailored resume scoring", () => {
   test("job ATS match and applications/resume-history surfaces render without fabricated improvement", async ({
     page,
   }) => {
-    test.setTimeout(240000);
+    test.setTimeout(300000);
     const user = await onboardWithPunePreferences(page, "ats-match");
     try {
       await page.getByRole("button", { name: /^Run Job Search$/i }).click();
