@@ -31,7 +31,10 @@ export default defineConfig({
   retries: process.env.RC_AUDIT === "1" ? 0 : 2,
   workers: 1,
   reporter: [["html", { open: "never" }], ["list"]],
-  timeout: 60000,
+  // Cold Preview lambdas can add tens of seconds to the first few
+  // navigations in a test before any instance is warm; 60s was too tight
+  // for full onboarding-flow tests that chain several such navigations.
+  timeout: 120000,
   use: {
     baseURL,
     trace: "on-first-retry",

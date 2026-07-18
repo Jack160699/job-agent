@@ -20,7 +20,11 @@ export async function loginWithSharedAccount(page: Page) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign In/i }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+  // The post-login redirect is a client-side RSC transition through
+  // middleware -> dashboard layout -> onboarding gate; on a cold Preview
+  // lambda (no warm instances yet) this measurably takes well past 15s even
+  // though the actual Supabase sign-in call itself returns in under 1s.
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 45000 });
 }
 
 export function getAdminClient() {

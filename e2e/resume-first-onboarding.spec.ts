@@ -33,11 +33,14 @@ async function login(page: Page, user: { email: string; password: string }) {
   await page.getByLabel("Email").fill(user.email);
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+  // Cold Preview lambdas can take well past 15s for the client-side RSC
+  // redirect chain even though sign-in itself is fast — see the identical
+  // comment in e2e/helpers/auth.ts.
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 45000 });
 }
 
 async function choosePersona(page: Page) {
-  await expect(page).toHaveURL(/\/dashboard\/onboarding/, { timeout: 15000 });
+  await expect(page).toHaveURL(/\/dashboard\/onboarding/, { timeout: 45000 });
   const jobSeekerChoice = page.getByRole("button", { name: /Find my next job/i });
   if (await jobSeekerChoice.isVisible().catch(() => false)) {
     await jobSeekerChoice.click();

@@ -55,8 +55,15 @@ function LoginForm() {
       }
 
       toast.success("Welcome back!");
+      // router.refresh() immediately after router.push() to a *different*
+      // route was found (via live Preview verification) to race the
+      // in-flight RSC transition: the URL bar would update all the way to
+      // the server-redirected /dashboard/onboarding destination, but the
+      // page content itself never committed — only a hard reload rendered
+      // it. push() alone already fetches fresh RSC content for the
+      // destination (dynamic routes have no stale-time to work around
+      // here), so the extra refresh() was both redundant and harmful.
       router.push("/dashboard");
-      router.refresh();
     } catch {
       setError("Failed to sign in. Check your connection and try again.");
     } finally {
