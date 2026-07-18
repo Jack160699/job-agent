@@ -22,6 +22,8 @@ if (baseURL.includes("localhost") || baseURL.includes("127.0.0.1")) {
   );
 }
 
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -34,6 +36,18 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Official Vercel "Protection Bypass for Automation" mechanism — lets
+    // Playwright reach a protected Preview deployment without disabling
+    // deployment protection itself. The secret is never logged or committed
+    // (sourced from a gitignored .env, read only into process.env).
+    ...(bypassSecret
+      ? {
+          extraHTTPHeaders: {
+            "x-vercel-protection-bypass": bypassSecret,
+            "x-vercel-set-bypass-cookie": "true",
+          },
+        }
+      : {}),
   },
   projects: [
     {
