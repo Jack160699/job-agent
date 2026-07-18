@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ResumeUploadForm } from "@/components/dashboard/resume-upload";
 import { StructuredResumeEditor } from "@/components/dashboard/structured-resume-editor";
+import { ResumeProfileSummary } from "@/components/dashboard/resume-profile-summary";
 import { toast } from "sonner";
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 
@@ -139,18 +140,24 @@ export function MasterResumeCard({
   return (
     <div>
       <p className="text-sm font-medium text-[var(--ink)]">{title}</p>
-      <p className="mt-2 line-clamp-6 text-sm text-[var(--ink-tertiary)]">
-        {rawText}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {skills.map((skill) => (
-          <span
-            key={skill}
-            className="rounded-full bg-[var(--accent-muted)] px-2.5 py-0.5 text-xs text-[var(--accent)]"
-          >
-            {skill}
-          </span>
-        ))}
+      <div className="mt-3">
+        {profile ? (
+          <ResumeProfileSummary profile={profile} />
+        ) : (
+          <>
+            <p className="line-clamp-6 text-sm text-[var(--ink-tertiary)]">{rawText}</p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-full bg-[var(--accent-muted)] px-2.5 py-0.5 text-xs text-[var(--accent)]"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button

@@ -9,6 +9,8 @@ type KairelaLogoProps = {
   showWordmark?: boolean;
   size?: "sm" | "md" | "lg";
   subtitle?: string | null;
+  /** Use light-on-navy ink instead of the default surface ink — for placement on the navy sidebar/header. */
+  onDark?: boolean;
 };
 
 const sizes = {
@@ -23,6 +25,7 @@ export function KairelaLogo({
   showWordmark = true,
   size = "md",
   subtitle = null,
+  onDark = false,
 }: KairelaLogoProps) {
   const s = sizes[size];
 
@@ -33,11 +36,23 @@ export function KairelaLogo({
       </div>
       {showWordmark && (
         <div className="min-w-0">
-          <p className={cn("font-semibold leading-none text-[var(--ink)]", s.text)}>
+          <p
+            className={cn(
+              "font-semibold leading-none",
+              onDark ? "text-[var(--navy-ink)]" : "text-[var(--ink)]",
+              s.text
+            )}
+          >
             {BRAND.name}
           </p>
           {subtitle !== null && (
-            <p className={cn("mt-0.5 text-[var(--ink-tertiary)]", s.sub)}>
+            <p
+              className={cn(
+                "mt-0.5",
+                onDark ? "text-[var(--navy-ink-secondary)]" : "text-[var(--ink-tertiary)]",
+                s.sub
+              )}
+            >
               {subtitle ?? BRAND.tagline}
             </p>
           )}

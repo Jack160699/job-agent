@@ -9,6 +9,8 @@ import { ArrowRight } from "lucide-react";
 import type { OnboardingDraft } from "@/lib/onboarding/steps";
 import { trackOnboardingEvent } from "@/lib/analytics/events";
 import { ChipListEditor } from "./chip-list-editor";
+import { searchJobTitles } from "@/lib/data/job-titles";
+import { searchLocations, formatLocationLabel } from "@/lib/data/locations";
 
 interface PreferencesScreenProps {
   draft: OnboardingDraft;
@@ -311,7 +313,12 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
         {needsJobTitles && (
           <div className="space-y-1.5">
             <Label className="text-xs text-[var(--rf-ink-secondary)]">Target job titles *</Label>
-            <ChipListEditor label="Target job titles" values={jobTitles} onChange={setJobTitles} />
+            <ChipListEditor
+              label="Target job titles"
+              values={jobTitles}
+              onChange={setJobTitles}
+              suggestions={searchJobTitles}
+            />
           </div>
         )}
 
@@ -322,6 +329,7 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
             values={locations}
             onChange={setLocations}
             placeholder="Add a city and press Enter"
+            suggestions={(q) => searchLocations(q).map(formatLocationLabel)}
           />
         </div>
 

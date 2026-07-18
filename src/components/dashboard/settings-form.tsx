@@ -10,6 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Save, Link2, CheckCircle2, RefreshCw, Unplug } from "lucide-react";
 import { ConnectedAccounts } from "@/components/dashboard/connected-accounts";
+import { ChipListEditor } from "@/components/onboarding/resume-first/chip-list-editor";
+import { searchJobTitles } from "@/lib/data/job-titles";
+import { searchLocations, formatLocationLabel } from "@/lib/data/locations";
 
 interface Settings {
   jobTitles: string[];
@@ -67,11 +70,11 @@ export function SettingsForm({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [jobTitles, setJobTitles] = useState(
-    initialSettings?.jobTitles?.join(", ") || ""
+  const [jobTitles, setJobTitles] = useState<string[]>(
+    initialSettings?.jobTitles ?? []
   );
-  const [locations, setLocations] = useState(
-    initialSettings?.locations?.join(", ") || ""
+  const [locations, setLocations] = useState<string[]>(
+    initialSettings?.locations ?? []
   );
   const [experienceYears, setExperienceYears] = useState(
     initialSettings?.experienceYears?.toString() || ""
@@ -290,8 +293,8 @@ export function SettingsForm({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobTitles: jobTitles.split(",").map((s) => s.trim()).filter(Boolean),
-          locations: locations.split(",").map((s) => s.trim()).filter(Boolean),
+          jobTitles,
+          locations,
           experienceYears: parseInt(experienceYears) || null,
           salaryMin: salaryMin ? parseInt(salaryMin) : null,
           salaryMax: salaryMax ? parseInt(salaryMax) : null,
@@ -343,17 +346,23 @@ export function SettingsForm({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Job Titles (comma-separated)</Label>
-              <Input
-                value={jobTitles}
-                onChange={(e) => setJobTitles(e.target.value)}
+              <Label>Job Titles</Label>
+              <ChipListEditor
+                label="Job Titles"
+                values={jobTitles}
+                onChange={setJobTitles}
+                placeholder="Add a job title and press Enter"
+                suggestions={searchJobTitles}
               />
             </div>
             <div className="space-y-2">
-              <Label>Locations (comma-separated)</Label>
-              <Input
-                value={locations}
-                onChange={(e) => setLocations(e.target.value)}
+              <Label>Locations</Label>
+              <ChipListEditor
+                label="Locations"
+                values={locations}
+                onChange={setLocations}
+                placeholder="Add a city and press Enter"
+                suggestions={(q) => searchLocations(q).map(formatLocationLabel)}
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-3">

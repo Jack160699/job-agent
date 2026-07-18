@@ -18,6 +18,7 @@ import { trackOnboardingEvent } from "@/lib/analytics/events";
 import { ChipListEditor } from "./chip-list-editor";
 import { EntryListEditor } from "./entry-list-editor";
 import { AtsScoreCard } from "./ats-score-card";
+import { searchJobTitles } from "@/lib/data/job-titles";
 
 const EMPTY_EXPERIENCE: ExperienceEntry = {
   title: "",
@@ -324,7 +325,12 @@ export function ReviewScreen({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs text-[var(--rf-ink-secondary)]">Target job titles</Label>
-          <ChipListEditor label="Target job titles" values={jobTitles} onChange={setJobTitles} />
+          <ChipListEditor
+            label="Target job titles"
+            values={jobTitles}
+            onChange={setJobTitles}
+            suggestions={searchJobTitles}
+          />
         </div>
       </section>
 

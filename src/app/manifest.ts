@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: BRAND.promise,
     start_url: "/",
     display: "standalone",
-    background_color: "#f7f6f3",
-    theme_color: "#0d7c66",
+    background_color: "#f5f8ff",
+    theme_color: "#2455e6",
     icons: [
       {
         src: "/icons/favicon.svg",

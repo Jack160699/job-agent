@@ -35,28 +35,26 @@ export default async function JobsPage({
     ? (view as JobResultsView)
     : "recommended";
   const user = await getDbUser();
-  const [displayJobs, settings] = await Promise.all([
+  // These three only depend on user.id, not on each other's results — run
+  // them concurrently instead of stacking a third sequential round trip
+  // after the first two resolve.
+  const [displayJobs, settings, lastJob] = await Promise.all([
     getJobsForView(activeView),
     getUserSettings(),
+    user
+      ? prisma.backgroundJob.findFirst({
+          where: { userId: user.id, type: "SEARCH_JOBS", status: "completed" },
+          orderBy: { completedAt: "desc" },
+        })
+      : Promise.resolve(null),
   ]);
 
   let lastSearchAt: string | null = null;
   let lastResultCount = 0;
-
-  if (user) {
-    const lastJob = await prisma.backgroundJob.findFirst({
-      where: {
-        userId: user.id,
-        type: "SEARCH_JOBS",
-        status: "completed",
-      },
-      orderBy: { completedAt: "desc" },
-    });
-    if (lastJob?.completedAt) {
-      lastSearchAt = formatRelativeTime(lastJob.completedAt);
-      const meta = lastJob.progressMeta as { relevant?: number } | null;
-      lastResultCount = meta?.relevant ?? 0;
-    }
+  if (lastJob?.completedAt) {
+    lastSearchAt = formatRelativeTime(lastJob.completedAt);
+    const meta = lastJob.progressMeta as { relevant?: number } | null;
+    lastResultCount = meta?.relevant ?? 0;
   }
 
   return (

@@ -98,13 +98,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-[var(--canvas)]">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — deep navy, the app's one strategic dark panel */}
       <aside
-        className="fixed left-0 top-0 z-30 hidden h-dvh w-[var(--sidebar-width)] flex-col border-r border-[var(--line)] bg-[var(--surface)] md:flex"
+        className="fixed left-0 top-0 z-30 hidden h-dvh w-[var(--sidebar-width)] flex-col border-r border-[var(--navy-line)] bg-[var(--navy)] md:flex"
         aria-label="Main navigation"
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-[var(--line)] px-4">
-          <KairelaLogo href="/dashboard" size="md" subtitle="Career OS" />
+        <div className="flex h-14 items-center gap-2.5 border-b border-[var(--navy-line)] px-4">
+          <KairelaLogo href="/dashboard" size="md" subtitle="Career OS" onDark />
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -117,8 +117,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-sm font-medium transition-colors duration-[120ms]",
                   active
-                    ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-                    : "text-[var(--ink-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--ink)]"
+                    ? "bg-[var(--navy-accent-muted)] text-[var(--navy-accent)]"
+                    : "text-[var(--navy-ink-secondary)] hover:bg-[var(--navy-surface)] hover:text-[var(--navy-ink)]"
                 )}
                 aria-current={active ? "page" : undefined}
               >
@@ -129,11 +129,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-[var(--line)] p-2">
+        <div className="border-t border-[var(--navy-line)] p-2">
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-sm font-medium text-[var(--ink-secondary)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--ink)]"
+            className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-sm font-medium text-[var(--navy-ink-secondary)] transition-colors hover:bg-[var(--navy-surface)] hover:text-[var(--navy-ink)]"
           >
             <LogOut className="h-4 w-4" />
             Sign out

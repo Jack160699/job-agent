@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getQueueStats } from "@/lib/jobs/background";
 import prisma from "@/lib/db";
@@ -19,7 +20,18 @@ export async function GET() {
     return NextResponse.json(publicChecks, { status: 503 });
   }
 
-  const admin = await isAdminUser().catch(() => false);
+  // Admin diagnostics require verifying the caller's session, which is a
+  // real network round trip to Supabase's auth server (auth.getUser() is
+  // deliberately server-verified, not a locally-decoded JWT — see
+  // lib/auth/server.ts). The overwhelming majority of health-check callers
+  // (uptime monitors, load balancers, our own smoke tests) have no session
+  // cookie at all, so skip that round trip entirely when there's nothing
+  // to verify — this is what was making every anonymous health check pay
+  // ~1s+ of unnecessary auth-server latency.
+  const hasSessionCookie = (await cookies())
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  const admin = hasSessionCookie ? await isAdminUser().catch(() => false) : false;
   if (!admin) {
     return NextResponse.json(publicChecks, { status: 200 });
   }

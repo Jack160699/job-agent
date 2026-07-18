@@ -2,8 +2,12 @@
 
 /* ═══════════════════════════════════════════════════════════
    Kairela Design System
-   Warm paper surfaces · Teal accent · Calm professional density
-   Human · Trustworthy · Optimistic — not generic AI cliché
+   Deep navy + primary blue + white surfaces · Modern Career OS
+   Fast · Intelligent · Trustworthy · Premium — not generic AI cliché
+
+   These are the same values previously proven in the resume-first
+   onboarding flow only (see resume-first/tokens.ts) — promoted here
+   to be the site-wide tokens instead of a scoped pilot.
    ═══════════════════════════════════════════════════════════ */
 
 @theme inline {
@@ -23,6 +27,8 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-muted: var(--accent-muted);
+  --color-navy: var(--navy);
+  --color-navy-surface: var(--navy-surface);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
@@ -35,22 +41,54 @@
 }
 
 :root {
-  /* Warm paper canvas — Mercury-inspired trust */
-  --canvas: #f7f6f3;
+  /* Very light blue canvas, white surfaces */
+  --canvas: #f5f8ff;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #efeee9;
-  --ink: #1a1a18;
-  --ink-secondary: #5c5c56;
-  --ink-tertiary: #8a8a82;
-  --line: #e8e6e1;
-  --line-strong: #d4d2cb;
+  --surface-sunken: #eef3ff;
+  --ink: #0b1530;
+  --ink-secondary: #44507a;
+  --ink-tertiary: #7480a6;
+  --line: #d6e0fb;
+  --line-strong: #b7c8f7;
 
-  /* Emerald — growth, optimism, job search momentum */
-  --accent: #0d7c66;
-  --accent-hover: #0a6b58;
-  --accent-muted: #e6f5f1;
-  --accent-subtle: #f0faf7;
+  /* Primary blue — momentum, trust, clarity */
+  --accent: #2455e6;
+  --accent-hover: #1d46c4;
+  --accent-muted: #e8eefd;
+  --accent-subtle: #f2f6ff;
+
+  /* Deep navy — used strategically for sidebar/header/premium panels,
+     never as a default surface (see app-shell.tsx). */
+  --navy: #0b1530;
+  --navy-surface: #101d3d;
+  --navy-surface-raised: #16244a;
+  --navy-ink: #ffffff;
+  --navy-ink-secondary: #aab4d6;
+  --navy-line: rgba(255, 255, 255, 0.1);
+  --navy-accent: #6d94ff;
+  --navy-accent-muted: rgba(109, 148, 255, 0.16);
+
+  /* resume-first (--rf-*) tokens, defined globally so components built for
+     that flow (ChipListEditor, EntryListEditor, StructuredResumeEditor)
+     render correctly anywhere they're used, not only inside the
+     onboarding wrapper that historically scoped them (resume-first/tokens.ts).
+     Same values as that scoped override, kept in sync deliberately. */
+  --rf-bg: #ffffff;
+  --rf-surface: #f2f6ff;
+  --rf-surface-strong: #e6edff;
+  --rf-primary: #2455e6;
+  --rf-primary-hover: #1d46c4;
+  --rf-primary-muted: #e8eefd;
+  --rf-ink: #0b1530;
+  --rf-ink-secondary: #44507a;
+  --rf-ink-tertiary: #7480a6;
+  --rf-line: #d6e0fb;
+  --rf-line-strong: #b7c8f7;
+  --rf-success: #0f8a5f;
+  --rf-warning: #a15c00;
+  --rf-radius: 14px;
+  --rf-radius-sm: 10px;
 
   --success: #15803d;
   --success-muted: #dcfce7;
@@ -117,7 +155,7 @@ body {
 }
 
 ::selection {
-  background: rgb(13 124 102 / 0.18);
+  background: rgb(36 85 230 / 0.18);
 }
 
 :focus-visible {
