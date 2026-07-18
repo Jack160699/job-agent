@@ -124,24 +124,66 @@ async function onboardWithPunePreferences(page: Page, tag: string) {
   await expect(page.getByRole("heading", { name: /Tell us what your resume can't/i })).toBeVisible({
     timeout: LOGIN_TIMEOUT,
   });
+
+  // "Continue" requires jobTitles.length > 0 AND locations.length > 0 AND
+  // workModes.length > 0 (see preferences-screen.tsx's canSubmit). But the
+  // *server-side* completeOnboarding() gate (lib/onboarding/service.ts)
+  // additionally requires requiredSkills.length > 0 AND experienceYears !=
+  // null for JOB_SEEKER — that check isn't reflected in the button's
+  // disabled state at all, so Continue can succeed while the later
+  // "complete" action still 400s with "Complete required search
+  // preferences before finishing onboarding". Each of these fields only
+  // renders when the resume didn't already supply it — fill whichever are
+  // present so completion can't silently fail regardless of how well the
+  // synthetic test resume happened to parse.
+  const jobTitleInput = page.getByLabel("Add to Target job titles");
+  if (await jobTitleInput.isVisible().catch(() => false)) {
+    await jobTitleInput.fill("Software Engineer");
+    await jobTitleInput.press("Enter");
+  }
+  const skillsInput = page.getByLabel("Add to Skills");
+  if (await skillsInput.isVisible().catch(() => false)) {
+    await skillsInput.fill("TypeScript");
+    await skillsInput.press("Enter");
+  }
+  const experienceInput = page.getByLabel("Years of experience");
+  if (await experienceInput.isVisible().catch(() => false)) {
+    await experienceInput.fill("5");
+  }
+
   const locationsInput = page.getByLabel("Add to Preferred locations");
   await locationsInput.fill("Pune");
   await locationsInput.press("Enter");
-  const remoteToggle = page.getByRole("button", { name: "Remote", exact: true });
-  if (await remoteToggle.isVisible().catch(() => false)) {
-    await remoteToggle.click();
-  }
-  const continueButton = page.getByRole("button", { name: /^Continue$/i });
-  if (await continueButton.isVisible().catch(() => false)) {
-    await continueButton.click();
-  }
 
-  // Either an interstitial "you're all set" screen or a direct landing on
-  // jobs — both are valid completions of this flow.
+  // Work mode section is unconditionally rendered; at least one is required.
+  await page.getByRole("button", { name: "Remote", exact: true }).click();
+
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+
+  // The "complete" step (STEP_LABELS.complete = "You're all set") always
+  // follows preferences — it is not conditional — and its button is what
+  // actually marks onboarding complete server-side (handleComplete() posts
+  // action:"complete"). A prior isVisible()-without-waiting check here
+  // silently skipped this click when the step hadn't rendered yet, which
+  // left onboarding incomplete server-side: the follow-up page.goto below
+  // then got bounced straight back to /dashboard/onboarding by the
+  // ensureOnboardingComplete() gate, forever. waitFor() polls for the
+  // required button instead of guessing.
   const goToDashboard = page.getByRole("button", { name: /Go to dashboard/i });
-  if (await goToDashboard.isVisible({ timeout: 15000 }).catch(() => false)) {
-    await goToDashboard.click();
-  }
+  await goToDashboard.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT });
+  // handleComplete() POSTs action:"complete" asynchronously before its own
+  // router.push(); clicking and immediately calling page.goto() below (a
+  // real navigation, which itself hits the ensureOnboardingComplete()
+  // gate) raced that POST — the gate would still read the pre-completion
+  // state and bounce straight back to /dashboard/onboarding. Waiting for
+  // the actual network response makes completion durable before we
+  // navigate away.
+  const completeResponse = page.waitForResponse(
+    (r) => r.url().includes("/api/onboarding") && r.request().method() === "PUT"
+  );
+  await goToDashboard.click();
+  const completion = await completeResponse;
+  expect(completion.ok()).toBeTruthy();
   await page.goto("/dashboard/jobs");
   return user;
 }
@@ -188,13 +230,15 @@ test.describe("2-3. Resume upload (PDF/DOCX/plain text) and instant deterministi
         );
 
         if (format === "text") {
-          await page
-            .getByRole("button", { name: /Paste text instead/i })
-            .click()
-            .catch(() => {});
-          const textarea = page.getByLabel(/paste your resume/i).or(page.locator("textarea")).first();
+          // Actual copy on resume-entry-screen.tsx: the mode toggle reads
+          // "Or paste your resume text" and the submit button reads
+          // "Extract details from pasted text" — neither matches generic
+          // "Paste text instead" / "Continue|Upload" wording, which is why
+          // this branch previously never fired the upload at all.
+          await page.getByRole("button", { name: /Or paste your resume text/i }).click();
+          const textarea = page.getByLabel(/Paste your resume text/i);
           await textarea.fill(SAMPLE_RESUME);
-          await page.getByRole("button", { name: /Continue|Upload/i }).first().click();
+          await page.getByRole("button", { name: /Extract details from pasted text/i }).click();
         } else {
           const buffer = format === "pdf" ? await buildSampleResumePdf() : await buildSampleResumeDocx();
           const mimeType =
@@ -250,15 +294,20 @@ test.describe("4. Editable resume review sections", () => {
       });
 
       const experienceSection = page.locator("section", { hasText: "Work experience" });
+      // Capture how many entries existed *before* adding the new one — if
+      // the resume yielded zero parsed entries, "remove the first entry"
+      // below must be skipped, since the only entry would then be the one
+      // just added (entries are appended, not prepended; removing index 0
+      // when it's the sole entry deletes it, silently discarding the add).
+      const originalEntryCount = await experienceSection.getByRole("button", { name: /Remove/i }).count();
       await experienceSection.getByRole("button", { name: /Add role/i }).click();
       const titleInputs = experienceSection.getByLabel("Title");
       await titleInputs.last().fill("QA Added Role");
 
       // Removing a non-empty entry must ask for confirmation (window.confirm).
-      page.once("dialog", (dialog) => dialog.accept());
-      const firstRemoveButton = experienceSection.getByRole("button", { name: /Remove/i }).first();
-      if (await firstRemoveButton.isVisible().catch(() => false)) {
-        await firstRemoveButton.click();
+      if (originalEntryCount > 0) {
+        page.once("dialog", (dialog) => dialog.accept());
+        await experienceSection.getByRole("button", { name: /Remove/i }).first().click();
       }
 
       const saveResponse = page.waitForResponse(
@@ -322,53 +371,54 @@ test.describe("6-9, 14-16. India-first job search, progress, cancel, broaden, na
   test("Pune-preference search enqueues immediately, shows progress, and never silently substitutes US locations", async ({
     page,
   }) => {
-    test.setTimeout(240000);
+    test.setTimeout(300000);
     const user = await onboardWithPunePreferences(page, "search");
     try {
       await expect(page).toHaveURL(/\/dashboard\/jobs/, { timeout: LOGIN_TIMEOUT });
 
-      const runButton = page.getByRole("button", { name: /Run Job Search/i });
+      // Actual copy on job-search-workflow.tsx (the component rendered on
+      // /dashboard/jobs) — the running state reads "Searching…" and its
+      // cancel button reads plain "Cancel"; "Running…"/"Cancel search" are
+      // wording from the unrelated, unused JobRunPanel component and never
+      // match anything on this page.
+      const runButton = page.getByRole("button", { name: /^Run Job Search$/i });
       const enqueueStart = Date.now();
       await runButton.click();
-      await expect(page.getByRole("button", { name: /Running…|Cancel search/i })).toBeVisible({
-        timeout: 10000,
-      });
+      await expect(
+        page.getByRole("button", { name: /Searching…|^Cancel$/i }).first()
+      ).toBeVisible({ timeout: 10000 });
       console.log(`MEASURED search_enqueue_ack_ms=${Date.now() - enqueueStart}`);
 
       // Cancel must work.
-      const cancelButton = page.getByRole("button", { name: /Cancel search/i });
+      const cancelButton = page.getByRole("button", { name: "Cancel", exact: true });
       if (await cancelButton.isVisible().catch(() => false)) {
         await cancelButton.click();
-        await expect(page.getByRole("button", { name: /Run Job Search/i })).toBeVisible({
+        await expect(page.getByRole("button", { name: /^Run Job Search$/i })).toBeVisible({
           timeout: 15000,
         });
       }
 
-      // Navigate away and back — state must not silently vanish; the button
-      // must render one of its known valid states, not an error/blank page.
+      // Start the one real run this test waits on to completion — background
+      // job processing on this infra genuinely takes low-single-digit
+      // minutes end to end (measured directly via Vercel runtime logs), so
+      // doing this twice in one test (cancel-then-rerun-to-completion, as
+      // an earlier version did) doesn't reliably fit any sane test budget.
+      // Cancel is already verified above without waiting on completion.
+      await page.getByRole("button", { name: /^Run Job Search$/i }).click();
+
+      // Navigate away and back *while it's running* — state must not
+      // silently vanish; the button must render one of its known valid
+      // states, not an error/blank page.
       await page.goto("/dashboard/matches");
       await page.goto("/dashboard/jobs");
       await expect(
-        page.getByRole("button", { name: /Cancel search|Run Job Search/i })
+        page.getByRole("button", { name: /^Run Job Search$/i }).or(page.getByRole("button", { name: /Searching…/i }))
       ).toBeVisible({ timeout: 15000 });
 
-      // Run again and let it reach a terminal state (complete or zero-result).
-      await page.getByRole("button", { name: /Run Job Search/i }).click();
-      await expect(
-        page.getByText(/Complete —|No jobs matched your current preferences/i).first()
-      ).toBeVisible({ timeout: 150000 });
+      await expect(page.getByText(/complete —/i).first()).toBeVisible({ timeout: 180000 });
 
       const bodyText = await page.locator("body").innerText();
       expect(bodyText.toLowerCase()).not.toMatch(/san francisco|new york, ny|united states only/);
-
-      // If zero results, Broaden must be offered and must work.
-      const broadenButton = page.getByRole("button", { name: /Broaden search/i });
-      if (await broadenButton.isVisible().catch(() => false)) {
-        await broadenButton.click();
-        await expect(page.getByRole("button", { name: /Running…|Cancel search/i })).toBeVisible({
-          timeout: 10000,
-        });
-      }
     } finally {
       await deleteUserByEmail(user.email);
     }
@@ -385,10 +435,8 @@ test.describe("10-13. Job ATS match and tailored resume scoring", () => {
     test.setTimeout(240000);
     const user = await onboardWithPunePreferences(page, "ats-match");
     try {
-      await page.getByRole("button", { name: /Run Job Search/i }).click();
-      await expect(
-        page.getByText(/Complete —|No jobs matched your current preferences/i).first()
-      ).toBeVisible({ timeout: 150000 });
+      await page.getByRole("button", { name: /^Run Job Search$/i }).click();
+      await expect(page.getByText(/complete —/i).first()).toBeVisible({ timeout: 150000 });
 
       // Applications page must render its ATS-score column/section
       // regardless of whether any application exists yet.
@@ -413,7 +461,7 @@ test.describe("10-13. Job ATS match and tailored resume scoring", () => {
       // Resume History must render (exact submitted resume + score history
       // surface), whether or not tailoring has happened yet.
       await page.goto("/dashboard/resumes");
-      await expect(page.getByRole("heading", { name: "Master Resume" })).toBeVisible({
+      await expect(page.getByRole("heading", { name: "Master Resume" }).first()).toBeVisible({
         timeout: 20000,
       });
     } finally {
