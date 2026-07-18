@@ -15,7 +15,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  // Injected into the downstream *request* headers (not the response) so
+  // Server Components can actually read it via next/headers' headers() —
+  // setting it only on the outgoing response would just add an HTTP header
+  // for the browser and never reach server-side rendering at all.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
@@ -32,7 +39,7 @@ export async function updateSession(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value)
         );
-        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options)
         );
@@ -88,8 +95,6 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
-
-  supabaseResponse.headers.set("x-pathname", request.nextUrl.pathname);
 
   return supabaseResponse;
 }

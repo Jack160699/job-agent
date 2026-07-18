@@ -89,21 +89,44 @@ export async function resolveKairelaUser(authUser: SupabaseUser): Promise<UserRe
     }
 
     case "create_new": {
-      const created = await prisma.user.create({
-        data: {
-          supabaseId: authUser.id,
-          email: email!,
-          fullName: incomingProfile.fullName ?? undefined,
-          avatarUrl: incomingProfile.avatarUrl ?? undefined,
-          settings: {
-            create: {
-              jobTitles: [],
-              locations: [],
-              enabledSources: [...DEFAULT_ENABLED_SOURCES],
+      let created: PrismaUser;
+      try {
+        created = await prisma.user.create({
+          data: {
+            supabaseId: authUser.id,
+            email: email!,
+            fullName: incomingProfile.fullName ?? undefined,
+            avatarUrl: incomingProfile.avatarUrl ?? undefined,
+            settings: {
+              create: {
+                jobTitles: [],
+                locations: [],
+                enabledSources: [...DEFAULT_ENABLED_SOURCES],
+              },
             },
           },
-        },
-      });
+        });
+      } catch (error) {
+        // Two concurrent first requests for the same brand-new session (e.g.
+        // a router prefetch racing the real navigation) can both reach this
+        // branch before either INSERT commits. The loser hits a unique
+        // constraint on email/supabaseId rather than a real conflict — the
+        // winner's row already satisfies what this caller needed, so recover
+        // by re-reading it instead of surfacing a spurious failure that
+        // would otherwise make getDbUser() silently return null.
+        const isUniqueConflict =
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { code?: string }).code === "P2002";
+        if (!isUniqueConflict) throw error;
+
+        const winner =
+          (await prisma.user.findUnique({ where: { supabaseId: authUser.id } })) ??
+          (email ? await prisma.user.findUnique({ where: { email } }) : null);
+        if (!winner) throw error;
+        return { status: "resolved", user: winner, created: false };
+      }
       await createAuditLog({
         userId: created.id,
         action: "USER_CREATED",
