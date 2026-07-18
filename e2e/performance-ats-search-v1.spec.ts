@@ -85,10 +85,16 @@ async function login(page: Page, user: { email: string; password: string }) {
 
 async function choosePersona(page: Page) {
   await expect(page).toHaveURL(/\/dashboard\/onboarding/, { timeout: LOGIN_TIMEOUT });
+  // This is a required step, not an optional one — every scenario below
+  // needs the JOB_SEEKER path selected. A plain isVisible() is a
+  // non-polling instant check and was found (via live Preview
+  // verification) to race the onboarding screen's first client-side
+  // render, silently skipping the click and stranding every downstream
+  // step on the welcome screen. waitFor() polls until the button is
+  // actually there.
   const jobSeekerChoice = page.getByRole("button", { name: /Find my next job/i });
-  if (await jobSeekerChoice.isVisible().catch(() => false)) {
-    await jobSeekerChoice.click();
-  }
+  await jobSeekerChoice.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT });
+  await jobSeekerChoice.click();
 }
 
 /**
@@ -173,7 +179,9 @@ test.describe("2-3. Resume upload (PDF/DOCX/plain text) and instant deterministi
       try {
         await login(page, user);
         await choosePersona(page);
-        await expect(page.getByRole("heading", { name: "Start with your resume" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Start with your resume" })).toBeVisible({
+          timeout: LOGIN_TIMEOUT,
+        });
 
         const uploadResponse = page.waitForResponse(
           (r) => r.url().includes("/api/resumes/master") && r.request().method() === "POST"

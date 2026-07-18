@@ -55,15 +55,18 @@ function LoginForm() {
       }
 
       toast.success("Welcome back!");
-      // router.refresh() immediately after router.push() to a *different*
-      // route was found (via live Preview verification) to race the
-      // in-flight RSC transition: the URL bar would update all the way to
-      // the server-redirected /dashboard/onboarding destination, but the
-      // page content itself never committed — only a hard reload rendered
-      // it. push() alone already fetches fresh RSC content for the
-      // destination (dynamic routes have no stale-time to work around
-      // here), so the extra refresh() was both redundant and harmful.
-      router.push("/dashboard");
+      // A plain client-side router.push("/dashboard") was found (via live
+      // Preview verification, reproduced twice) to get stuck when the
+      // destination layout itself issues a server-side redirect() (new
+      // users get redirect()'d from /dashboard to /dashboard/onboarding):
+      // the URL bar updates all the way to the final destination, but the
+      // client Router Cache/RSC transition never commits any content —
+      // the browser is left retrying the same cached RSC fetch forever,
+      // and only a hard reload renders anything. A full navigation sends
+      // a real HTTP request and always renders correctly, so it's used
+      // here instead of the client-side transition for this one-time,
+      // non-performance-critical post-login hop.
+      window.location.href = "/dashboard";
     } catch {
       setError("Failed to sign in. Check your connection and try again.");
     } finally {
