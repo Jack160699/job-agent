@@ -40,5 +40,20 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // Samsung Galaxy S23 FE: 393x852 CSS px @ 2.75x DPR, matching the
+      // device's actual rendered viewport (not a Playwright built-in
+      // preset, so specified explicitly).
+      name: "samsung-s23-fe",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 2.75,
+        isMobile: true,
+        hasTouch: true,
+        userAgent:
+          "Mozilla/5.0 (Linux; Android 14; SM-S711B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+      },
+    },
   ],
 });
