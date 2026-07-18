@@ -10,11 +10,14 @@ import {
   ResumeHistory,
   type ResumeHistoryEntry,
 } from "@/components/dashboard/resume-history";
+import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 
 export default async function ResumesPage() {
   const history = await getResumeHistory();
   const masterResume = history.master;
   const tailoredResumes = history.tailored;
+  const masterProfile =
+    (masterResume?.content as { profile?: ParsedCareerProfile } | null)?.profile ?? null;
   const historyEntries: ResumeHistoryEntry[] = [];
 
   if (masterResume) {
@@ -124,6 +127,7 @@ export default async function ResumesPage() {
                 title={masterResume.title}
                 rawText={masterResume.rawText}
                 skills={masterResume.skills}
+                profile={masterProfile}
               />
             ) : (
               <ResumeUploadForm />

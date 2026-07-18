@@ -61,6 +61,8 @@ export async function loadOnboardingDraft(userId: string): Promise<OnboardingDra
     noticePeriodDays: settings?.noticePeriodDays ?? draft.noticePeriodDays,
     visaSponsorshipRequired:
       settings?.visaSponsorshipRequired ?? draft.visaSponsorshipRequired,
+    workAuthorization: settings?.workAuthorization ?? draft.workAuthorization,
+    travelWillingness: settings?.travelWillingness ?? draft.travelWillingness,
     targetCompanies: settings?.targetCompanies?.length
       ? settings.targetCompanies
       : draft.targetCompanies,
@@ -138,6 +140,8 @@ export async function saveOnboardingProgress(
         currentRole: merged.currentRole ?? null,
         noticePeriodDays: merged.noticePeriodDays ?? null,
         visaSponsorshipRequired: merged.visaSponsorshipRequired ?? false,
+        workAuthorization: merged.workAuthorization ?? null,
+        travelWillingness: merged.travelWillingness ?? null,
         willingToRelocate: merged.willingToRelocate ?? false,
         industries: merged.industries ?? [],
         employmentTypes: (merged.employmentTypes as never) ?? [],
@@ -163,6 +167,8 @@ export async function saveOnboardingProgress(
         currentRole: merged.currentRole,
         noticePeriodDays: merged.noticePeriodDays,
         visaSponsorshipRequired: merged.visaSponsorshipRequired,
+        workAuthorization: merged.workAuthorization,
+        travelWillingness: merged.travelWillingness,
         willingToRelocate: merged.willingToRelocate,
         industries: merged.industries,
         employmentTypes: merged.employmentTypes as never,

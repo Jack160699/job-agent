@@ -29,6 +29,52 @@ const EMPLOYMENT_TYPES = [
   { id: "FREELANCE", label: "Freelance" },
 ];
 
+const WORK_AUTHORIZATION_OPTIONS = [
+  { id: "citizen_or_pr", label: "Citizen / permanent resident" },
+  { id: "work_visa_held", label: "Hold a valid work visa" },
+  { id: "sponsorship_needed", label: "Need sponsorship" },
+  { id: "not_applicable", label: "Not applicable" },
+];
+
+const TRAVEL_WILLINGNESS_OPTIONS = [
+  { id: "none", label: "No travel" },
+  { id: "occasional", label: "Occasional" },
+  { id: "frequent", label: "Frequent" },
+];
+
+function estimateReadinessPercent(input: {
+  jobTitles: string[];
+  locations: string[];
+  workModes: string[];
+  requiredSkills: string[];
+  experienceYears: string;
+  noticePeriodDays: string;
+  salaryMin: string;
+  salaryMax: string;
+  employmentTypes: string[];
+  workAuthorization: string;
+  industries: string;
+  targetCompanies: string;
+}): number {
+  const search = [
+    input.jobTitles.length > 0,
+    input.locations.length > 0 || input.workModes.includes("REMOTE"),
+    input.workModes.length > 0,
+    input.requiredSkills.length > 0,
+    input.experienceYears.trim().length > 0,
+  ];
+  const application = [
+    input.noticePeriodDays.trim().length > 0,
+    input.salaryMin.trim().length > 0 || input.salaryMax.trim().length > 0,
+    input.employmentTypes.length > 0,
+    input.workAuthorization.trim().length > 0,
+  ];
+  const optional = [input.industries.trim().length > 0, input.targetCompanies.trim().length > 0];
+  const pct = (arr: boolean[]) =>
+    arr.length === 0 ? 100 : Math.round((arr.filter(Boolean).length / arr.length) * 100);
+  return Math.round(pct(search) * 0.5 + pct(application) * 0.35 + pct(optional) * 0.15);
+}
+
 function guessCurrency(location?: string): string {
   const l = (location ?? "").toLowerCase();
   if (/india/.test(l)) return "INR";
@@ -71,6 +117,8 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
     draft.noticePeriodDays != null ? String(draft.noticePeriodDays) : ""
   );
   const [willingToRelocate, setWillingToRelocate] = useState(draft.willingToRelocate ?? false);
+  const [workAuthorization, setWorkAuthorization] = useState(draft.workAuthorization ?? "");
+  const [travelWillingness, setTravelWillingness] = useState(draft.travelWillingness ?? "");
   const [requireReview, setRequireReview] = useState(draft.requireReview ?? true);
   const [autoSubmitEnabled, setAutoSubmitEnabled] = useState(draft.autoSubmitEnabled ?? false);
 
@@ -93,6 +141,21 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
     locations.length > 0 &&
     workModes.length > 0 &&
     !saving;
+
+  const readinessPercent = estimateReadinessPercent({
+    jobTitles,
+    locations,
+    workModes,
+    requiredSkills,
+    experienceYears,
+    noticePeriodDays,
+    salaryMin,
+    salaryMax,
+    employmentTypes,
+    workAuthorization,
+    industries,
+    targetCompanies,
+  });
 
   const handleSubmit = async () => {
     if (jobTitles.length === 0) {
@@ -120,6 +183,8 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
         salaryCurrency,
         noticePeriodDays: noticePeriodDays.trim() ? Number(noticePeriodDays) : null,
         willingToRelocate,
+        workAuthorization: workAuthorization || undefined,
+        travelWillingness: travelWillingness || undefined,
         requireReview,
         autoSubmitEnabled,
         targetCompanies: splitCsv(targetCompanies),
@@ -152,6 +217,25 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
         <p className="mt-1.5 text-sm text-[var(--rf-ink-secondary)]">
           A few quick preferences and we&apos;ll start matching you to roles.
         </p>
+      </div>
+
+      <div
+        className="rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium text-[var(--rf-ink)]">Profile ready: {readinessPercent}%</span>
+          <span className="text-xs text-[var(--rf-ink-secondary)]">
+            Only the fields your resume didn&apos;t already answer are shown below
+          </span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--rf-line)]">
+          <div
+            className="h-full rounded-full bg-[var(--rf-primary)] transition-all"
+            style={{ width: `${readinessPercent}%` }}
+          />
+        </div>
       </div>
 
       {(needsFullName || needsLocation || needsRole || needsExperience || needsSkills) && (
@@ -353,6 +437,50 @@ export function PreferencesScreen({ draft, onCompleted }: PreferencesScreenProps
           />
           Willing to relocate
         </label>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-[var(--rf-ink-secondary)]">Work authorization</Label>
+          <div className="flex flex-wrap gap-2">
+            {WORK_AUTHORIZATION_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                aria-pressed={workAuthorization === o.id}
+                className={[
+                  "h-11 rounded-full border px-4 text-sm font-medium",
+                  workAuthorization === o.id
+                    ? "border-[var(--rf-primary)] bg-[var(--rf-primary-muted)] text-[var(--rf-primary)]"
+                    : "border-[var(--rf-line-strong)] text-[var(--rf-ink-secondary)]",
+                ].join(" ")}
+                onClick={() => setWorkAuthorization(workAuthorization === o.id ? "" : o.id)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-[var(--rf-ink-secondary)]">Travel willingness</Label>
+          <div className="flex flex-wrap gap-2">
+            {TRAVEL_WILLINGNESS_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                aria-pressed={travelWillingness === o.id}
+                className={[
+                  "h-11 rounded-full border px-4 text-sm font-medium",
+                  travelWillingness === o.id
+                    ? "border-[var(--rf-primary)] bg-[var(--rf-primary-muted)] text-[var(--rf-primary)]"
+                    : "border-[var(--rf-line-strong)] text-[var(--rf-ink-secondary)]",
+                ].join(" ")}
+                onClick={() => setTravelWillingness(travelWillingness === o.id ? "" : o.id)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">

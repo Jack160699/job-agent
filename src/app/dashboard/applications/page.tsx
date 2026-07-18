@@ -70,6 +70,14 @@ export default async function ApplicationsPage() {
                       </ol>
                     </details>
                   </div>
+                  {app.scoreRecord && (
+                    <p className="mt-2 text-xs text-[var(--ink-secondary)]">
+                      Kairela Job ATS Match: {app.scoreRecord.originalScore} →{" "}
+                      <span className="font-medium text-[var(--ink)]">{app.scoreRecord.tailoredScore}</span>{" "}
+                      ({app.scoreRecord.scoreDelta >= 0 ? "+" : ""}
+                      {app.scoreRecord.scoreDelta})
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {app.matchScore != null ? (
@@ -104,6 +112,7 @@ export default async function ApplicationsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Position</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Match</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">ATS score (original → tailored)</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Updated</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[var(--ink-tertiary)]">Documents / next action</th>
@@ -123,6 +132,18 @@ export default async function ApplicationsPage() {
                         <MatchScoreBadge score={app.matchScore} size="sm" />
                       ) : (
                         <span className="text-xs text-[var(--ink-tertiary)]">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-[var(--ink-secondary)]">
+                      {app.scoreRecord ? (
+                        <>
+                          {app.scoreRecord.originalScore} →{" "}
+                          <span className="font-medium text-[var(--ink)]">{app.scoreRecord.tailoredScore}</span>{" "}
+                          ({app.scoreRecord.scoreDelta >= 0 ? "+" : ""}
+                          {app.scoreRecord.scoreDelta})
+                        </>
+                      ) : (
+                        <span className="text-[var(--ink-tertiary)]">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">

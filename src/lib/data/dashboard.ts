@@ -189,11 +189,13 @@ export async function getJobDetail(jobId: string) {
       where: { id: jobId, userId: user.id },
       include: {
         applications: {
-          include: { tailoredResume: true, coverLetter: true },
+          include: { tailoredResume: true, coverLetter: true, scoreRecord: true },
         },
         imports: true,
         feedback: { where: { userId: user.id }, take: 1 },
         provenance: true,
+        // Phase D: before/after Kairela Job ATS Match history for this job.
+        scoreRecords: { orderBy: { createdAt: "desc" } },
       },
     });
   }, null);
@@ -229,7 +231,14 @@ export async function getApplications(status?: string) {
         ...(status ? { status: status as "SUBMITTED" } : {}),
       },
       orderBy: { updatedAt: "desc" },
-      include: { job: true, tailoredResume: true, coverLetter: true },
+      include: {
+        job: true,
+        tailoredResume: true,
+        coverLetter: true,
+        // Phase D: before/after Kairela Job ATS Match history, surfaced on
+        // the Applications list and Application detail views.
+        scoreRecord: true,
+      },
     });
   }, []);
 }
@@ -292,6 +301,9 @@ export async function getResumeHistory() {
           job: { select: { id: true, title: true, company: true } },
           application: { select: { id: true, status: true } },
           versions: { orderBy: { version: "desc" }, take: 50 },
+          // Phase D: before/after Kairela Job ATS Match score, surfaced in
+          // Resume History alongside the tailored document it was scored for.
+          scoreRecords: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       }),
     ]);

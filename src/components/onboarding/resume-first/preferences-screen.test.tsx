@@ -43,4 +43,29 @@ describe("PreferencesScreen safe defaults", () => {
     expect(screen.getByLabelText("Current location")).toBeInTheDocument();
     expect(screen.getByLabelText("Current role")).toBeInTheDocument();
   });
+
+  it("shows a lower Profile ready percentage for an empty draft than a full one", () => {
+    render(<PreferencesScreen draft={{}} onCompleted={vi.fn()} />);
+    const emptyText = screen.getByText(/Profile ready: \d+%/).textContent ?? "";
+    const emptyPct = Number(emptyText.match(/(\d+)%/)?.[1]);
+
+    const fullDraft: OnboardingDraft = {
+      fullName: "Ada Lovelace",
+      currentLocation: "Pune, India",
+      currentRole: "Engineer",
+      experienceYears: 5,
+      requiredSkills: ["TypeScript"],
+      jobTitles: ["Backend Engineer"],
+      locations: ["Pune"],
+      workModes: ["HYBRID"],
+      noticePeriodDays: 30,
+      salaryMin: 1000000,
+      employmentTypes: ["FULL_TIME"],
+    };
+    render(<PreferencesScreen draft={fullDraft} onCompleted={vi.fn()} />);
+    const fullTexts = screen.getAllByText(/Profile ready: \d+%/);
+    const fullPct = Number(fullTexts[fullTexts.length - 1].textContent?.match(/(\d+)%/)?.[1]);
+
+    expect(fullPct).toBeGreaterThan(emptyPct);
+  });
 });

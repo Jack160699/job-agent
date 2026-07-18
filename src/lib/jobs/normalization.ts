@@ -63,7 +63,22 @@ const TITLE_FAMILIES: Record<string, string[]> = {
 };
 
 const LOCATION_GROUPS: Record<string, string[]> = {
-  pune: ["pune", "pimpri chinchwad", "hinjewadi", "wakad", "chakan"],
+  pune: [
+    "pune",
+    "pimpri chinchwad",
+    "pimpri-chinchwad",
+    "pcmc",
+    "chinchwad",
+    "pimpri",
+    "hinjewadi",
+    "wakad",
+    "chakan",
+    "kharadi",
+    "baner",
+    "hadapsar",
+    "viman nagar",
+    "magarpatta",
+  ],
   mumbai: ["mumbai", "bombay", "navi mumbai", "thane"],
   bengaluru: ["bengaluru", "bangalore"],
   hyderabad: ["hyderabad", "secunderabad"],
@@ -86,6 +101,37 @@ const LOCATION_GROUPS: Record<string, string[]> = {
   indore: ["indore"],
   chandigarh: ["chandigarh", "mohali", "panchkula"],
   kochi: ["kochi", "cochin", "ernakulam"],
+};
+
+// Phase E: state-level markers. Lets a state-only job posting (e.g. "Maharashtra,
+// India" with no city named) be recognized as a broader — not identical — match
+// for a user whose preferred city sits in that state, without ever treating it
+// as a confident exact-location match or silently swapping in a different city.
+const STATE_GROUPS: Record<string, string[]> = {
+  maharashtra: ["maharashtra"],
+  karnataka: ["karnataka"],
+  telangana: ["telangana"],
+  tamil_nadu: ["tamil nadu", "tamilnadu"],
+  delhi_state: ["delhi", "ncr"],
+  west_bengal: ["west bengal"],
+  gujarat: ["gujarat"],
+  rajasthan: ["rajasthan"],
+  punjab: ["punjab"],
+  kerala: ["kerala"],
+};
+
+const CITY_STATE: Record<string, string> = {
+  pune: "maharashtra",
+  mumbai: "maharashtra",
+  bengaluru: "karnataka",
+  hyderabad: "telangana",
+  chennai: "tamil_nadu",
+  delhi_ncr: "delhi_state",
+  kolkata: "west_bengal",
+  ahmedabad: "gujarat",
+  jaipur: "rajasthan",
+  chandigarh: "punjab",
+  kochi: "kerala",
 };
 
 const INDIA_MARKERS = [
@@ -217,9 +263,11 @@ export function expandRoleTitles(titles: string[]): string[] {
 export function normalizeLocation(value: string): {
   normalized: string;
   group: string | null;
+  state: string | null;
   country: "IN" | "OTHER" | "UNKNOWN";
   remote: boolean;
   remoteScope: "INDIA" | "WORLDWIDE" | "UNKNOWN";
+  remoteRestricted: boolean;
 } {
   const normalized = normalizeText(value);
   const group =
@@ -228,16 +276,32 @@ export function normalizeLocation(value: string): {
         (alias) => normalized.includes(alias) || alias.includes(normalized)
       )
     )?.[0] ?? null;
+  const state =
+    (group ? CITY_STATE[group] : null) ??
+    Object.entries(STATE_GROUPS).find(([, aliases]) =>
+      aliases.some((alias) => normalized.includes(alias))
+    )?.[0] ??
+    null;
   const remote = /\b(remote|work from home|wfh)\b/.test(normalized);
   const india = INDIA_MARKERS.some((marker) => normalized.includes(marker));
   const worldwide = /\b(worldwide|global|anywhere)\b/.test(normalized);
+  // Explicit non-India restriction stated on the posting itself — this is the
+  // only case that should ever hard-exclude a remote role for an India-based
+  // candidate. Anything else (unstated, worldwide) stays eligible-but-uncertain
+  // rather than being silently dropped.
+  const remoteRestricted =
+    /\b(us only|u s only|usa only|united states only|eu only|europe only|uk only|europe residents only|based in the us|must reside in the us|us residents only|us citizens only)\b/.test(
+      normalized
+    );
 
   return {
     normalized,
     group,
+    state,
     country: india ? "IN" : normalized ? "OTHER" : "UNKNOWN",
     remote,
     remoteScope: india ? "INDIA" : worldwide ? "WORLDWIDE" : "UNKNOWN",
+    remoteRestricted,
   };
 }
 
@@ -254,6 +318,12 @@ export function locationsAreCompatible(
   const indiaFirst = preferences.some((location) => location.country === "IN");
 
   if (job.remote && options.remotePreferred) {
+    if (indiaFirst && job.remoteRestricted) {
+      return {
+        matched: false,
+        reason: "Remote role is explicitly restricted to a non-India location",
+      };
+    }
     if (indiaFirst && job.remoteScope === "WORLDWIDE") {
       return {
         matched: false,
@@ -293,6 +363,21 @@ export function locationsAreCompatible(
     return {
       matched: true,
       reason: `Location ${jobLocation} matches a preferred area`,
+    };
+  }
+
+  // Phase E: state-level broadening. A posting naming only a state (e.g.
+  // "Maharashtra, India") that contains a preferred city is a plausible but
+  // unconfirmed match — surfaced as uncertain rather than silently dropped
+  // or silently treated as an exact-city match.
+  const stateMatch = preferences.some(
+    (preferred) => preferred.group && job.state && CITY_STATE[preferred.group] === job.state
+  );
+  if (stateMatch) {
+    return {
+      matched: true,
+      reason: `Location ${jobLocation} is in the same state as a preferred city; exact city is unconfirmed`,
+      uncertain: true,
     };
   }
 

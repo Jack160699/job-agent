@@ -4,8 +4,8 @@ import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 import { resolveApiUser, createAuditLog, prisma } from "@/lib/api/auth";
 import { parseResumeFile, parseResumeStructure } from "@/lib/resumes/parser";
 import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/career-profile";
-import { enhanceCareerProfileWithAI } from "@/lib/resumes/career-profile-ai";
 import { calculateAtsReadinessScore, type AtsReadinessScore } from "@/lib/resumes/ats-score";
+import { enqueueJob, claimAndProcessJob } from "@/lib/jobs/background";
 import type { Prisma } from "@prisma/client";
 
 type StoredContent = {
@@ -15,55 +15,6 @@ type StoredContent = {
   atsScore: AtsReadinessScore;
   enrichment: { status: "pending" | "complete" | "skipped" | "failed"; completedAt?: string };
 };
-
-/**
- * Runs after the response has already been sent (Phase 3: the user must
- * never wait on OpenAI for the initial result). Enriches the deterministic
- * profile, recomputes the score against the richer profile, and persists —
- * the UI picks this up on its next fetch/poll. Never overwrites a field the
- * deterministic pass (or the user) already confirmed; enhanceCareerProfileWithAI
- * only fills gaps and is itself grounded against the raw resume text.
- */
-async function enrichResumeInBackground(resumeId: string, rawText: string, deterministic: ParsedCareerProfile) {
-  const current = await prisma.masterResume.findUnique({ where: { id: resumeId } });
-  if (!current) return; // resume was deleted/replaced before enrichment finished
-  const currentContent = (current.content as Partial<StoredContent> | null) ?? {};
-
-  try {
-    const enriched = await enhanceCareerProfileWithAI(deterministic, rawText);
-    const enrichedScore = calculateAtsReadinessScore(enriched, rawText);
-
-    await prisma.masterResume.update({
-      where: { id: resumeId },
-      data: {
-        content: {
-          ...currentContent,
-          profile: enriched,
-          atsScore: enrichedScore,
-          enrichment: { status: "complete", completedAt: new Date().toISOString() },
-        } as unknown as Prisma.InputJsonValue,
-        experience: enriched.experience.value as unknown as Prisma.InputJsonValue,
-        education: enriched.education.value as unknown as Prisma.InputJsonValue,
-        projects: enriched.projects.value as unknown as Prisma.InputJsonValue,
-      },
-    });
-  } catch {
-    // Enrichment is best-effort — the deterministic result already stands on
-    // its own and was already returned to the user. Just clear the "pending"
-    // marker so the UI stops waiting for an update that isn't coming.
-    await prisma.masterResume
-      .update({
-        where: { id: resumeId },
-        data: {
-          content: {
-            ...currentContent,
-            enrichment: { status: "failed" },
-          } as unknown as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => {});
-  }
-}
 
 const resumeSchema = z.object({
   title: z.string().trim().min(1).max(120).default("Master Resume"),
@@ -214,12 +165,21 @@ export async function POST(request: NextRequest) {
       metadata: { atsScore: atsScore.totalScore, deterministicExtractionMs },
     });
 
-    // Phase 3: AI enrichment (if configured) runs after the response is
-    // sent — the user already has their baseline score and profile.
+    // Phase 3 + Phase G: AI enrichment (if configured) is queued as a
+    // durable BackgroundJob rather than a bare after() call — after() is
+    // still the immediate kick (claims and runs it in this same request's
+    // execution window when possible), but if that doesn't finish in time
+    // the job stays "pending" and the existing cron drain recovers it. The
+    // user already has their baseline score and profile either way.
     if (aiConfigured) {
+      const enrichJob = await enqueueJob(
+        "ENRICH_RESUME",
+        { userId: user.id, resumeId: resume.id },
+        { priority: 100, source: "interactive" }
+      );
       after(() => {
-        enrichResumeInBackground(resume.id, rawText, profile).catch((err) =>
-          console.error("[resumes/master] background enrichment failed:", err)
+        claimAndProcessJob(enrichJob.id).catch((err) =>
+          console.error("[resumes/master] background enrichment kick failed:", err)
         );
       });
     }

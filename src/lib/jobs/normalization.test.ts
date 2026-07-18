@@ -52,6 +52,45 @@ describe("India-first location normalization", () => {
   it("recognizes tier-2 Indian cities", () => {
     expect(normalizeLocation("Remote - Indore, India").country).toBe("IN");
   });
+
+  it("recognizes PCMC and Pimpri-Chinchwad as the Pune area", () => {
+    expect(normalizeLocation("PCMC, Pune").group).toBe("pune");
+    expect(normalizeLocation("Pimpri-Chinchwad, Maharashtra").group).toBe("pune");
+    expect(
+      locationsAreCompatible(["Pune"], "PCMC, Maharashtra", {
+        remotePreferred: false,
+        willingToRelocate: false,
+      }).matched
+    ).toBe(true);
+  });
+
+  it("surfaces a state-only posting as an uncertain — not silent — match", () => {
+    const result = locationsAreCompatible(["Pune"], "Maharashtra, India", {
+      remotePreferred: false,
+      willingToRelocate: false,
+    });
+    expect(result.matched).toBe(true);
+    expect(result.uncertain).toBe(true);
+    expect(result.reason).toContain("unconfirmed");
+  });
+
+  it("does not treat a different state as a Pune match", () => {
+    const result = locationsAreCompatible(["Pune"], "Karnataka, India", {
+      remotePreferred: false,
+      willingToRelocate: false,
+    });
+    expect(result.matched).toBe(false);
+  });
+
+  it("hard-excludes remote roles explicitly restricted to a non-India location", () => {
+    const result = locationsAreCompatible(["Pune", "India"], "Remote - US Only", {
+      remotePreferred: true,
+      willingToRelocate: false,
+    });
+    expect(result.matched).toBe(false);
+    expect(result.uncertain).toBeFalsy();
+    expect(result.reason).toContain("restricted");
+  });
 });
 
 describe("role and seniority normalization", () => {

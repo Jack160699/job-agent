@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateJobAgainstPreferences } from "@/lib/jobs/preferences";
+import { calculateProfileReadiness, evaluateJobAgainstPreferences } from "@/lib/jobs/preferences";
 import type { UserSettings } from "@prisma/client";
 import type { DiscoveredJob } from "@/lib/jobs/types";
 
@@ -192,6 +192,43 @@ describe("preference-aware discovery", () => {
     expect(result.uncertain.join(" ")).toContain("cannot be compared");
   });
 
+  it("keeps unconfirmed-India-eligibility remote roles visible as uncertain rather than rejecting them", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        title: "Full Stack Developer",
+        location: "Remote",
+        description: "Remote full stack role. React Node TypeScript. No location restriction stated.",
+      }),
+      baseSettings({
+        jobTitles: ["Full Stack Developer"],
+        locations: ["Pune", "India"],
+        workModes: ["REMOTE"],
+        requiredSkills: ["React", "Node"],
+        matchThreshold: 50,
+      })
+    );
+    expect(result.classification).not.toBe("REJECTED");
+    expect(result.uncertain.some((u) => /india/i.test(u))).toBe(true);
+  });
+
+  it("still rejects remote roles explicitly restricted to a non-India location", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        title: "Full Stack Developer",
+        location: "Remote - US Only",
+        description: "Remote full stack role. React Node TypeScript.",
+      }),
+      baseSettings({
+        jobTitles: ["Full Stack Developer"],
+        locations: ["Pune", "India"],
+        workModes: ["REMOTE"],
+        requiredSkills: ["React", "Node"],
+        matchThreshold: 50,
+      })
+    );
+    expect(result.classification).toBe("REJECTED");
+  });
+
   it("rejects expired closing dates", () => {
     const result = evaluateJobAgainstPreferences(
       sampleJob({ closesAt: new Date("2020-01-01T00:00:00Z") }),
@@ -199,5 +236,62 @@ describe("preference-aware discovery", () => {
     );
     expect(result.classification).toBe("REJECTED");
     expect(result.exclusions).toContain("Application closing date has passed");
+  });
+});
+
+describe("Phase B: profile readiness (Profile ready: NN%)", () => {
+  it("returns 0% across all categories for a null profile", () => {
+    const readiness = calculateProfileReadiness(null);
+    expect(readiness.percent).toBe(0);
+    expect(readiness.requiredForSearch.percent).toBe(0);
+    expect(readiness.requiredForApplication.percent).toBe(0);
+    expect(readiness.requiredForSearch.missing).toContain("Target job titles");
+  });
+
+  it("only lists fields that are actually absent as missing", () => {
+    const readiness = calculateProfileReadiness(
+      baseSettings({
+        jobTitles: ["Frontend Developer"],
+        requiredSkills: ["React"],
+        locations: ["Pune"],
+        workModes: ["HYBRID"],
+        experienceYears: 3,
+      })
+    );
+    expect(readiness.requiredForSearch.missing).toEqual([]);
+    expect(readiness.requiredForSearch.percent).toBe(100);
+  });
+
+  it("weights required-for-search above optional fields", () => {
+    const searchOnly = calculateProfileReadiness(
+      baseSettings({
+        jobTitles: ["Frontend Developer"],
+        requiredSkills: ["React"],
+        locations: ["Pune"],
+        workModes: ["HYBRID"],
+        experienceYears: 3,
+        noticePeriodDays: null,
+        salaryMin: null,
+        salaryMax: null,
+        currentSalary: null,
+        employmentTypes: [],
+        industries: [],
+        targetCompanies: [],
+        companySizes: [],
+      })
+    );
+    const optionalOnly = calculateProfileReadiness(
+      baseSettings({
+        jobTitles: [],
+        requiredSkills: [],
+        locations: [],
+        workModes: [],
+        experienceYears: null,
+        industries: ["Fintech"],
+        targetCompanies: ["Acme"],
+        companySizes: ["51-200"],
+      })
+    );
+    expect(searchOnly.percent).toBeGreaterThan(optionalOnly.percent);
   });
 });

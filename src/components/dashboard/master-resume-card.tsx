@@ -1,23 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { History, Pencil, Trash2 } from "lucide-react";
+import { History, ListChecks, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ResumeUploadForm } from "@/components/dashboard/resume-upload";
+import { StructuredResumeEditor } from "@/components/dashboard/structured-resume-editor";
 import { toast } from "sonner";
+import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 
 export function MasterResumeCard({
   title,
   rawText,
   skills,
+  profile,
 }: {
   title: string;
   rawText: string;
   skills: string[];
+  profile: ParsedCareerProfile | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [editingSections, setEditingSections] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [versions, setVersions] = useState<
     Array<{
@@ -92,6 +97,16 @@ export function MasterResumeCard({
     }
   };
 
+  if (editingSections && profile) {
+    return (
+      <StructuredResumeEditor
+        profile={profile}
+        onSaved={() => setEditingSections(false)}
+        onCancel={() => setEditingSections(false)}
+      />
+    );
+  }
+
   if (editing) {
     return (
       <div className="space-y-3">
@@ -147,6 +162,17 @@ export function MasterResumeCard({
           <Pencil className="mr-1 h-3.5 w-3.5" />
           Edit or replace
         </Button>
+        {profile && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setEditingSections(true)}
+          >
+            <ListChecks className="mr-1 h-3.5 w-3.5" />
+            Edit sections
+          </Button>
+        )}
         <Button
           type="button"
           size="sm"

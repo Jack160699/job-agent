@@ -6,12 +6,43 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, RefreshCcw, Upload } from "lucide-react";
-import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import type {
+  EducationEntry,
+  ExperienceEntry,
+  ParsedCareerProfile,
+  ProjectEntry,
+} from "@/lib/resumes/career-profile";
 import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import type { FieldMergeOutcome } from "@/lib/onboarding/merge-policy";
 import { trackOnboardingEvent } from "@/lib/analytics/events";
 import { ChipListEditor } from "./chip-list-editor";
+import { EntryListEditor } from "./entry-list-editor";
 import { AtsScoreCard } from "./ats-score-card";
+
+const EMPTY_EXPERIENCE: ExperienceEntry = {
+  title: "",
+  company: "",
+  location: "",
+  startDate: "",
+  endDate: "",
+  current: false,
+  description: "",
+  evidence: "user-entered",
+};
+const EMPTY_EDUCATION: EducationEntry = {
+  degree: "",
+  institution: "",
+  field: "",
+  startDate: "",
+  endDate: "",
+  evidence: "user-entered",
+};
+const EMPTY_PROJECT: ProjectEntry = {
+  name: "",
+  description: "",
+  technologies: [],
+  evidence: "user-entered",
+};
 
 interface ReviewScreenProps {
   profile: ParsedCareerProfile;
@@ -54,6 +85,16 @@ export function ReviewScreen({
   const [jobTitles, setJobTitles] = useState<string[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState<string>("");
+
+  const [professionalSummary, setProfessionalSummary] = useState(
+    profile.professionalSummary.value ?? ""
+  );
+  const [experience, setExperience] = useState<ExperienceEntry[]>(profile.experience.value);
+  const [education, setEducation] = useState<EducationEntry[]>(profile.education.value);
+  const [projects, setProjects] = useState<ProjectEntry[]>(profile.projects.value);
+  const [certifications, setCertifications] = useState<string[]>(profile.certifications.value);
+  const [languages, setLanguages] = useState<string[]>(profile.languages.value);
+  const [sectionsDirty, setSectionsDirty] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +150,23 @@ export function ReviewScreen({
     }
     setSaving(true);
     try {
+      if (sectionsDirty) {
+        const sectionRes = await fetch("/api/resumes/master/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            professionalSummary: professionalSummary.trim() || null,
+            experience,
+            education,
+            projects,
+            certifications,
+            languages,
+          }),
+        });
+        const sectionData = await sectionRes.json();
+        if (!sectionRes.ok) throw new Error(sectionData.error || "Could not save resume sections");
+      }
+
       const edits: Record<string, unknown> = { ...scalarEdits };
       edits.jobTitles = jobTitles;
       edits.requiredSkills = skills;
@@ -150,6 +208,13 @@ export function ReviewScreen({
     setJobTitles(profile.jobTitles.value);
     setSkills(profile.skills.value);
     setExperienceYears(String(profile.experienceYears.value ?? ""));
+    setProfessionalSummary(profile.professionalSummary.value ?? "");
+    setExperience(profile.experience.value);
+    setEducation(profile.education.value);
+    setProjects(profile.projects.value);
+    setCertifications(profile.certifications.value);
+    setLanguages(profile.languages.value);
+    setSectionsDirty(false);
     toast.success("Applied Kairela's extracted values");
   };
 
@@ -268,37 +333,101 @@ export function ReviewScreen({
         <ChipListEditor label="Skills" values={skills} onChange={setSkills} />
       </section>
 
-      <ReadOnlyEntrySection
+      <section className="space-y-2 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
+        <h2 className="text-sm font-semibold text-[var(--rf-ink)]">Headline / summary</h2>
+        <textarea
+          className="min-h-24 w-full rounded-[var(--rf-radius-sm)] border border-[var(--rf-line)] bg-white px-3 py-2 text-sm text-[var(--rf-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rf-primary)]"
+          value={professionalSummary}
+          placeholder="A short summary of your experience"
+          onChange={(e) => {
+            setProfessionalSummary(e.target.value);
+            setSectionsDirty(true);
+          }}
+        />
+      </section>
+
+      <EntryListEditor
         title="Work experience"
-        empty="No work experience detected — you can add this later in Resume History."
-        items={profile.experience.value.map((e) => ({
-          heading: [e.title, e.company].filter(Boolean).join(" · ") || "Untitled role",
-          detail: [e.startDate, e.current ? "Present" : e.endDate].filter(Boolean).join(" – "),
-        }))}
+        entries={experience}
+        onChange={(next) => {
+          setExperience(next);
+          setSectionsDirty(true);
+        }}
+        emptyEntry={EMPTY_EXPERIENCE}
+        emptyMessage="No work experience detected — add your roles below."
+        addLabel="Add role"
+        entrySummary={(e) => [e.title, e.company].filter(Boolean).join(" · ")}
+        fields={[
+          { key: "title", label: "Title", placeholder: "Software Engineer" },
+          { key: "company", label: "Company", placeholder: "Acme Inc" },
+          { key: "location", label: "Location", placeholder: "Pune, India" },
+          { key: "startDate", label: "Start date", placeholder: "Jan 2022" },
+          { key: "endDate", label: "End date", placeholder: "Present" },
+          { key: "current", label: "I currently work here", type: "checkbox" },
+          { key: "description", label: "Responsibilities & achievements", type: "textarea" },
+        ]}
       />
 
-      <ReadOnlyEntrySection
+      <EntryListEditor
         title="Education"
-        empty="No education detected — you can add this later in Resume History."
-        items={profile.education.value.map((e) => ({
-          heading: [e.degree, e.institution].filter(Boolean).join(" · ") || "Untitled",
-          detail: e.endDate ?? "",
-        }))}
+        entries={education}
+        onChange={(next) => {
+          setEducation(next);
+          setSectionsDirty(true);
+        }}
+        emptyEntry={EMPTY_EDUCATION}
+        emptyMessage="No education detected — add it below."
+        addLabel="Add education"
+        entrySummary={(e) => [e.degree, e.institution].filter(Boolean).join(" · ")}
+        fields={[
+          { key: "degree", label: "Degree", placeholder: "B.Tech Computer Science" },
+          { key: "institution", label: "Institution", placeholder: "University name" },
+          { key: "field", label: "Field of study", placeholder: "Computer Science" },
+          { key: "startDate", label: "Start date", placeholder: "2018" },
+          { key: "endDate", label: "End date", placeholder: "2022" },
+        ]}
       />
 
-      <ReadOnlyEntrySection
+      <EntryListEditor
         title="Projects"
-        empty="No projects detected."
-        items={profile.projects.value.map((p) => ({ heading: p.name ?? "Untitled project", detail: p.description ?? "" }))}
-        optional
+        entries={projects}
+        onChange={(next) => {
+          setProjects(next);
+          setSectionsDirty(true);
+        }}
+        emptyEntry={EMPTY_PROJECT}
+        emptyMessage="No projects detected."
+        addLabel="Add project"
+        entrySummary={(e) => e.name ?? ""}
+        fields={[
+          { key: "name", label: "Project name" },
+          { key: "description", label: "Description", type: "textarea" },
+        ]}
       />
 
-      <ReadOnlyEntrySection
-        title="Certifications"
-        empty="No certifications detected."
-        items={profile.certifications.value.map((c) => ({ heading: c, detail: "" }))}
-        optional
-      />
+      <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
+        <h2 className="text-sm font-semibold text-[var(--rf-ink)]">Certifications</h2>
+        <ChipListEditor
+          label="Certifications"
+          values={certifications}
+          onChange={(next) => {
+            setCertifications(next);
+            setSectionsDirty(true);
+          }}
+        />
+      </section>
+
+      <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
+        <h2 className="text-sm font-semibold text-[var(--rf-ink)]">Languages</h2>
+        <ChipListEditor
+          label="Languages"
+          values={languages}
+          onChange={(next) => {
+            setLanguages(next);
+            setSectionsDirty(true);
+          }}
+        />
+      </section>
 
       <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
         <h2 className="text-sm font-semibold text-[var(--rf-ink)]">Profile links</h2>
@@ -344,36 +473,5 @@ export function ReviewScreen({
         {saving ? "Saving…" : "Looks good, continue"}
       </Button>
     </div>
-  );
-}
-
-function ReadOnlyEntrySection({
-  title,
-  items,
-  empty,
-  optional,
-}: {
-  title: string;
-  items: Array<{ heading: string; detail: string }>;
-  empty: string;
-  optional?: boolean;
-}) {
-  if (items.length === 0 && optional) return null;
-  return (
-    <section className="space-y-2 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
-      <h2 className="text-sm font-semibold text-[var(--rf-ink)]">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-xs text-[var(--rf-ink-tertiary)]">{empty}</p>
-      ) : (
-        <ul className="space-y-2">
-          {items.map((item, idx) => (
-            <li key={idx} className="rounded-[var(--rf-radius-sm)] bg-[var(--rf-surface)] p-2.5 text-sm">
-              <p className="font-medium text-[var(--rf-ink)]">{item.heading}</p>
-              {item.detail && <p className="text-xs text-[var(--rf-ink-secondary)]">{item.detail}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }

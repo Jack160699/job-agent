@@ -158,6 +158,7 @@ model User {
   agentActionProposals AgentActionProposal[]
   subscription      Subscription?
   usageLedger       UsageLedger[]
+  applicationScoreRecords ApplicationScoreRecord[]
 
   @@map("users")
 }
@@ -227,6 +228,7 @@ model TailoredResume {
   job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
   application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   versions     TailoredResumeVersion[]
+  scoreRecords ApplicationScoreRecord[]
 
   @@index([userId])
   @@index([userId, archivedAt])
@@ -322,6 +324,7 @@ model Job {
   imports         JobImport[]
   feedback        JobFeedback[]
   provenance      JobProvenance[]
+  scoreRecords    ApplicationScoreRecord[]
 
   @@unique([userId, source, externalId])
   @@index([userId, status])
@@ -462,10 +465,48 @@ model Application {
   coverLetter   CoverLetter?
   interviews    Interview[]
   emails        Email[]
+  scoreRecord   ApplicationScoreRecord?
 
   @@unique([userId, jobId])
   @@index([userId, status])
   @@map("applications")
+}
+
+/// Phase D: exact before/after Kairela Job ATS Match scores, the exact
+/// submitted resume document, and submission timestamp for one application.
+/// Dedicated table rather than JSON piggybacked onto tailored_resumes so
+/// this history is queryable and cannot be silently overwritten by
+/// unrelated tailored-resume updates.
+model ApplicationScoreRecord {
+  id                        String    @id @default(uuid()) @db.Uuid
+  userId                    String    @map("user_id") @db.Uuid
+  applicationId             String    @unique @map("application_id") @db.Uuid
+  jobId                     String    @map("job_id") @db.Uuid
+  jobDescriptionFingerprint String?   @map("job_description_fingerprint")
+  masterResumeVersion       Int       @map("master_resume_version")
+  tailoredResumeId          String    @map("tailored_resume_id") @db.Uuid
+  tailoredResumeVersion     Int       @map("tailored_resume_version")
+  originalScore             Int       @map("original_score")
+  originalBreakdown         Json      @map("original_breakdown")
+  tailoredScore             Int       @map("tailored_score")
+  tailoredBreakdown         Json      @map("tailored_breakdown")
+  scoreDelta                Int       @map("score_delta")
+  missingRequirements       String[]  @map("missing_requirements")
+  groundingExclusions       Json?     @map("grounding_exclusions")
+  submittedDocument         String?   @map("submitted_document") @db.Text
+  submittedAt               DateTime? @map("submitted_at")
+  generatedAt               DateTime  @default(now()) @map("generated_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application    Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  job            Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  tailoredResume TailoredResume @relation(fields: [tailoredResumeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, jobId])
+  @@index([userId, createdAt])
+  @@map("application_score_records")
 }
 
 model Recruiter {
@@ -570,6 +611,8 @@ model UserSettings {
   noticePeriodDays      Int?     @map("notice_period_days")
   currentRole           String?  @map("profile_current_role")
   currentSalary         Int?     @map("current_salary")
+  workAuthorization     String?  @map("work_authorization")
+  travelWillingness     String?  @map("travel_willingness")
   preferencesComplete   Boolean  @default(false) @map("preferences_complete")
   driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")

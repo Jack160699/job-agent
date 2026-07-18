@@ -125,6 +125,8 @@ export interface OnboardingDraft {
   currentSalary?: number | null;
   noticePeriodDays?: number | null;
   visaSponsorshipRequired?: boolean;
+  workAuthorization?: string;
+  travelWillingness?: string;
   targetCompanies?: string[];
   excludedCompanies?: string[];
   matchThreshold?: number;

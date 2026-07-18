@@ -425,6 +425,12 @@ export async function prepareApplicationSubmission(
       await recordUsage(userId, "application", 1, {
         idempotencyKey: `application_submitted:${applicationId}`,
       });
+      // Phase D: retain the exact document that was actually submitted,
+      // alongside the score history already recorded when it was tailored.
+      await prisma.applicationScoreRecord.updateMany({
+        where: { applicationId, userId },
+        data: { submittedDocument: resumeText, submittedAt: new Date() },
+      });
     }
 
     return {

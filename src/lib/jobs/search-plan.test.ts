@@ -40,6 +40,8 @@ function settings(
     noticePeriodDays: null,
     currentRole: null,
     currentSalary: null,
+    workAuthorization: null,
+    travelWillingness: null,
     preferencesComplete: true,
     driveBackupEnabled: false,
     onboardingCompletedAt: new Date(),

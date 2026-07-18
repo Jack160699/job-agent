@@ -24,11 +24,55 @@ import {
   type SourceFetchResult,
 } from "./source-health";
 import { partitionByExistence } from "./job-matching";
+import { calculateJobAtsMatch, type JobAtsMatchInput } from "./job-ats-match";
+import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/career-profile";
+import { parseResumeStructure } from "@/lib/resumes/parser";
+import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import {
   assertCanUseFeature,
   consumeFeature,
   recordUsage,
 } from "@/lib/entitlements";
+
+function readabilityRatio(atsScore: AtsReadinessScore | null | undefined): number {
+  const category = atsScore?.categories.find((c) => c.key === "readabilityFormatting");
+  if (!category || category.maxScore === 0) return 0.7; // neutral default when unknown
+  return category.score / category.maxScore;
+}
+
+function toJobAtsMatchInput(job: {
+  title: string;
+  company: string;
+  description: string;
+  requiredSkills: string[];
+  preferredSkills: string[];
+  experienceMin: number | null;
+  experienceMax: number | null;
+  workMode: string;
+  location: string | null;
+}): JobAtsMatchInput {
+  const workMode =
+    job.workMode === "REMOTE" || job.workMode === "HYBRID" || job.workMode === "ONSITE"
+      ? job.workMode
+      : "UNKNOWN";
+  return {
+    title: job.title,
+    company: job.company,
+    description: job.description,
+    requiredSkills: job.requiredSkills,
+    preferredSkills: job.preferredSkills,
+    experienceMin: job.experienceMin,
+    experienceMax: job.experienceMax,
+    workMode,
+    location: job.location,
+  };
+}
+
+/** Re-derives a ParsedCareerProfile from a tailored resume's grounded rawText, for apples-to-apples scoring against the original. */
+function profileFromTailoredText(rawText: string): ParsedCareerProfile {
+  const parsed = parseResumeStructure(rawText, { mediaType: "text/plain", parser: "tailored" });
+  return extractCareerProfile(parsed);
+}
 
 export async function archiveLegacyJobs(userId: string) {
   const jobs = await prisma.job.findMany({
@@ -854,6 +898,20 @@ export async function processApplication(
     strengths?: string[];
   } | null;
 
+  // Phase D: score the untouched master resume against this exact job
+  // before tailoring, so the before/after comparison reflects genuine
+  // improvement rather than a shifting baseline.
+  const masterContent = masterResume.content as { profile?: ParsedCareerProfile; atsScore?: AtsReadinessScore } | null;
+  const masterProfile = masterContent?.profile ?? extractCareerProfile(
+    parseResumeStructure(masterResume.rawText, { mediaType: "text/plain", parser: "master" })
+  );
+  const jobAtsInput = toJobAtsMatchInput(job);
+  const originalJobAtsMatch = calculateJobAtsMatch(
+    masterProfile,
+    jobAtsInput,
+    readabilityRatio(masterContent?.atsScore)
+  );
+
   const tailored = await tailorResume({
     masterResume: {
       content: masterResume.content,
@@ -958,6 +1016,50 @@ export async function processApplication(
         archivedAt: null,
       },
     });
+  });
+
+  // Phase D: score the tailored resume against the same job and persist the
+  // before/after comparison. The tailored profile is re-derived from the
+  // tailored resume's own grounded rawText — the exact same extraction path
+  // used for the master resume — so both scores are computed identically.
+  const tailoredProfile = profileFromTailoredText(tailored.rawText);
+  const tailoredJobAtsMatch = calculateJobAtsMatch(
+    tailoredProfile,
+    jobAtsInput,
+    readabilityRatio(masterContent?.atsScore)
+  );
+  const scoreDelta = tailoredJobAtsMatch.totalScore - originalJobAtsMatch.totalScore;
+
+  await prisma.applicationScoreRecord.upsert({
+    where: { applicationId: application.id },
+    create: {
+      userId,
+      applicationId: application.id,
+      jobId: job.id,
+      jobDescriptionFingerprint: job.descriptionFingerprint,
+      masterResumeVersion: masterResume.version,
+      tailoredResumeId: tailoredResume.id,
+      tailoredResumeVersion: tailoredResume.version,
+      originalScore: originalJobAtsMatch.totalScore,
+      originalBreakdown: originalJobAtsMatch as unknown as Prisma.InputJsonValue,
+      tailoredScore: tailoredJobAtsMatch.totalScore,
+      tailoredBreakdown: tailoredJobAtsMatch as unknown as Prisma.InputJsonValue,
+      scoreDelta,
+      missingRequirements: tailoredJobAtsMatch.missingRequirements,
+      groundingExclusions: groundingReport,
+    },
+    update: {
+      masterResumeVersion: masterResume.version,
+      tailoredResumeId: tailoredResume.id,
+      tailoredResumeVersion: tailoredResume.version,
+      originalScore: originalJobAtsMatch.totalScore,
+      originalBreakdown: originalJobAtsMatch as unknown as Prisma.InputJsonValue,
+      tailoredScore: tailoredJobAtsMatch.totalScore,
+      tailoredBreakdown: tailoredJobAtsMatch as unknown as Prisma.InputJsonValue,
+      scoreDelta,
+      missingRequirements: tailoredJobAtsMatch.missingRequirements,
+      groundingExclusions: groundingReport,
+    },
   });
 
   const savedCoverLetter = await prisma.coverLetter.upsert({

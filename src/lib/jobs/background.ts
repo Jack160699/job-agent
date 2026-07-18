@@ -13,12 +13,14 @@ export type JobType =
   | "SYNC_CALENDAR"
   | "RUN_AGENT"
   | "GENERATE_RECOMMENDATIONS"
-  | "RETRY_FAILED";
+  | "RETRY_FAILED"
+  | "ENRICH_RESUME";
 
 interface JobPayload {
   userId?: string;
   jobId?: string;
   applicationId?: string;
+  resumeId?: string;
 }
 
 const INTERACTIVE_PRIORITY = 100;
@@ -370,6 +372,14 @@ async function claimAndRunJob(job: {
         break;
       case "RETRY_FAILED":
         result = await retryFailedApplications(payload.userId);
+        break;
+      case "ENRICH_RESUME":
+        if (payload.userId && payload.resumeId) {
+          const { enrichMasterResume } = await import("@/lib/resumes/enrichment");
+          result = await enrichMasterResume(payload.userId, payload.resumeId);
+        } else {
+          throw new Error("ENRICH_RESUME missing userId or resumeId");
+        }
         break;
       default:
         throw new Error(`Unknown job type: ${job.type}`);

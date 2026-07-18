@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Search,
   Bot,
@@ -10,6 +11,9 @@ import {
   FileText,
   CheckCircle2,
   Loader2,
+  XCircle,
+  SlidersHorizontal,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -51,6 +55,8 @@ export function JobRunPanel({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<JobRunProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [broadening, setBroadening] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
 
@@ -117,6 +123,22 @@ export function JobRunPanel({
 
       if (!data.queued && mode === "search" && data.total != null) {
         setRunning(false);
+        setProgress({
+          jobId: null,
+          type: jobType,
+          status: "completed",
+          stage: "completed",
+          stageLabel: "Complete",
+          progress: 100,
+          jobsFound: data.total,
+          jobsNew: data.new ?? 0,
+          currentCompany: null,
+          currentAts: null,
+          queuePosition: null,
+          estimatedSecondsRemaining: null,
+          logs: [],
+          error: null,
+        });
         toast.success(`Found ${data.total} jobs (${data.new} new)`);
         onComplete?.();
         return;
@@ -129,6 +151,64 @@ export function JobRunPanel({
       const msg = err instanceof Error ? err.message : "Failed to start";
       setError(msg);
       toast.error(msg);
+    }
+  };
+
+  const cancelRun = async () => {
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/jobs/search", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not cancel search");
+      stopPolling();
+      setRunning(false);
+      toast.success(data.message || "Search cancelled — results already saved remain available.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not cancel search");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const broadenAndRetry = async () => {
+    setBroadening(true);
+    try {
+      const settingsRes = await fetch("/api/preferences");
+      const settingsData = await settingsRes.json();
+      if (!settingsRes.ok || !settingsData.settings) {
+        throw new Error("Could not load your preferences to broaden them");
+      }
+      const current = settingsData.settings;
+      const broadened = {
+        ...current,
+        matchThreshold: Math.max(40, (current.matchThreshold ?? 70) - 15),
+        workModes: current.workModes.includes("REMOTE")
+          ? current.workModes
+          : [...current.workModes, "REMOTE"],
+      };
+      const changes: string[] = [];
+      if (broadened.matchThreshold !== current.matchThreshold) {
+        changes.push(`match threshold lowered to ${broadened.matchThreshold}`);
+      }
+      if (!current.workModes.includes("REMOTE")) {
+        changes.push("remote roles included");
+      }
+      const putRes = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...broadened, preferencesComplete: true }),
+      });
+      if (!putRes.ok) throw new Error("Could not save broadened preferences");
+      toast.success(
+        changes.length > 0
+          ? `Broadened search: ${changes.join(", ")}. Re-running…`
+          : "Preferences were already at their broadest — re-running…"
+      );
+      await startRun();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not broaden search");
+    } finally {
+      setBroadening(false);
     }
   };
 
@@ -174,6 +254,20 @@ export function JobRunPanel({
         )}
         {running ? "Running…" : label}
       </Button>
+
+      {running && mode === "search" && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-2 h-11 gap-1.5"
+          disabled={cancelling}
+          onClick={() => void cancelRun()}
+        >
+          <XCircle className="h-4 w-4" />
+          {cancelling ? "Cancelling…" : "Cancel search"}
+        </Button>
+      )}
 
       {running && progress && (
         <Card className="border-[var(--accent)]/20 bg-[var(--accent-subtle)]">
@@ -277,10 +371,39 @@ export function JobRunPanel({
         />
       )}
 
-      {progress?.status === "completed" && !running && (
+      {progress?.status === "completed" && !running && progress.jobsFound > 0 && (
         <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--success)]/20 bg-[var(--success-muted)] px-4 py-3 text-sm text-[var(--success)]">
           <CheckCircle2 className="h-4 w-4" />
           Complete — {progress.jobsFound} jobs found, {progress.jobsNew} new
+        </div>
+      )}
+
+      {mode === "search" && progress?.status === "completed" && !running && progress.jobsFound === 0 && (
+        <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning-muted)] p-4 text-sm">
+          <p className="font-medium text-[var(--ink)]">No jobs matched your current preferences</p>
+          <p className="text-xs text-[var(--ink-tertiary)]">
+            Sources were searched but nothing cleared your title, location, and skill filters this run.
+            Broaden your preferences or edit them directly, then run the search again.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5"
+              disabled={broadening}
+              onClick={() => void broadenAndRetry()}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              {broadening ? "Broadening…" : "Broaden search"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-9 gap-1.5" asChild>
+              <Link href="/dashboard/settings">
+                <Settings className="h-3.5 w-3.5" />
+                Edit preferences
+              </Link>
+            </Button>
+          </div>
         </div>
       )}
     </div>

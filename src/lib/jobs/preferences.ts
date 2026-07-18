@@ -83,6 +83,85 @@ export function hasMinimumPreferences(settings: UserSettings | null): boolean {
   return missing.length === 0;
 }
 
+export interface ProfileReadinessCategory {
+  label: string;
+  percent: number;
+  missing: string[];
+}
+
+export interface ProfileReadiness {
+  percent: number;
+  requiredForSearch: ProfileReadinessCategory;
+  requiredForApplication: ProfileReadinessCategory;
+  optional: ProfileReadinessCategory;
+}
+
+function categoryReadiness(
+  label: string,
+  fields: Array<{ label: string; present: boolean }>
+): ProfileReadinessCategory {
+  const missing = fields.filter((f) => !f.present).map((f) => f.label);
+  const percent =
+    fields.length === 0
+      ? 100
+      : Math.round(((fields.length - missing.length) / fields.length) * 100);
+  return { label, percent, missing };
+}
+
+/**
+ * Phase B: "Profile ready: NN%" — only asks for fields that are absent.
+ * Required-for-search fields gate whether a search can run at all;
+ * required-for-application fields gate whether Kairela can safely apply on
+ * the user's behalf; optional fields only refine ranking. The overall
+ * percent weights search readiness heaviest since it unblocks everything
+ * else in the end-to-end flow.
+ */
+export function calculateProfileReadiness(
+  settings: UserSettings | null
+): ProfileReadiness {
+  const requiredForSearch = categoryReadiness("Required to search", [
+    { label: "Target job titles", present: Boolean(settings?.jobTitles?.length) },
+    { label: "Primary skills", present: Boolean(settings?.requiredSkills?.length) },
+    {
+      label: "Preferred locations or remote",
+      present: Boolean(
+        settings?.locations?.length || settings?.workModes?.includes("REMOTE")
+      ),
+    },
+    { label: "Work mode (remote/hybrid/onsite)", present: Boolean(settings?.workModes?.length) },
+    { label: "Total years of experience", present: settings?.experienceYears != null },
+  ]);
+
+  const requiredForApplication = categoryReadiness("Required to apply", [
+    { label: "Notice period", present: settings?.noticePeriodDays != null },
+    {
+      label: "Expected or current salary",
+      present:
+        settings?.salaryMin != null ||
+        settings?.salaryMax != null ||
+        settings?.currentSalary != null,
+    },
+    { label: "Employment type", present: Boolean(settings?.employmentTypes?.length) },
+    { label: "Relocation willingness", present: settings != null },
+    { label: "Work authorization", present: Boolean(settings?.workAuthorization) },
+  ]);
+
+  const optional = categoryReadiness("Optional", [
+    { label: "Preferred industries", present: Boolean(settings?.industries?.length) },
+    { label: "Target companies", present: Boolean(settings?.targetCompanies?.length) },
+    { label: "Preferred company size", present: Boolean(settings?.companySizes?.length) },
+    { label: "Travel willingness", present: Boolean(settings?.travelWillingness) },
+  ]);
+
+  const percent = Math.round(
+    requiredForSearch.percent * 0.5 +
+      requiredForApplication.percent * 0.35 +
+      optional.percent * 0.15
+  );
+
+  return { percent, requiredForSearch, requiredForApplication, optional };
+}
+
 export type MatchClassification =
   | "STRONG"
   | "POSSIBLE"
@@ -139,12 +218,12 @@ export function detectWorkMode(job: DiscoveredJob): WorkMode {
 function locationMatches(
   job: DiscoveredJob,
   settings: UserSettings
-): { ok: boolean; reason?: string } {
+): { ok: boolean; reason?: string; uncertain?: boolean } {
   const result = locationsAreCompatible(settings.locations, job.location, {
     remotePreferred: settings.workModes.includes("REMOTE"),
     willingToRelocate: settings.willingToRelocate,
   });
-  return { ok: result.matched, reason: result.reason };
+  return { ok: result.matched, reason: result.reason, uncertain: result.uncertain };
 }
 
 function classifyScore(score: number, accepted: boolean): MatchClassification {
@@ -261,13 +340,24 @@ export function evaluateJobAgainstPreferences(
   }
 
   const locCheck = locationMatches(job, settings);
-  breakdown.locationMatch = locCheck.ok ? 85 : 0;
-  if (!locCheck.ok) {
+  if (!locCheck.ok && locCheck.uncertain) {
+    // Ambiguous, not contradicted — e.g. a remote posting that doesn't
+    // explicitly confirm India eligibility, or a state-level posting that
+    // contains a preferred city. Same treatment as every other ambiguous
+    // signal in this function (work mode, seniority, industry): surfaced to
+    // the user, not silently excluded.
+    breakdown.locationMatch = 50;
+    uncertain.push(locCheck.reason || "Location eligibility is unconfirmed");
+    score += 3;
+  } else if (!locCheck.ok) {
+    breakdown.locationMatch = 0;
     exclusions.push(locCheck.reason || "Location mismatch");
     return result(false, "Rejected — location mismatch");
+  } else {
+    breakdown.locationMatch = 85;
+    score += 10;
+    if (locCheck.reason) reasons.push(locCheck.reason);
   }
-  score += 10;
-  if (locCheck.reason) reasons.push(locCheck.reason);
 
   const salaryComparable =
     !job.salaryCurrency ||
