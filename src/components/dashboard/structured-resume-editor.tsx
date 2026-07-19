@@ -18,6 +18,12 @@ import type {
   ParsedCareerProfile,
   ProjectEntry,
 } from "@/lib/resumes/career-profile";
+import { searchJobTitles } from "@/lib/data/job-titles";
+import {
+  searchLocations,
+  formatLocationLabel,
+} from "@/lib/data/locations";
+import { searchAutocompleteCatalog } from "@/lib/data/autocomplete-catalogs";
 
 const EMPTY_EXPERIENCE: ExperienceEntry = {
   title: "",
@@ -379,8 +385,14 @@ export function StructuredResumeEditor({
           label="Target job titles"
           values={jobTitles}
           onChange={setJobTitles}
+          suggestions={searchJobTitles}
         />
-        <ChipListEditor label="Skills" values={skills} onChange={setSkills} />
+        <ChipListEditor
+          label="Skills"
+          values={skills}
+          onChange={setSkills}
+          suggestions={(query) => searchAutocompleteCatalog("skills", query)}
+        />
       </section>
 
       <div className="space-y-1.5">
@@ -400,9 +412,9 @@ export function StructuredResumeEditor({
         addLabel="Add role"
         entrySummary={(e) => [e.title, e.company].filter(Boolean).join(" · ")}
         fields={[
-          { key: "title", label: "Title", placeholder: "Software Engineer" },
-          { key: "company", label: "Company", placeholder: "Acme Inc" },
-          { key: "location", label: "Location", placeholder: "Pune, India" },
+          { key: "title", label: "Title", placeholder: "Software Engineer", suggestions: searchJobTitles },
+          { key: "company", label: "Company", placeholder: "Acme Inc", suggestions: (query) => searchAutocompleteCatalog("companies", query) },
+          { key: "location", label: "Location", placeholder: "Pune, India", suggestions: (query) => searchLocations(query).map(formatLocationLabel) },
           { key: "startDate", label: "Start date", placeholder: "Jan 2022" },
           { key: "endDate", label: "End date", placeholder: "Present" },
           { key: "current", label: "I currently work here", type: "checkbox" },
@@ -418,9 +430,9 @@ export function StructuredResumeEditor({
         emptyEntry={EMPTY_EDUCATION}
         entrySummary={(e) => [e.degree, e.institution].filter(Boolean).join(" · ")}
         fields={[
-          { key: "degree", label: "Degree", placeholder: "B.Tech Computer Science" },
-          { key: "institution", label: "Institution", placeholder: "University name" },
-          { key: "field", label: "Field of study" },
+          { key: "degree", label: "Degree", placeholder: "B.Tech Computer Science", suggestions: (query) => searchAutocompleteCatalog("degrees", query) },
+          { key: "institution", label: "Institution", placeholder: "University name", suggestions: (query) => searchAutocompleteCatalog("institutions", query) },
+          { key: "field", label: "Field of study", suggestions: (query) => searchAutocompleteCatalog("specializations", query) },
           { key: "startDate", label: "Start date", placeholder: "2018" },
           { key: "endDate", label: "End date", placeholder: "2022" },
         ]}
@@ -441,12 +453,12 @@ export function StructuredResumeEditor({
 
       <div className="space-y-1.5">
         <p className="text-sm font-medium text-[var(--ink)]">Certifications</p>
-        <ChipListEditor label="Certifications" values={certifications} onChange={setCertifications} />
+        <ChipListEditor label="Certifications" values={certifications} onChange={setCertifications} suggestions={(query) => searchAutocompleteCatalog("certifications", query)} />
       </div>
 
       <div className="space-y-1.5">
         <p className="text-sm font-medium text-[var(--ink)]">Languages</p>
-        <ChipListEditor label="Languages" values={languages} onChange={setLanguages} />
+        <ChipListEditor label="Languages" values={languages} onChange={setLanguages} suggestions={(query) => searchAutocompleteCatalog("languages", query)} />
       </div>
 
       <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">

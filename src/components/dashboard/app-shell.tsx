@@ -14,6 +14,8 @@ import {
   Calendar,
   BarChart3,
   Settings,
+  PlugZap,
+  NotebookTabs,
   ScrollText,
   LogOut,
   X,
@@ -37,6 +39,8 @@ const moreNav = [
   { href: "/dashboard/calendar", label: "Interviews", icon: Calendar },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/sources", label: "Sources", icon: PlugZap },
+  { href: "/dashboard/answers", label: "Answer Bank", icon: NotebookTabs },
   { href: "/dashboard/logs", label: "Logs", icon: ScrollText },
 ];
 
@@ -51,6 +55,8 @@ const desktopNav = [
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/sources", label: "Sources", icon: PlugZap },
+  { href: "/dashboard/answers", label: "Answer Bank", icon: NotebookTabs },
   { href: "/dashboard/logs", label: "Logs", icon: ScrollText },
 ];
 

@@ -42,6 +42,8 @@ export interface ApplicationProfile {
   willingToRelocate?: boolean | null;
   noticePeriodDays?: number | null;
   workModes?: Array<"REMOTE" | "HYBRID" | "ONSITE"> | null;
+  /** Owner-confirmed answer-bank values only. Unconfirmed drafts are excluded. */
+  confirmedAnswers?: Record<string, string>;
 }
 
 export interface SubmissionResult {

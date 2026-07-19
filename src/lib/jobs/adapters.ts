@@ -50,19 +50,81 @@ function discoveryQueries(filters: JobSearchFilters): Array<{
   title: string;
   location: string | null;
   remoteScope: "INDIA" | "WORLDWIDE" | null;
+  stage: "strict" | "balanced" | "recovery";
 }> {
   if (filters.queries && filters.queries.length > 0) {
     return filters.queries.slice(0, 12).map((query) => ({
       title: query.title,
       location: query.location,
       remoteScope: query.remoteScope,
+      stage: query.stage ?? "strict",
     }));
   }
   return filters.titles.slice(0, 3).map((title) => ({
     title,
     location: filters.locations[0] ?? null,
     remoteScope: filters.remote ? ("WORLDWIDE" as const) : null,
+    stage: "strict" as const,
   }));
+}
+
+function withSearchProvenance(
+  jobs: DiscoveredJob[],
+  query: ReturnType<typeof discoveryQueries>[number]
+): DiscoveredJob[] {
+  return jobs.map((job) => ({
+    ...job,
+    metadata: {
+      ...(job.metadata ?? {}),
+      searchStage: query.stage,
+      searchQuery: query.title,
+      requestedLocation: query.location,
+      remoteScope: query.remoteScope,
+    },
+  }));
+}
+
+function queryForJobTitle(
+  title: string,
+  queries: ReturnType<typeof discoveryQueries>
+) {
+  const normalizedTitle = title.toLowerCase();
+  const scored = queries.map((query) => {
+    const normalizedQuery = query.title.toLowerCase();
+    const queryTokens = normalizedQuery
+      .split(/[^a-z0-9+#.]+/)
+      .filter((token) => token.length > 2);
+    const tokenMatches = queryTokens.filter((token) =>
+      normalizedTitle.includes(token)
+    ).length;
+    const exact =
+      normalizedTitle.includes(normalizedQuery) ||
+      normalizedQuery.includes(normalizedTitle);
+    return {
+      query,
+      score: exact
+        ? 100 + normalizedQuery.length
+        : queryTokens.length > 0
+          ? tokenMatches / queryTokens.length
+          : 0,
+    };
+  });
+  const best = scored.sort((left, right) => right.score - left.score)[0];
+  if (best && best.score > 0) return best.query;
+  return (
+    [...queries].reverse().find((query) => query.stage === "recovery") ??
+    queries[queries.length - 1]
+  );
+}
+
+function assignSearchProvenance(
+  jobs: DiscoveredJob[],
+  queries: ReturnType<typeof discoveryQueries>
+) {
+  return jobs.flatMap((job) => {
+    const query = queryForJobTitle(job.title, queries);
+    return query ? withSearchProvenance([job], query) : [];
+  });
 }
 
 export class GreenhouseAdapter {
@@ -75,19 +137,18 @@ export class GreenhouseAdapter {
 
     const automator = getAllAutomators().find((a) => a.platform === "GREENHOUSE")!;
     const jobs: DiscoveredJob[] = [];
+    const queries = discoveryQueries(filters);
 
     for (const board of boards.slice(0, 4)) {
-      for (const query of discoveryQueries(filters)) {
-        try {
-          jobs.push(
-            ...(await automator.discoverJobs(
-              board,
-              query.location ? `${query.title} ${query.location}` : query.title
-            ))
-          );
-        } catch {
-          // Board may not exist
-        }
+      try {
+        jobs.push(
+          ...assignSearchProvenance(
+            await automator.discoverJobs(board, ""),
+            queries
+          )
+        );
+      } catch {
+        // Board may not exist
       }
     }
     return jobs;
@@ -129,19 +190,18 @@ export class LeverAdapter {
 
     const automator = getAllAutomators().find((a) => a.platform === "LEVER")!;
     const jobs: DiscoveredJob[] = [];
+    const queries = discoveryQueries(filters);
 
     for (const company of companies.slice(0, 4)) {
-      for (const query of discoveryQueries(filters)) {
-        try {
-          jobs.push(
-            ...(await automator.discoverJobs(
-              company,
-              query.location ? `${query.title} ${query.location}` : query.title
-            ))
-          );
-        } catch {
-          // Company may not exist
-        }
+      try {
+        jobs.push(
+          ...assignSearchProvenance(
+            await automator.discoverJobs(company, ""),
+            queries
+          )
+        );
+      } catch {
+        // Company may not exist
       }
     }
     return jobs;
@@ -202,19 +262,18 @@ export class AshbyAdapter {
 
     const automator = getAllAutomators().find((a) => a.platform === "ASHBY")!;
     const jobs: DiscoveredJob[] = [];
+    const queries = discoveryQueries(filters);
 
     for (const board of boards.slice(0, 4)) {
-      for (const query of discoveryQueries(filters)) {
-        try {
-          jobs.push(
-            ...(await automator.discoverJobs(
-              board,
-              query.location ? `${query.title} ${query.location}` : query.title
-            ))
-          );
-        } catch {
-          // Board may not exist
-        }
+      try {
+        jobs.push(
+          ...assignSearchProvenance(
+            await automator.discoverJobs(board, ""),
+            queries
+          )
+        );
+      } catch {
+        // Board may not exist
       }
     }
     return jobs;
@@ -284,15 +343,19 @@ export class WorkdayAdapter {
 
     const automator = getAllAutomators().find((a) => a.platform === "WORKDAY")!;
     const jobs: DiscoveredJob[] = [];
+    const stageQueries = discoveryQueries(filters).filter(
+      (query, index, all) =>
+        all.findIndex((candidate) => candidate.stage === query.stage) === index
+    );
 
     for (const company of companies) {
-      for (const query of discoveryQueries(filters)) {
+      for (const query of stageQueries) {
         try {
           jobs.push(
-            ...(await automator.discoverJobs(
-              company,
-              query.location ? `${query.title} ${query.location}` : query.title
-            ))
+            ...withSearchProvenance(
+              await automator.discoverJobs(company, query.title),
+              query
+            )
           );
         } catch {
           // Browser search may fail without Playwright

@@ -1,5 +1,6 @@
 import type { UserSettings, WorkMode, EmploymentType } from "@prisma/client";
 import type { DiscoveredJob } from "./types";
+import { selectCompanyBoards } from "./company-board-registry";
 import {
   detectSeniority,
   isSeniorityCompatible,
@@ -411,8 +412,14 @@ export function evaluateJobAgainstPreferences(
     jobText.includes(normalize(s))
   );
   if (matchedSkills.length === 0 && settings.requiredSkills.length > 0) {
-    exclusions.push("Missing required skills");
-    return result(false, "Rejected — verified skills do not match");
+    breakdown.skillMatch = 0;
+    concerns.push(
+      "No requested skill was verified in the source text; review the full posting before applying"
+    );
+    uncertain.push(
+      "The source may provide a shortened description without its full requirements"
+    );
+    score -= 5;
   }
   breakdown.skillMatch = Math.min(100, matchedSkills.length * 25);
   score += Math.min(25, matchedSkills.length * 8);
@@ -545,18 +552,7 @@ export function buildDiscoveryBoards(settings: UserSettings): {
   ashby: string[];
   workday: string[];
 } {
-  // Discovery boards are deliberately user-scoped. Shared environment board
-  // lists caused unrelated companies and locations to leak into every search.
-  const userBoards = (settings.targetCompanies || [])
-    .map((company) => company.trim())
-    .filter(Boolean);
-
-  return {
-    greenhouse: [...new Set(userBoards)],
-    lever: [...new Set(userBoards)],
-    ashby: [...new Set(userBoards)],
-    workday: [...new Set(userBoards)],
-  };
+  return selectCompanyBoards(settings);
 }
 
 export type PreferencePayload = {

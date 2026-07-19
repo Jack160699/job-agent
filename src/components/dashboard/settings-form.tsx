@@ -13,6 +13,7 @@ import { ConnectedAccounts } from "@/components/dashboard/connected-accounts";
 import { ChipListEditor } from "@/components/onboarding/resume-first/chip-list-editor";
 import { searchJobTitles } from "@/lib/data/job-titles";
 import { searchLocations, formatLocationLabel } from "@/lib/data/locations";
+import { searchAutocompleteCatalog } from "@/lib/data/autocomplete-catalogs";
 
 interface Settings {
   jobTitles: string[];
@@ -35,6 +36,8 @@ interface Settings {
   sheetsSyncEnabled: boolean;
   calendarSyncEnabled: boolean;
   targetCompanies?: string[];
+  requiredSkills?: string[];
+  industries?: string[];
   sectorPreference?: string;
   governmentCategories?: string[];
 }
@@ -96,8 +99,14 @@ export function SettingsForm({
   const [autoSubmit, setAutoSubmit] = useState(
     initialSettings?.autoSubmitEnabled ?? false
   );
-  const [targetCompanies, setTargetCompanies] = useState(
-    initialSettings?.targetCompanies?.join(", ") || ""
+  const [targetCompanies, setTargetCompanies] = useState<string[]>(
+    initialSettings?.targetCompanies ?? []
+  );
+  const [requiredSkills, setRequiredSkills] = useState<string[]>(
+    initialSettings?.requiredSkills ?? []
+  );
+  const [industries, setIndustries] = useState<string[]>(
+    initialSettings?.industries ?? []
   );
   const [sectorPreference, setSectorPreference] = useState<
     "PRIVATE" | "GOVERNMENT" | "BOTH"
@@ -165,6 +174,15 @@ export function SettingsForm({
     if (!res.ok) throw new Error(data.error || "Google status failed");
     return data;
   }, [applyGoogleStatus]);
+
+  const searchCompanies = useCallback(async (query: string) => {
+    const response = await fetch(
+      `/api/autocomplete?type=companies&q=${encodeURIComponent(query)}`
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    return data.options ?? [];
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => void refreshGoogleStatus().catch(() => {}));
@@ -314,10 +332,9 @@ export function SettingsForm({
           matchThreshold: parseFloat(matchThreshold) || 70,
           requireReview,
           autoSubmitEnabled: autoSubmit,
-          targetCompanies: targetCompanies
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          targetCompanies,
+          requiredSkills,
+          industries,
           sectorPreference,
           governmentCategories,
           gmailSyncEnabled: googleConnected ? gmailSync : false,
@@ -384,6 +401,12 @@ export function SettingsForm({
                   values={governmentCategories}
                   onChange={setGovernmentCategories}
                   placeholder="e.g. Banking, Railway, PSU"
+                  suggestions={(query) =>
+                    searchAutocompleteCatalog(
+                      "government_categories",
+                      query
+                    )
+                  }
                 />
               )}
             </div>
@@ -395,6 +418,30 @@ export function SettingsForm({
                 onChange={setJobTitles}
                 placeholder="Add a job title and press Enter"
                 suggestions={searchJobTitles}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Core skills</Label>
+              <ChipListEditor
+                label="Core skills"
+                values={requiredSkills}
+                onChange={setRequiredSkills}
+                placeholder="Add a skill and press Enter"
+                suggestions={(query) =>
+                  searchAutocompleteCatalog("skills", query)
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Industries</Label>
+              <ChipListEditor
+                label="Industries"
+                values={industries}
+                onChange={setIndustries}
+                placeholder="Add an industry and press Enter"
+                suggestions={(query) =>
+                  searchAutocompleteCatalog("industries", query)
+                }
               />
             </div>
             <div className="space-y-2">
@@ -446,14 +493,17 @@ export function SettingsForm({
               />
             </div>
             <div className="space-y-2">
-              <Label>Target Company Boards (comma-separated slugs)</Label>
-              <Input
-                value={targetCompanies}
-                onChange={(e) => setTargetCompanies(e.target.value)}
-                placeholder="Optional: openai, stripe, linear"
+              <Label>Target companies</Label>
+              <ChipListEditor
+                label="Target companies"
+                values={targetCompanies}
+                onChange={setTargetCompanies}
+                placeholder="Optional: add a company"
+                asyncSuggestions={searchCompanies}
               />
               <p className="text-xs text-[var(--ink-tertiary)]">
-                Greenhouse/Lever/Ashby board slugs for job discovery
+                Kairela resolves known employers to their verified public ATS
+                board. You do not need to know a board slug.
               </p>
             </div>
           </CardContent>

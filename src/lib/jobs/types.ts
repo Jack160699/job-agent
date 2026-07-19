@@ -33,6 +33,7 @@ export interface JobSearchFilters {
     title: string;
     location: string | null;
     remoteScope: "INDIA" | "WORLDWIDE" | null;
+    stage?: "strict" | "balanced" | "recovery";
     reasons: string[];
   }>;
   locations: string[];

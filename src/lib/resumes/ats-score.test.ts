@@ -141,6 +141,21 @@ describe("calculateAtsReadinessScore", () => {
     expect(result.issues.some((i) => i.toLowerCase().includes("out of order"))).toBe(true);
   });
 
+  it("flags duplicate bullets and obvious keyword stuffing", () => {
+    const repeatedBullet =
+      "Built reliable payment services used by customers across India.";
+    const text = `${STRONG_RESUME}
+${repeatedBullet}
+${repeatedBullet}
+cloud cloud cloud cloud cloud cloud cloud cloud cloud cloud
+cloud cloud cloud cloud cloud cloud cloud cloud cloud cloud
+cloud cloud cloud cloud cloud cloud cloud cloud cloud cloud`;
+    const { profile, rawText } = profileFor(text);
+    const result = calculateAtsReadinessScore(profile, rawText);
+    expect(result.formattingRisks).toContain("duplicate resume lines");
+    expect(result.formattingRisks).toContain("possible keyword stuffing");
+  });
+
   it("stamps the current score version", () => {
     const { profile, rawText } = profileFor(STRONG_RESUME);
     const result = calculateAtsReadinessScore(profile, rawText);

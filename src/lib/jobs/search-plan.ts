@@ -16,6 +16,7 @@ export interface SearchPlanQuery {
   title: string;
   location: string | null;
   remoteScope: "INDIA" | "WORLDWIDE" | null;
+  stage: "strict" | "balanced" | "recovery";
   reasons: string[];
 }
 
@@ -103,9 +104,19 @@ export function buildUserSearchPlan(
         ? [indiaFirst ? "India remote" : "Remote"]
         : [null];
 
-  const queryTitles = [...primaryRoles, ...alternativeRoles].slice(0, 12);
+  const queryTitles = [
+    ...primaryRoles.map((title) => ({ title, stage: "strict" as const })),
+    ...alternativeRoles.slice(0, 6).map((title) => ({
+      title,
+      stage: "balanced" as const,
+    })),
+    ...alternativeRoles.slice(6, 12).map((title) => ({
+      title,
+      stage: "recovery" as const,
+    })),
+  ].slice(0, 12);
   const queries: SearchPlanQuery[] = [];
-  for (const title of queryTitles) {
+  for (const { title, stage } of queryTitles) {
     for (const location of queryLocations) {
       const normalizedLocation = location
         ? normalizeLocation(location)
@@ -113,6 +124,7 @@ export function buildUserSearchPlan(
       queries.push({
         title,
         location,
+        stage,
         remoteScope:
           remotePreferred && indiaFirst
             ? "INDIA"
@@ -123,6 +135,7 @@ export function buildUserSearchPlan(
           primaryKey.has(title.toLowerCase())
             ? `Primary target role: ${title}`
             : `Adjacent title for a target role: ${title}`,
+          `Search stage: ${stage}`,
           location
             ? `Preferred location: ${location}`
             : "No location constraint was supplied",

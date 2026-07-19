@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 interface ChipListEditorProps {
@@ -15,6 +15,8 @@ interface ChipListEditorProps {
    * as before, so this is purely additive.
    */
   suggestions?: (query: string) => string[];
+  /** Debounced server-backed suggestions for larger catalogs. */
+  asyncSuggestions?: (query: string) => Promise<string[]>;
 }
 
 export function ChipListEditor({
@@ -23,11 +25,15 @@ export function ChipListEditor({
   onChange,
   placeholder,
   suggestions,
+  asyncSuggestions,
 }: ChipListEditorProps) {
   const [draft, setDraft] = useState("");
   const [options, setOptions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [suggestionState, setSuggestionState] = useState<
+    "idle" | "loading" | "empty" | "error" | "ready"
+  >("idle");
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +55,13 @@ export function ChipListEditor({
 
   const updateDraft = (next: string) => {
     setDraft(next);
+    if (asyncSuggestions) {
+      setOptions([]);
+      setOpen(Boolean(next.trim()));
+      setActiveIndex(-1);
+      setSuggestionState(next.trim() ? "loading" : "idle");
+      return;
+    }
     if (!suggestions) return;
     const matches = next.trim()
       ? suggestions(next).filter(
@@ -59,6 +72,36 @@ export function ChipListEditor({
     setOpen(matches.length > 0);
     setActiveIndex(-1);
   };
+
+  useEffect(() => {
+    if (!asyncSuggestions || !draft.trim()) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      asyncSuggestions(draft.trim())
+        .then((matches) => {
+          if (!active) return;
+          const available = matches.filter(
+            (option) =>
+              !values.some(
+                (value) => value.toLowerCase() === option.toLowerCase()
+              )
+          );
+          setOptions(available);
+          setSuggestionState(available.length > 0 ? "ready" : "empty");
+          setOpen(true);
+        })
+        .catch(() => {
+          if (!active) return;
+          setOptions([]);
+          setSuggestionState("error");
+          setOpen(true);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [asyncSuggestions, draft, values]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (open && options.length > 0) {
@@ -118,12 +161,14 @@ export function ChipListEditor({
           ref={inputRef}
           type="text"
           aria-label={`Add to ${label}`}
-          role={suggestions ? "combobox" : undefined}
-          aria-expanded={suggestions ? open : undefined}
-          aria-controls={suggestions ? listboxId : undefined}
-          aria-autocomplete={suggestions ? "list" : undefined}
+          role={suggestions || asyncSuggestions ? "combobox" : undefined}
+          aria-expanded={suggestions || asyncSuggestions ? open : undefined}
+          aria-controls={suggestions || asyncSuggestions ? listboxId : undefined}
+          aria-autocomplete={suggestions || asyncSuggestions ? "list" : undefined}
           aria-activedescendant={
-            suggestions && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined
+            (suggestions || asyncSuggestions) && activeIndex >= 0
+              ? `${listboxId}-option-${activeIndex}`
+              : undefined
           }
           autoComplete="off"
           placeholder={placeholder ?? "Add and press Enter"}
@@ -144,13 +189,28 @@ export function ChipListEditor({
           Add
         </button>
 
-        {suggestions && open && options.length > 0 && (
+        {(suggestions || asyncSuggestions) && open && (
           <ul
             id={listboxId}
             role="listbox"
             aria-label={`${label} suggestions`}
             className="absolute left-0 right-12 top-11 z-20 max-h-56 overflow-y-auto rounded-[var(--rf-radius-sm)] border border-[var(--rf-line)] bg-white py-1 shadow-lg"
           >
+            {asyncSuggestions && suggestionState === "loading" && (
+              <li className="px-3 py-2 text-sm text-[var(--rf-ink-tertiary)]">
+                Loading suggestions…
+              </li>
+            )}
+            {asyncSuggestions && suggestionState === "empty" && (
+              <li className="px-3 py-2 text-sm text-[var(--rf-ink-tertiary)]">
+                No matches. Press Enter to add your own value.
+              </li>
+            )}
+            {asyncSuggestions && suggestionState === "error" && (
+              <li className="px-3 py-2 text-sm text-[var(--rf-error)]">
+                Suggestions unavailable. You can still add a custom value.
+              </li>
+            )}
             {options.map((opt, i) => (
               <li
                 key={opt}

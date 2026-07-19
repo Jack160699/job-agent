@@ -4,12 +4,23 @@ import {
   type SearchProgressStage,
 } from "@/lib/jobs/preferences";
 
-export type JobRunStage = SearchProgressStage | "queued" | "failed";
+export type JobRunStage =
+  | SearchProgressStage
+  | "queued"
+  | "failed"
+  | "paused";
 
 export interface JobRunProgress {
   jobId: string | null;
   type: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status:
+    | "pending"
+    | "running"
+    | "pause_requested"
+    | "paused"
+    | "completed"
+    | "failed"
+    | "cancelled";
   stage: JobRunStage;
   stageLabel: string;
   progress: number;
@@ -106,12 +117,19 @@ function buildProgress(
   if (job.status === "pending" && !job.progressStage) stage = "queued";
   if (job.status === "failed") stage = "failed";
   if (job.status === "completed") stage = "completed";
+  if (job.status === "paused" || job.status === "pause_requested") {
+    stage = "paused";
+  }
 
   const stageLabel =
     stage === "queued"
       ? job.source === "interactive"
         ? "Starting your search…"
         : "Waiting in queue"
+      : stage === "paused"
+        ? job.status === "pause_requested"
+          ? "Pausing after the current source step"
+          : "Search paused"
       : (typeof meta.label === "string" && meta.label) ||
         SEARCH_STAGE_LABELS[stage as SearchProgressStage] ||
         stage;

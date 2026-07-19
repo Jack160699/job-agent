@@ -85,28 +85,47 @@ export async function recoverStaleJobs() {
   const staleThreshold = new Date(Date.now() - STALE_HEARTBEAT_MS);
   const runningThreshold = new Date(Date.now() - STALE_RUNNING_MS);
 
-  const recovered = await prisma.backgroundJob.updateMany({
-    where: {
-      status: "running",
-      OR: [
-        { heartbeatAt: { lt: staleThreshold } },
-        { heartbeatAt: null, startedAt: { lt: runningThreshold } },
-      ],
-    },
-    data: {
-      status: "pending",
-      scheduledAt: new Date(),
-      claimedAt: null,
-      startedAt: null,
-      heartbeatAt: null,
-      error: "Recovered stale running job",
-    },
-  });
+  const [recovered, paused] = await Promise.all([
+    prisma.backgroundJob.updateMany({
+      where: {
+        status: "running",
+        OR: [
+          { heartbeatAt: { lt: staleThreshold } },
+          { heartbeatAt: null, startedAt: { lt: runningThreshold } },
+        ],
+      },
+      data: {
+        status: "pending",
+        scheduledAt: new Date(),
+        claimedAt: null,
+        startedAt: null,
+        heartbeatAt: null,
+        error: "Recovered stale running job",
+      },
+    }),
+    prisma.backgroundJob.updateMany({
+      where: {
+        status: "pause_requested",
+        OR: [
+          { heartbeatAt: { lt: staleThreshold } },
+          { heartbeatAt: null, startedAt: { lt: runningThreshold } },
+        ],
+      },
+      data: {
+        status: "paused",
+        progressStage: "paused",
+        error: null,
+      },
+    }),
+  ]);
 
-  if (recovered.count > 0) {
-    logWorker("stale_jobs_recovered", { count: recovered.count });
+  if (recovered.count > 0 || paused.count > 0) {
+    logWorker("stale_jobs_recovered", {
+      count: recovered.count,
+      pauseRequestsFinalized: paused.count,
+    });
   }
-  return recovered.count;
+  return recovered.count + paused.count;
 }
 
 export async function archiveStaleScheduledJobs() {
@@ -146,7 +165,7 @@ export async function cancelActiveJob(userId: string, type: JobType) {
     where: {
       userId,
       type,
-      status: { in: ["pending", "running"] },
+      status: { in: ["pending", "running", "pause_requested", "paused"] },
     },
     data: {
       status: "cancelled",
@@ -159,6 +178,57 @@ export async function cancelActiveJob(userId: string, type: JobType) {
     logWorker("job_cancelled_by_user", { userId, type, count: result.count });
   }
   return result.count;
+}
+
+export async function pauseActiveJob(userId: string, type: JobType) {
+  const running = await prisma.backgroundJob.updateMany({
+    where: { userId, type, status: "running" },
+    data: {
+      status: "pause_requested",
+      progressStage: "paused",
+      error: null,
+    },
+  });
+  const pending = await prisma.backgroundJob.updateMany({
+    where: { userId, type, status: "pending" },
+    data: {
+      status: "paused",
+      progressStage: "paused",
+      error: null,
+    },
+  });
+  const count = running.count + pending.count;
+  if (count > 0) logWorker("job_pause_requested", { userId, type, count });
+  return count;
+}
+
+export async function resumePausedJob(userId: string, type: JobType) {
+  const paused = await prisma.backgroundJob.findFirst({
+    where: { userId, type, status: "paused" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!paused) return null;
+
+  const resumed = await prisma.backgroundJob.update({
+    where: { id: paused.id },
+    data: {
+      status: "pending",
+      scheduledAt: new Date(),
+      queuedAt: new Date(),
+      claimedAt: null,
+      startedAt: null,
+      heartbeatAt: null,
+      completedAt: null,
+      failedAt: null,
+      cancelledAt: null,
+      progressStage: "validating_preferences",
+      progressPercent: 0,
+      error: null,
+    },
+  });
+  logWorker("job_resumed_by_user", { userId, type, jobId: resumed.id });
+  triggerWorkerRemote();
+  return resumed;
 }
 
 /** Idempotent interactive search — returns existing active job or creates a prioritized one. */
@@ -406,6 +476,16 @@ async function claimAndRunJob(job: {
       if (current?.status === "cancelled") {
         return { id: job.id, status: "cancelled" };
       }
+      if (
+        current?.status === "pause_requested" ||
+        current?.status === "paused"
+      ) {
+        await prisma.backgroundJob.update({
+          where: { id: job.id },
+          data: { status: "paused", progressStage: "paused", error: null },
+        });
+        return { id: job.id, status: "paused" };
+      }
       throw new Error("JOB_STATE_CHANGED");
     }
 
@@ -424,6 +504,18 @@ async function claimAndRunJob(job: {
         },
       });
       return { id: job.id, status: "cancelled" };
+    }
+    if (errorMsg === "JOB_PAUSED") {
+      await prisma.backgroundJob.update({
+        where: { id: job.id },
+        data: {
+          status: "paused",
+          progressStage: "paused",
+          error: null,
+          heartbeatAt: new Date(),
+        },
+      });
+      return { id: job.id, status: "paused" };
     }
     const attemptsAfterFail = job.attempts + 1;
     const isDeadLetter = attemptsAfterFail >= job.maxAttempts;

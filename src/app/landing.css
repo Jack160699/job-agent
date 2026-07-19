@@ -11,7 +11,7 @@
   --lp-white: #ffffff;
   --lp-ink: #0b1530;
   --lp-ink-soft: #44507a;
-  --lp-ink-faint: #7480a6;
+  --lp-ink-faint: #4f5a7d;
   --lp-green: #2455e6;
   --lp-green-deep: #1d46c4;
   --lp-green-soft: #e8eefd;
@@ -1493,7 +1493,7 @@
 .capability-match-card { position: absolute; top: 30px; right: 9%; display: grid; width: 46%; gap: 8px; border-radius: 18px; background: var(--lp-green-deep); padding: 24px; color: white; box-shadow: 0 18px 40px rgb(7 75 59 / 0.24); transform: rotate(3deg); }
 .capability-match-card strong { color: #8fb3ff; font-size: 2.8rem; letter-spacing: -0.06em; }
 .capability-match-card span { font-size: 0.75rem; font-weight: 680; }
-.capability-match-card small { color: #aab4d6; font-size: 0.58rem; line-height: 1.5; }
+.capability-match-card small { color: #e6ebff; font-size: 0.58rem; line-height: 1.5; }
 
 .capability-inbox-crop { position: absolute; right: 30px; bottom: 32px; left: 30px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--lp-line); border-radius: 16px; background: white; padding: 18px; box-shadow: 0 14px 30px rgb(22 34 29 / 0.08); }
 .capability-inbox-crop > svg { width: 20px; color: var(--lp-green); }

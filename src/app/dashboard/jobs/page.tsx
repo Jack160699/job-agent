@@ -111,11 +111,19 @@ export default async function JobsPage({
                 advertisementNumber?: string;
                 officialSource?: string;
                 verificationStatus?: string;
+                searchStage?: "strict" | "balanced" | "recovery";
+                searchQuery?: string;
+                qualification?: string;
+                ageCriteria?: string;
+                vacancyCount?: number;
+                payLevel?: string;
+                notificationPdfUrl?: string;
+                applicationUrl?: string;
               } | null;
               const governmentJob = metadata?.jobType === "government";
               return (
                 <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
-                  <CardContent className="flex items-start justify-between p-4">
+                  <CardContent className="flex flex-col items-start justify-between gap-4 p-4 lg:flex-row">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <h3 className="text-base font-semibold text-[var(--ink)]">
@@ -124,6 +132,15 @@ export default async function JobsPage({
                         {analysis?.classification && (
                           <span className="rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                             {analysis.classification}
+                          </span>
+                        )}
+                        {metadata?.searchStage && (
+                          <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ink-secondary)]">
+                            {metadata.searchStage === "strict"
+                              ? "Exact search"
+                              : metadata.searchStage === "balanced"
+                                ? "Related title"
+                                : "Recovery search"}
                           </span>
                         )}
                         {governmentJob && (
@@ -171,16 +188,50 @@ export default async function JobsPage({
                         )}
                       </div>
                       {governmentJob && (
-                        <p className="mt-2 text-xs text-[var(--ink-secondary)]">
-                          {metadata?.officialSource}
-                          {metadata?.advertisementNumber
-                            ? ` · ${metadata.advertisementNumber}`
-                            : ""}
-                          {metadata?.verificationStatus ===
-                          "official_page_unverified_deadline"
-                            ? " · Deadline not stated on the listing page—verify the official notice"
-                            : ""}
-                        </p>
+                        <div className="mt-2 space-y-1 text-xs text-[var(--ink-secondary)]">
+                          <p>
+                            {metadata?.officialSource}
+                            {metadata?.advertisementNumber
+                              ? ` · ${metadata.advertisementNumber}`
+                              : ""}
+                            {metadata?.verificationStatus ===
+                            "official_page_unverified_deadline"
+                              ? " · Deadline not stated on the listing page—verify the official notice"
+                              : ""}
+                          </p>
+                          {metadata?.qualification && (
+                            <p>Qualification: {metadata.qualification}</p>
+                          )}
+                          {metadata?.ageCriteria && (
+                            <p>Age criteria: {metadata.ageCriteria}</p>
+                          )}
+                          {metadata?.vacancyCount != null && (
+                            <p>Vacancies: {metadata.vacancyCount}</p>
+                          )}
+                          {metadata?.payLevel && <p>Pay level: {metadata.payLevel}</p>}
+                          <div className="flex flex-wrap gap-3 pt-1">
+                            {metadata?.notificationPdfUrl && (
+                              <a
+                                className="font-medium text-[var(--accent)] underline-offset-4 hover:underline"
+                                href={metadata.notificationPdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Official notification PDF
+                              </a>
+                            )}
+                            {metadata?.applicationUrl && (
+                              <a
+                                className="font-medium text-[var(--accent)] underline-offset-4 hover:underline"
+                                href={metadata.applicationUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Official application
+                              </a>
+                            )}
+                          </div>
+                        </div>
                       )}
                       {(job.salaryMin != null || job.salaryMax != null) && (
                         <p className="mt-2 text-xs text-[var(--ink-secondary)]">
@@ -242,7 +293,7 @@ export default async function JobsPage({
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex w-full flex-col items-stretch gap-2 lg:w-auto lg:items-end">
                       <div className="flex items-center gap-2">
                       {job.applications?.[0] && (
                         <StatusBadge status={job.applications[0].status} />

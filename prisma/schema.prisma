@@ -126,68 +126,68 @@ enum UserPersona {
 }
 
 model User {
-  id              String       @id @default(uuid()) @db.Uuid
-  email           String       @unique
-  fullName        String?      @map("full_name")
-  avatarUrl       String?      @map("avatar_url")
-  supabaseId      String?      @unique @map("supabase_id")
-  persona         UserPersona  @default(JOB_SEEKER)
-  currentLocation String?      @map("current_location")
-  linkedinUrl     String?      @map("linkedin_url")
-  githubUrl       String?      @map("github_url")
-  portfolioUrl    String?      @map("portfolio_url")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  id              String      @id @default(uuid()) @db.Uuid
+  email           String      @unique
+  fullName        String?     @map("full_name")
+  avatarUrl       String?     @map("avatar_url")
+  supabaseId      String?     @unique @map("supabase_id")
+  persona         UserPersona @default(JOB_SEEKER)
+  currentLocation String?     @map("current_location")
+  linkedinUrl     String?     @map("linkedin_url")
+  githubUrl       String?     @map("github_url")
+  portfolioUrl    String?     @map("portfolio_url")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
-  masterResume      MasterResume?
-  tailoredResumes   TailoredResume[]
-  tailoredResumeVersions TailoredResumeVersion[]
-  coverLetters      CoverLetter[]
-  jobs              Job[]
-  applications      Application[]
-  recruiters        Recruiter[]
-  interviews        Interview[]
-  emails            Email[]
-  settings          UserSettings?
-  onboardingState   OnboardingState?
-  hiringProfile     HiringProfile?
-  preferenceHistory PreferenceHistory[]
-  consentRecords    ConsentRecord[]
-  logs              AuditLog[]
-  secrets           EncryptedSecret[]
-  oauthStateNonces   OAuthStateNonce[]
-  browserTasks      BrowserTask[]
-  jobImports        JobImport[]
-  jobFeedback       JobFeedback[]
-  searchPlans       SearchPlan[]
-  sourceHealth      JobSourceHealth[]
-  jobProvenance     JobProvenance[]
+  masterResume             MasterResume?
+  tailoredResumes          TailoredResume[]
+  tailoredResumeVersions   TailoredResumeVersion[]
+  coverLetters             CoverLetter[]
+  jobs                     Job[]
+  applications             Application[]
+  recruiters               Recruiter[]
+  interviews               Interview[]
+  emails                   Email[]
+  settings                 UserSettings?
+  onboardingState          OnboardingState?
+  hiringProfile            HiringProfile?
+  preferenceHistory        PreferenceHistory[]
+  consentRecords           ConsentRecord[]
+  logs                     AuditLog[]
+  secrets                  EncryptedSecret[]
+  oauthStateNonces         OAuthStateNonce[]
+  browserTasks             BrowserTask[]
+  jobImports               JobImport[]
+  jobFeedback              JobFeedback[]
+  searchPlans              SearchPlan[]
+  sourceHealth             JobSourceHealth[]
+  jobProvenance            JobProvenance[]
   proactiveRecommendations ProactiveRecommendation[]
-  consultantMessages ConsultantMessage[]
-  consultantConversations ConsultantConversation[]
-  agentActionProposals AgentActionProposal[]
-  subscription      Subscription?
-  usageLedger       UsageLedger[]
-  applicationScoreRecords ApplicationScoreRecord[]
+  consultantMessages       ConsultantMessage[]
+  consultantConversations  ConsultantConversation[]
+  agentActionProposals     AgentActionProposal[]
+  subscription             Subscription?
+  usageLedger              UsageLedger[]
+  applicationScoreRecords  ApplicationScoreRecord[]
 
   @@map("users")
 }
 
 model MasterResume {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @unique @map("user_id") @db.Uuid
-  title       String   @default("Master Resume")
-  content     Json
-  rawText     String   @map("raw_text") @db.Text
-  skills      String[]
-  experience  Json?
-  education   Json?
-  projects    Json?
-  version     Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  title      String   @default("Master Resume")
+  content    Json
+  rawText    String   @map("raw_text") @db.Text
+  skills     String[]
+  experience Json?
+  education  Json?
+  projects   Json?
+  version    Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   tailoredResumes TailoredResume[]
   versions        MasterResumeVersion[]
 
@@ -213,30 +213,30 @@ model MasterResumeVersion {
 }
 
 model TailoredResume {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  masterResumeId String?  @map("master_resume_id") @db.Uuid
-  jobId          String?  @map("job_id") @db.Uuid
-  applicationId  String?  @unique @map("application_id") @db.Uuid
-  title          String
-  content        Json
-  rawText        String   @map("raw_text") @db.Text
-  matchScore     Float?   @map("match_score")
-  highlights     String[]
-  fileUrl        String?  @map("file_url")
-  version        Int      @default(1)
-  sourceMasterVersion Int? @map("source_master_version")
-  sourceMasterTitle String? @map("source_master_title")
-  sourceMasterSnapshot Json? @map("source_master_snapshot")
-  groundingReport Json? @map("grounding_report")
-  archivedAt     DateTime? @map("archived_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  masterResumeId       String?   @map("master_resume_id") @db.Uuid
+  jobId                String?   @map("job_id") @db.Uuid
+  applicationId        String?   @unique @map("application_id") @db.Uuid
+  title                String
+  content              Json
+  rawText              String    @map("raw_text") @db.Text
+  matchScore           Float?    @map("match_score")
+  highlights           String[]
+  fileUrl              String?   @map("file_url")
+  version              Int       @default(1)
+  sourceMasterVersion  Int?      @map("source_master_version")
+  sourceMasterTitle    String?   @map("source_master_title")
+  sourceMasterSnapshot Json?     @map("source_master_snapshot")
+  groundingReport      Json?     @map("grounding_report")
+  archivedAt           DateTime? @map("archived_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  masterResume MasterResume? @relation(fields: [masterResumeId], references: [id], onDelete: SetNull)
-  job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  masterResume MasterResume?            @relation(fields: [masterResumeId], references: [id], onDelete: SetNull)
+  job          Job?                     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  application  Application?             @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   versions     TailoredResumeVersion[]
   scoreRecords ApplicationScoreRecord[]
 
@@ -247,19 +247,19 @@ model TailoredResume {
 }
 
 model TailoredResumeVersion {
-  id                  String   @id @default(uuid()) @db.Uuid
-  tailoredResumeId    String   @map("tailored_resume_id") @db.Uuid
-  userId              String   @map("user_id") @db.Uuid
-  version             Int
-  title               String
-  content             Json
-  rawText             String   @map("raw_text") @db.Text
-  highlights          String[]
-  sourceMasterVersion Int?     @map("source_master_version")
-  sourceMasterTitle   String?  @map("source_master_title")
-  sourceMasterSnapshot Json?   @map("source_master_snapshot")
-  groundingReport     Json?    @map("grounding_report")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                   String   @id @default(uuid()) @db.Uuid
+  tailoredResumeId     String   @map("tailored_resume_id") @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  version              Int
+  title                String
+  content              Json
+  rawText              String   @map("raw_text") @db.Text
+  highlights           String[]
+  sourceMasterVersion  Int?     @map("source_master_version")
+  sourceMasterTitle    String?  @map("source_master_title")
+  sourceMasterSnapshot Json?    @map("source_master_snapshot")
+  groundingReport      Json?    @map("grounding_report")
+  createdAt            DateTime @default(now()) @map("created_at")
 
   tailoredResume TailoredResume @relation(fields: [tailoredResumeId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -292,42 +292,42 @@ model CoverLetter {
 }
 
 model Job {
-  id              String         @id @default(uuid()) @db.Uuid
-  userId          String         @map("user_id") @db.Uuid
-  externalId      String?        @map("external_id")
-  source          JobSource
-  sourceUrl       String         @map("source_url")
-  canonicalUrl    String?        @map("canonical_url")
-  descriptionFingerprint String? @map("description_fingerprint")
-  title           String
-  company         String
-  companySize     String?        @map("company_size")
-  location        String?
-  workMode        WorkMode       @default(UNKNOWN) @map("work_mode")
-  employmentType  EmploymentType @default(UNKNOWN) @map("employment_type")
-  salaryMin       Int?           @map("salary_min")
-  salaryMax       Int?           @map("salary_max")
-  salaryCurrency  String?        @default("USD") @map("salary_currency")
-  visaSponsorship Boolean?       @map("visa_sponsorship")
-  description     String         @db.Text
-  requiredSkills  String[]       @map("required_skills")
-  preferredSkills String[]       @map("preferred_skills")
-  experienceMin   Int?           @map("experience_min")
-  experienceMax   Int?           @map("experience_max")
-  matchScore      Float?         @map("match_score")
-  matchAnalysis   Json?          @map("match_analysis")
-  status          JobStatus      @default(ACTIVE)
-  postedAt        DateTime?      @map("posted_at")
-  closesAt        DateTime?      @map("closes_at")
-  removedAt       DateTime?      @map("removed_at")
-  savedAt         DateTime?      @map("saved_at")
-  discoveredAt    DateTime       @default(now()) @map("discovered_at")
-  analyzedAt      DateTime?      @map("analyzed_at")
-  metadata        Json?
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
+  id                     String         @id @default(uuid()) @db.Uuid
+  userId                 String         @map("user_id") @db.Uuid
+  externalId             String?        @map("external_id")
+  source                 JobSource
+  sourceUrl              String         @map("source_url")
+  canonicalUrl           String?        @map("canonical_url")
+  descriptionFingerprint String?        @map("description_fingerprint")
+  title                  String
+  company                String
+  companySize            String?        @map("company_size")
+  location               String?
+  workMode               WorkMode       @default(UNKNOWN) @map("work_mode")
+  employmentType         EmploymentType @default(UNKNOWN) @map("employment_type")
+  salaryMin              Int?           @map("salary_min")
+  salaryMax              Int?           @map("salary_max")
+  salaryCurrency         String?        @default("USD") @map("salary_currency")
+  visaSponsorship        Boolean?       @map("visa_sponsorship")
+  description            String         @db.Text
+  requiredSkills         String[]       @map("required_skills")
+  preferredSkills        String[]       @map("preferred_skills")
+  experienceMin          Int?           @map("experience_min")
+  experienceMax          Int?           @map("experience_max")
+  matchScore             Float?         @map("match_score")
+  matchAnalysis          Json?          @map("match_analysis")
+  status                 JobStatus      @default(ACTIVE)
+  postedAt               DateTime?      @map("posted_at")
+  closesAt               DateTime?      @map("closes_at")
+  removedAt              DateTime?      @map("removed_at")
+  savedAt                DateTime?      @map("saved_at")
+  discoveredAt           DateTime       @default(now()) @map("discovered_at")
+  analyzedAt             DateTime?      @map("analyzed_at")
+  metadata               Json?
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   applications    Application[]
   tailoredResumes TailoredResume[]
   coverLetters    CoverLetter[]
@@ -387,14 +387,14 @@ model JobSourceHealth {
 }
 
 model JobProvenance {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  jobId      String    @map("job_id") @db.Uuid
-  source     JobSource
-  sourceUrl  String    @map("source_url")
-  externalId String?   @map("external_id")
-  firstSeenAt DateTime @default(now()) @map("first_seen_at")
-  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  jobId       String    @map("job_id") @db.Uuid
+  source      JobSource
+  sourceUrl   String    @map("source_url")
+  externalId  String?   @map("external_id")
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -452,30 +452,30 @@ model JobImport {
 }
 
 model Application {
-  id              String            @id @default(uuid()) @db.Uuid
-  userId          String            @map("user_id") @db.Uuid
-  jobId           String            @map("job_id") @db.Uuid
-  status          ApplicationStatus @default(DISCOVERED)
-  matchScore      Float?            @map("match_score")
-  autoSubmit      Boolean           @default(false) @map("auto_submit")
-  requiresReview  Boolean           @default(true) @map("requires_review")
-  submittedAt     DateTime?         @map("submitted_at")
-  formData        Json?             @map("form_data")
-  documents       Json?
-  notes           String?           @db.Text
-  failureReason   String?           @map("failure_reason") @db.Text
-  retryCount      Int               @default(0) @map("retry_count")
-  lastAttemptAt   DateTime?         @map("last_attempt_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  id             String            @id @default(uuid()) @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  jobId          String            @map("job_id") @db.Uuid
+  status         ApplicationStatus @default(DISCOVERED)
+  matchScore     Float?            @map("match_score")
+  autoSubmit     Boolean           @default(false) @map("auto_submit")
+  requiresReview Boolean           @default(true) @map("requires_review")
+  submittedAt    DateTime?         @map("submitted_at")
+  formData       Json?             @map("form_data")
+  documents      Json?
+  notes          String?           @db.Text
+  failureReason  String?           @map("failure_reason") @db.Text
+  retryCount     Int               @default(0) @map("retry_count")
+  lastAttemptAt  DateTime?         @map("last_attempt_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job           Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job            Job                     @relation(fields: [jobId], references: [id], onDelete: Cascade)
   tailoredResume TailoredResume?
-  coverLetter   CoverLetter?
-  interviews    Interview[]
-  emails        Email[]
-  scoreRecord   ApplicationScoreRecord?
+  coverLetter    CoverLetter?
+  interviews     Interview[]
+  emails         Email[]
+  scoreRecord    ApplicationScoreRecord?
 
   @@unique([userId, jobId])
   @@index([userId, status])
@@ -582,60 +582,60 @@ model Email {
   application Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   recruiter   Recruiter?   @relation(fields: [recruiterId], references: [id], onDelete: SetNull)
 
-  @@index([userId, receivedAt])
   @@unique([userId, gmailId])
+  @@index([userId, receivedAt])
   @@map("emails")
 }
 
 model UserSettings {
-  id                    String   @id @default(uuid()) @db.Uuid
-  userId                String   @unique @map("user_id") @db.Uuid
-  jobTitles             String[] @map("job_titles")
-  experienceYears       Int?     @map("experience_years")
-  salaryMin             Int?     @map("salary_min")
-  salaryMax             Int?     @map("salary_max")
-  salaryCurrency        String   @default("USD") @map("salary_currency")
-  workModes             WorkMode[] @map("work_modes")
-  locations             String[]
-  visaSponsorshipRequired Boolean @default(false) @map("visa_sponsorship_required")
-  requiredSkills        String[] @map("required_skills")
-  preferredSkills       String[] @map("preferred_skills")
-  companySizes          String[] @map("company_sizes")
-  employmentTypes       EmploymentType[] @map("employment_types")
-  matchThreshold        Float    @default(70) @map("match_threshold")
-  autoSubmitEnabled     Boolean  @default(false) @map("auto_submit_enabled")
-  autoSubmitSources     JobSource[] @map("auto_submit_sources")
-  requireReview         Boolean  @default(true) @map("require_review")
-  enabledSources        JobSource[] @map("enabled_sources")
-  searchFrequencyHours  Int      @default(6) @map("search_frequency_hours")
-  notificationsEnabled  Boolean  @default(true) @map("notifications_enabled")
-  sheetsSyncEnabled     Boolean  @default(false) @map("sheets_sync_enabled")
-  sheetsId              String?  @map("sheets_id")
-  calendarSyncEnabled   Boolean  @default(false) @map("calendar_sync_enabled")
-  gmailSyncEnabled      Boolean  @default(false) @map("gmail_sync_enabled")
-  driveFolderId         String?  @map("drive_folder_id")
-  targetCompanies       String[] @default([]) @map("target_companies")
-  excludedCompanies     String[] @default([]) @map("excluded_companies")
-  industries            String[] @default([])
-  willingToRelocate     Boolean  @default(false) @map("willing_to_relocate")
-  noticePeriodDays      Int?     @map("notice_period_days")
-  currentRole           String?  @map("profile_current_role")
-  currentSalary         Int?     @map("current_salary")
-  workAuthorization     String?  @map("work_authorization")
-  travelWillingness     String?  @map("travel_willingness")
-  sectorPreference      String   @default("PRIVATE") @map("sector_preference")
-  governmentCategories  String[] @default([]) @map("government_categories")
-  preferencesComplete   Boolean  @default(false) @map("preferences_complete")
-  driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
-  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
-  quietHoursStart       String?   @map("quiet_hours_start")
-  quietHoursEnd         String?   @map("quiet_hours_end")
-  proactiveFrequencyHours Int     @default(24) @map("proactive_frequency_hours")
-  disabledRecommendationCategories String[] @default([]) @map("disabled_recommendation_categories")
-  dailyDigestEnabled    Boolean  @default(false) @map("daily_digest_enabled")
-  weeklyReportEnabled   Boolean  @default(true) @map("weekly_report_enabled")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                               String           @id @default(uuid()) @db.Uuid
+  userId                           String           @unique @map("user_id") @db.Uuid
+  jobTitles                        String[]         @map("job_titles")
+  experienceYears                  Int?             @map("experience_years")
+  salaryMin                        Int?             @map("salary_min")
+  salaryMax                        Int?             @map("salary_max")
+  salaryCurrency                   String           @default("USD") @map("salary_currency")
+  workModes                        WorkMode[]       @map("work_modes")
+  locations                        String[]
+  visaSponsorshipRequired          Boolean          @default(false) @map("visa_sponsorship_required")
+  requiredSkills                   String[]         @map("required_skills")
+  preferredSkills                  String[]         @map("preferred_skills")
+  companySizes                     String[]         @map("company_sizes")
+  employmentTypes                  EmploymentType[] @map("employment_types")
+  matchThreshold                   Float            @default(70) @map("match_threshold")
+  autoSubmitEnabled                Boolean          @default(false) @map("auto_submit_enabled")
+  autoSubmitSources                JobSource[]      @map("auto_submit_sources")
+  requireReview                    Boolean          @default(true) @map("require_review")
+  enabledSources                   JobSource[]      @map("enabled_sources")
+  searchFrequencyHours             Int              @default(6) @map("search_frequency_hours")
+  notificationsEnabled             Boolean          @default(true) @map("notifications_enabled")
+  sheetsSyncEnabled                Boolean          @default(false) @map("sheets_sync_enabled")
+  sheetsId                         String?          @map("sheets_id")
+  calendarSyncEnabled              Boolean          @default(false) @map("calendar_sync_enabled")
+  gmailSyncEnabled                 Boolean          @default(false) @map("gmail_sync_enabled")
+  driveFolderId                    String?          @map("drive_folder_id")
+  targetCompanies                  String[]         @default([]) @map("target_companies")
+  excludedCompanies                String[]         @default([]) @map("excluded_companies")
+  industries                       String[]         @default([])
+  willingToRelocate                Boolean          @default(false) @map("willing_to_relocate")
+  noticePeriodDays                 Int?             @map("notice_period_days")
+  currentRole                      String?          @map("profile_current_role")
+  currentSalary                    Int?             @map("current_salary")
+  workAuthorization                String?          @map("work_authorization")
+  travelWillingness                String?          @map("travel_willingness")
+  sectorPreference                 String           @default("PRIVATE") @map("sector_preference")
+  governmentCategories             String[]         @default([]) @map("government_categories")
+  preferencesComplete              Boolean          @default(false) @map("preferences_complete")
+  driveBackupEnabled               Boolean          @default(false) @map("drive_backup_enabled")
+  onboardingCompletedAt            DateTime?        @map("onboarding_completed_at")
+  quietHoursStart                  String?          @map("quiet_hours_start")
+  quietHoursEnd                    String?          @map("quiet_hours_end")
+  proactiveFrequencyHours          Int              @default(24) @map("proactive_frequency_hours")
+  disabledRecommendationCategories String[]         @default([]) @map("disabled_recommendation_categories")
+  dailyDigestEnabled               Boolean          @default(false) @map("daily_digest_enabled")
+  weeklyReportEnabled              Boolean          @default(true) @map("weekly_report_enabled")
+  createdAt                        DateTime         @default(now()) @map("created_at")
+  updatedAt                        DateTime         @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -748,17 +748,17 @@ model BrowserTask {
 }
 
 model OnboardingState {
-  id              String    @id @default(uuid()) @db.Uuid
-  userId          String    @unique @map("user_id") @db.Uuid
-  currentStep     String    @default("welcome") @map("current_step")
-  completedSteps  String[]  @default([]) @map("completed_steps")
-  draftData       Json?     @map("draft_data")
-  isComplete      Boolean   @default(false) @map("is_complete")
-  completionPct   Int       @default(0) @map("completion_pct")
-  completedAt     DateTime? @map("completed_at")
-  version         Int       @default(1)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  currentStep    String    @default("welcome") @map("current_step")
+  completedSteps String[]  @default([]) @map("completed_steps")
+  draftData      Json?     @map("draft_data")
+  isComplete     Boolean   @default(false) @map("is_complete")
+  completionPct  Int       @default(0) @map("completion_pct")
+  completedAt    DateTime? @map("completed_at")
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -766,19 +766,19 @@ model OnboardingState {
 }
 
 model HiringProfile {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @unique @map("user_id") @db.Uuid
-  companyName       String?  @map("company_name")
-  companySize       String?  @map("company_size")
-  hiringGoal        String?  @map("hiring_goal")
-  userRole          String?  @map("user_role")
-  rolesHired        String[] @default([]) @map("roles_hired")
-  hiringVolume      String?  @map("hiring_volume")
-  locations         String[] @default([])
-  teamMembers       Int?     @map("team_members")
-  preferredSources  String[] @default([]) @map("preferred_sources")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  companyName      String?  @map("company_name")
+  companySize      String?  @map("company_size")
+  hiringGoal       String?  @map("hiring_goal")
+  userRole         String?  @map("user_role")
+  rolesHired       String[] @default([]) @map("roles_hired")
+  hiringVolume     String?  @map("hiring_volume")
+  locations        String[] @default([])
+  teamMembers      Int?     @map("team_members")
+  preferredSources String[] @default([]) @map("preferred_sources")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -813,25 +813,77 @@ model ConsentRecord {
   @@map("consent_records")
 }
 
+model ApplicationAnswerBank {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  questionKey       String    @map("question_key")
+  questionLabel     String    @map("question_label")
+  answer            Json
+  isSensitive       Boolean   @default(false) @map("is_sensitive")
+  isPrivate         Boolean   @default(true) @map("is_private")
+  confirmationState String    @default("unconfirmed") @map("confirmation_state")
+  confirmedAt       DateTime? @map("confirmed_at")
+  lastUsedAt        DateTime? @map("last_used_at")
+  usageCount        Int       @default(0) @map("usage_count")
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, questionKey])
+  @@index([userId, updatedAt])
+  @@map("application_answer_bank")
+}
+
+model ApplicationAnswerVersion {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  answerBankId      String?  @map("answer_bank_id") @db.Uuid
+  questionKey       String   @map("question_key")
+  questionLabel     String   @map("question_label")
+  answer            Json
+  isSensitive       Boolean  @default(false) @map("is_sensitive")
+  isPrivate         Boolean  @default(true) @map("is_private")
+  confirmationState String   @default("unconfirmed") @map("confirmation_state")
+  version           Int
+  changeReason      String   @default("updated") @map("change_reason")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId, answerBankId, version])
+  @@map("application_answer_versions")
+}
+
+model ApplicationAnswerUsage {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  answerBankId   String   @map("answer_bank_id") @db.Uuid
+  applicationId  String?  @map("application_id") @db.Uuid
+  answerSnapshot Json     @map("answer_snapshot")
+  usedAt         DateTime @default(now()) @map("used_at")
+
+  @@index([userId, answerBankId, usedAt])
+  @@index([userId, applicationId])
+  @@map("application_answer_usage")
+}
+
 model ProactiveRecommendation {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  type        String
-  category    String    @default("career")
-  priority    String    @default("medium")
-  title       String
-  body        String    @db.Text
-  reason      String    @db.Text
-  evidence    Json?
-  suggestedAction String? @map("suggested_action") @db.Text
-  actionUrl   String?   @map("action_url")
-  status      String    @default("active")
-  dismissed   Boolean   @default(false)
-  snoozedUntil DateTime? @map("snoozed_until")
-  completedAt DateTime? @map("completed_at")
-  expiresAt   DateTime? @map("expires_at")
-  metadata    Json?
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  type            String
+  category        String    @default("career")
+  priority        String    @default("medium")
+  title           String
+  body            String    @db.Text
+  reason          String    @db.Text
+  evidence        Json?
+  suggestedAction String?   @map("suggested_action") @db.Text
+  actionUrl       String?   @map("action_url")
+  status          String    @default("active")
+  dismissed       Boolean   @default(false)
+  snoozedUntil    DateTime? @map("snoozed_until")
+  completedAt     DateTime? @map("completed_at")
+  expiresAt       DateTime? @map("expires_at")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -849,7 +901,7 @@ model ConsultantConversation {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages        ConsultantMessage[]
   actionProposals AgentActionProposal[]
 
@@ -875,17 +927,17 @@ model ConsultantMessage {
 }
 
 model AgentActionProposal {
-  id             String                   @id @default(uuid()) @db.Uuid
-  userId         String                   @map("user_id") @db.Uuid
-  conversationId String?                  @map("conversation_id") @db.Uuid
-  toolName       String                   @map("tool_name")
+  id             String                    @id @default(uuid()) @db.Uuid
+  userId         String                    @map("user_id") @db.Uuid
+  conversationId String?                   @map("conversation_id") @db.Uuid
+  toolName       String                    @map("tool_name")
   params         Json
   status         AgentActionProposalStatus @default(PENDING)
-  expiresAt      DateTime                 @map("expires_at")
-  consumedAt     DateTime?                @map("consumed_at")
+  expiresAt      DateTime                  @map("expires_at")
+  consumedAt     DateTime?                 @map("consumed_at")
   result         Json?
-  createdAt      DateTime                 @default(now()) @map("created_at")
-  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
 
   user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation ConsultantConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -921,15 +973,15 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id              String             @id @default(uuid()) @db.Uuid
-  userId          String             @unique @map("user_id") @db.Uuid
-  plan            SubscriptionPlan   @default(FREE)
-  status          SubscriptionStatus @default(ACTIVE)
-  stripeCustomerId String?           @map("stripe_customer_id")
-  stripeSubscriptionId String?       @map("stripe_subscription_id")
-  currentPeriodEnd DateTime?         @map("current_period_end")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  id                   String             @id @default(uuid()) @db.Uuid
+  userId               String             @unique @map("user_id") @db.Uuid
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?            @map("stripe_customer_id")
+  stripeSubscriptionId String?            @map("stripe_subscription_id")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

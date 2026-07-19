@@ -3,6 +3,10 @@ import { createBrowserClient } from "../../src/lib/browser/client";
 import { browserQueue } from "./queue/manager";
 import { runPrepareApplicationTask } from "./automation/runner";
 import { mapSubmissionToApplicationStatus } from "../../src/lib/applications/automation-policy";
+import {
+  answerToText,
+  recordAnswerBankUsage,
+} from "../../src/lib/applications/answer-bank-service";
 
 const prisma = new PrismaClient();
 const POLL_MS = Number(process.env.BROWSER_WORKER_POLL_MS || 3000);
@@ -52,6 +56,18 @@ async function processTask(taskId: string) {
       const settings = await prisma.userSettings.findUnique({
         where: { userId: task.userId },
       });
+      const answerBank = await prisma.applicationAnswerBank.findMany({
+        where: {
+          userId: task.userId,
+          confirmationState: "confirmed",
+        },
+      });
+      const confirmedAnswers = Object.fromEntries(
+        answerBank.flatMap((answer) => {
+          const value = answerToText(answer.answer);
+          return value ? [[answer.questionKey, value]] : [];
+        })
+      );
       const resumeText = application.tailoredResume.rawText;
 
       const result = await runPrepareApplicationTask({
@@ -72,6 +88,7 @@ async function processTask(taskId: string) {
           workModes: settings?.workModes as
             | Array<"REMOTE" | "HYBRID" | "ONSITE">
             | undefined,
+          confirmedAnswers,
         },
         documents: {
           resumeText,
@@ -108,6 +125,24 @@ async function processTask(taskId: string) {
       const mapped = mapSubmissionToApplicationStatus(
         result,
         Boolean(payload.autoSubmit)
+      );
+      const answeredFields =
+        result.formData &&
+        typeof result.formData === "object" &&
+        "answeredFields" in result.formData &&
+        Array.isArray(
+          (result.formData as { answeredFields?: unknown }).answeredFields
+        )
+          ? (
+              result.formData as { answeredFields: unknown[] }
+            ).answeredFields.filter(
+              (field): field is string => typeof field === "string"
+            )
+          : [];
+      await recordAnswerBankUsage(
+        task.userId,
+        applicationId,
+        answeredFields
       );
 
       await prisma.application.update({

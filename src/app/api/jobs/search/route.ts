@@ -6,6 +6,8 @@ import {
   cancelActiveJob,
   claimAndProcessJob,
   enqueueInteractiveSearch,
+  pauseActiveJob,
+  resumePausedJob,
 } from "@/lib/jobs/background";
 import { hasMinimumPreferences } from "@/lib/jobs/preferences";
 import { EntitlementError } from "@/lib/entitlements";
@@ -136,6 +138,49 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Search cancellation failed";
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Unauthorized" ? 401 : 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
+  if (limited) return limited;
+
+  try {
+    const user = await resolveApiUser();
+    const body = (await request.json()) as { action?: "pause" | "resume" };
+    if (body.action === "pause") {
+      const count = await pauseActiveJob(user.id, "SEARCH_JOBS");
+      return NextResponse.json({
+        paused: count > 0,
+        message:
+          count > 0
+            ? "Pausing safely after the current source step."
+            : "No active search was found.",
+      });
+    }
+    if (body.action === "resume") {
+      const job = await resumePausedJob(user.id, "SEARCH_JOBS");
+      if (job) {
+        after(() => {
+          claimAndProcessJob(job.id).catch((error) =>
+            console.error("[jobs/search] resume claim failed:", error)
+          );
+        });
+      }
+      return NextResponse.json({
+        resumed: Boolean(job),
+        jobId: job?.id ?? null,
+        message: job ? "Search resumed." : "No paused search was found.",
+      });
+    }
+    return NextResponse.json({ error: "INVALID_ACTION" }, { status: 400 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Search control failed";
     return NextResponse.json(
       { error: message },
       { status: message === "Unauthorized" ? 401 : 500 }

@@ -8,7 +8,7 @@ import type { ParsedCareerProfile, ExperienceEntry, EducationEntry } from "./car
  * plus the raw resume text — no AI call, no randomness, so the same resume
  * always produces the same score.
  */
-export const ATS_SCORE_VERSION = "1.0.0";
+export const ATS_SCORE_VERSION = "1.1.0";
 
 export type AtsRating = "Needs improvement" | "Good" | "Strong";
 
@@ -237,6 +237,57 @@ function scoreReadabilityFormatting(
   if (emptyLineRatio > 0.6) {
     formattingRisks.push("excessive blank space or empty sections");
     score -= weight * 0.1;
+  }
+
+  const normalizedLines = lines
+    .map((line) =>
+      line
+        .toLowerCase()
+        .replace(/^[\s•\-–—*]+/, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter((line) => line.length >= 30);
+  if (new Set(normalizedLines).size < normalizedLines.length) {
+    formattingRisks.push("duplicate resume lines");
+    issues.push(
+      "The resume contains repeated long lines or bullets. Remove duplicates before applying."
+    );
+    score -= weight * 0.15;
+  }
+
+  const words = rawText
+    .toLowerCase()
+    .match(/[a-z][a-z+#.]{2,}/g) ?? [];
+  const ignored = new Set([
+    "and",
+    "the",
+    "with",
+    "for",
+    "from",
+    "that",
+    "this",
+    "using",
+    "experience",
+    "skills",
+    "education",
+    "summary",
+  ]);
+  const counts = new Map<string, number>();
+  for (const word of words) {
+    if (!ignored.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+  const mostRepeated = Math.max(0, ...counts.values());
+  if (
+    words.length >= 50 &&
+    mostRepeated >= 10 &&
+    mostRepeated / words.length > 0.08
+  ) {
+    formattingRisks.push("possible keyword stuffing");
+    issues.push(
+      "One keyword is repeated unusually often. Keep role language natural and evidence-based."
+    );
+    score -= weight * 0.15;
   }
 
   return round1(clamp(score, 0, weight));

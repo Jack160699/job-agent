@@ -163,6 +163,24 @@ describe("preference-aware discovery", () => {
     expect(result.breakdown.freshnessScore).toBe(50);
   });
 
+  it("does not create a false zero when a matching source has a shortened description", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        description:
+          "Frontend role. See the official posting for full requirements.",
+      }),
+      baseSettings({
+        matchThreshold: 50,
+        workModes: ["ONSITE", "HYBRID", "REMOTE"],
+      })
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.breakdown.skillMatch).toBe(0);
+    expect(result.concerns.join(" ")).toMatch(/skill was verified/i);
+    expect(result.uncertain.join(" ")).toMatch(/shortened description/i);
+  });
+
   it("rejects senior roles for a fresher with an explanation", () => {
     const result = evaluateJobAgainstPreferences(
       sampleJob({

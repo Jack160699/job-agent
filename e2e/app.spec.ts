@@ -5,22 +5,28 @@ test.describe("Landing Page", () => {
   test("renders hero section", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "Kairela manages your job search"
+      "Your career, managed by Kairela."
     );
   });
 
   test("has navigation links", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: /Sign in/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /Get started/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Log in/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Start free/i }).first()).toBeVisible();
   });
 
   test("has feature and pricing sections", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: /Built for people who apply every day/i })
+      page.getByRole("heading", {
+        name: /One connected journey, from uncertainty to momentum/i,
+      })
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Simple pricing" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: /Start with clarity. Upgrade when it helps/i,
+      })
+    ).toBeVisible();
   });
 });
 

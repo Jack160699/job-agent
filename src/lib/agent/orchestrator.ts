@@ -23,6 +23,10 @@ import {
 import type { Prisma } from "@prisma/client";
 import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-policy";
 import { preparationReuseDecision } from "@/lib/applications/preparation-state";
+import {
+  answerToText,
+  recordAnswerBankUsage,
+} from "@/lib/applications/answer-bank-service";
 import { assertCanUseFeature, recordUsage } from "@/lib/entitlements";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
@@ -360,9 +364,19 @@ export async function prepareApplicationSubmission(
     };
   }
 
-  const profileSettings = await prisma.userSettings.findUnique({
-    where: { userId },
-  });
+  const [profileSettings, confirmedAnswerRows] = await Promise.all([
+    prisma.userSettings.findUnique({ where: { userId } }),
+    prisma.applicationAnswerBank.findMany({
+      where: { userId, confirmationState: "confirmed" },
+      select: { questionKey: true, answer: true },
+    }),
+  ]);
+  const confirmedAnswers = Object.fromEntries(
+    confirmedAnswerRows.flatMap((answer) => {
+      const value = answerToText(answer.answer);
+      return value == null ? [] : [[answer.questionKey, value]];
+    })
+  );
 
   const profile = {
     fullName: user?.fullName || user?.email || "Applicant",
@@ -379,6 +393,7 @@ export async function prepareApplicationSubmission(
     workModes: profileSettings?.workModes as
       | Array<"REMOTE" | "HYBRID" | "ONSITE">
       | undefined,
+    confirmedAnswers,
   };
 
   const browser = await createBrowserClient();
@@ -400,6 +415,12 @@ export async function prepareApplicationSubmission(
       submission,
       Boolean(options?.autoSubmit)
     );
+    const answeredFields = Array.isArray(submission.formData?.answeredFields)
+      ? submission.formData.answeredFields.filter(
+          (field): field is string => typeof field === "string"
+        )
+      : [];
+    await recordAnswerBankUsage(userId, applicationId, answeredFields);
 
     await prisma.application.update({
       where: { id: applicationId },

@@ -98,6 +98,7 @@ describe("role and seniority normalization", () => {
     ["Software Developer", "Software Engineer"],
     ["Frontend Developer", "React Developer"],
     ["Operations Analyst", "Business Operations Analyst"],
+    ["Healthcare Specialist", "Clinical Specialist"],
     ["Technical Support", "Application Support"],
     ["HR Executive", "Talent Acquisition Executive"],
   ])("recognizes %s and %s as adjacent titles", (target, candidate) => {

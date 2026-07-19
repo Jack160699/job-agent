@@ -10,7 +10,7 @@ vi.mock("@/lib/automation/registry", () => ({
           externalId: `${board}-${query}`,
           source: "GREENHOUSE",
           sourceUrl: `https://boards.greenhouse.io/${board}/jobs/1`,
-          title: query,
+          title: query || "Senior Software Engineer",
           company: board,
           description: "Synthetic",
         },
@@ -22,7 +22,7 @@ vi.mock("@/lib/automation/registry", () => ({
 import { GreenhouseAdapter } from "./adapters";
 
 describe("search-plan adapter consumption", () => {
-  it("passes location-aware plan queries into discovery instead of titles alone", async () => {
+  it("passes only the title to ATS search and keeps location in diagnostics", async () => {
     const adapter = new GreenhouseAdapter();
     const filters: JobSearchFilters = {
       titles: ["Software Engineer"],
@@ -38,7 +38,13 @@ describe("search-plan adapter consumption", () => {
       discoveryBoards: { greenhouse: ["acme"] },
     };
     const jobs = await adapter.search(filters);
-    expect(jobs[0]?.title).toBe("Software Engineer Pune");
+    expect(jobs[0]?.title).toBe("Senior Software Engineer");
     expect(jobs[0]?.title).not.toContain("San Francisco");
+    expect(jobs[0]?.metadata).toMatchObject({
+      requestedLocation: "Pune",
+      remoteScope: "INDIA",
+      searchStage: "strict",
+      searchQuery: "Software Engineer",
+    });
   });
 });

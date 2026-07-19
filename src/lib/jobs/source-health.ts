@@ -83,5 +83,7 @@ export interface SourceFetchResult {
   duplicates: number;
   expired: number;
   relevant: number;
+  durationMs?: number;
+  lastSuccessfulFetch?: string;
   error?: string;
 }

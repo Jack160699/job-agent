@@ -122,7 +122,7 @@ describe("public ATS detail extraction", () => {
             title: "Site Reliability Engineer",
             externalPath: "/job/Pune/SRE_R200",
             locationsText: "Pune",
-            postedOn: "2026-07-14",
+            postedOn: "Posted 3 Days Ago",
             bulletFields: ["Cloud infrastructure", "On-call rotation"],
           },
         ],
@@ -147,6 +147,8 @@ describe("public ATS detail extraction", () => {
           "https://acme.wd5.myworkdayjobs.com/job/Pune/SRE_R200",
       })
     );
+    expect(jobs[0]?.postedAt).toBeInstanceOf(Date);
+    expect(Number.isNaN(jobs[0]?.postedAt?.getTime())).toBe(false);
   });
 
   it("returns null rather than fabricated placeholders on source failure", async () => {

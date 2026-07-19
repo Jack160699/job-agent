@@ -7,6 +7,7 @@ export interface EntryFieldConfig<T> {
   label: string;
   type?: "text" | "textarea" | "checkbox";
   placeholder?: string;
+  suggestions?: (query: string) => string[];
 }
 
 interface EntryListEditorProps<T> {
@@ -173,9 +174,11 @@ export function EntryListEditor<T extends object>({
                             }
                           />
                         ) : (
+                          <>
                           <input
                             id={fieldId}
                             type="text"
+                            list={f.suggestions ? `${fieldId}-suggestions` : undefined}
                             className="h-11 w-full rounded-[var(--rf-radius-sm)] border border-[var(--rf-line)] bg-white px-3 text-sm text-[var(--rf-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rf-primary)]"
                             value={(entry[f.key] as string) ?? ""}
                             placeholder={f.placeholder}
@@ -183,6 +186,16 @@ export function EntryListEditor<T extends object>({
                               updateEntry(idx, { [f.key]: e.target.value } as Partial<T>)
                             }
                           />
+                          {f.suggestions && (
+                            <datalist id={`${fieldId}-suggestions`}>
+                              {f
+                                .suggestions(String(entry[f.key] ?? ""))
+                                .map((option) => (
+                                  <option key={option} value={option} />
+                                ))}
+                            </datalist>
+                          )}
+                          </>
                         )}
                       </>
                     )}

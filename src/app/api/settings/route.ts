@@ -12,6 +12,14 @@ const settingsSchema = z
   .object({
     jobTitles: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
     locations: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
+    requiredSkills: z
+      .array(z.string().trim().min(1).max(120))
+      .max(100)
+      .optional(),
+    industries: z
+      .array(z.string().trim().min(1).max(120))
+      .max(50)
+      .optional(),
     experienceYears: z.number().int().min(0).max(80).nullable().optional(),
     salaryMin: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
     salaryMax: z.number().int().min(0).max(1_000_000_000).nullable().optional(),

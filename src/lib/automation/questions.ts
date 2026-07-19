@@ -14,8 +14,10 @@ export type KnownFieldAnswer = {
 export function buildKnownFieldAnswers(
   profile: ApplicationProfile
 ): KnownFieldAnswer[] {
+  const bank = profile.confirmedAnswers ?? {};
   const salary =
-    profile.salaryMin != null || profile.salaryMax != null
+    bank.salary_expectation ??
+    (profile.salaryMin != null || profile.salaryMax != null
       ? [
           profile.salaryMin != null ? String(profile.salaryMin) : null,
           profile.salaryMax != null ? String(profile.salaryMax) : null,
@@ -23,7 +25,7 @@ export function buildKnownFieldAnswers(
           .filter(Boolean)
           .join(" - ") +
         (profile.salaryCurrency ? ` ${profile.salaryCurrency}` : "")
-      : null;
+      : null);
 
   const prefersRemote = profile.workModes?.includes("REMOTE");
   const prefersHybrid = profile.workModes?.includes("HYBRID");
@@ -77,9 +79,10 @@ export function buildKnownFieldAnswers(
       key: "years_experience",
       patterns: [/years of experience/i, /how many years/i],
       value:
-        profile.experienceYears != null
+        bank.years_experience ??
+        (profile.experienceYears != null
           ? String(profile.experienceYears)
-          : null,
+          : null),
     },
     {
       key: "salary_expectation",
@@ -87,37 +90,75 @@ export function buildKnownFieldAnswers(
       value: salary,
     },
     {
+      key: "current_salary",
+      patterns: [/current salary/i, /current compensation/i, /present salary/i],
+      value: bank.current_salary ?? null,
+    },
+    {
       key: "sponsorship",
       patterns: [/sponsorship/i, /visa/i, /require sponsorship/i],
       value:
-        profile.visaSponsorshipRequired == null
+        bank.sponsorship ??
+        (profile.visaSponsorshipRequired == null
           ? null
           : profile.visaSponsorshipRequired
             ? "Yes"
-            : "No",
+            : "No"),
+    },
+    {
+      key: "work_authorization",
+      patterns: [
+        /authorized to work/i,
+        /legally authorized/i,
+        /work authorization/i,
+      ],
+      value: bank.work_authorization ?? null,
     },
     {
       key: "relocation",
       patterns: [/willing to relocate/i, /open to relocation/i],
       value:
-        profile.willingToRelocate == null
+        bank.relocation ??
+        (profile.willingToRelocate == null
           ? null
           : profile.willingToRelocate
             ? "Yes"
-            : "No",
+            : "No"),
     },
     {
       key: "remote",
       patterns: [/remote/i, /work from home/i, /hybrid/i],
-      value: remoteAnswer,
+      value: bank.remote ?? remoteAnswer,
     },
     {
       key: "notice_period",
       patterns: [/start date/i, /earliest start/i, /when can you start/i, /notice/i],
       value:
-        profile.noticePeriodDays != null
+        bank.start_date ??
+        bank.notice_period ??
+        (profile.noticePeriodDays != null
           ? `${profile.noticePeriodDays} days`
-          : null,
+          : null),
+    },
+    {
+      key: "travel_willingness",
+      patterns: [/willing to travel/i, /travel willingness/i, /travel required/i],
+      value: bank.travel_willingness ?? null,
+    },
+    {
+      key: "portfolio",
+      patterns: [/portfolio/i, /github/i, /work samples/i],
+      value: bank.portfolio ?? null,
+    },
+    {
+      key: "government_category",
+      patterns: [/government category/i, /reservation category/i, /caste category/i],
+      value: bank.government_category ?? null,
+    },
+    {
+      key: "government_eligibility",
+      patterns: [/government eligibility/i, /public sector eligibility/i],
+      value: bank.government_eligibility ?? null,
     },
   ];
 }
@@ -159,7 +200,18 @@ export async function answerCommonQuestions(
 
   // Sensitive or legal questions with no stored truth must stop for human input.
   const inventableBlocked = [
-    { key: "work_authorization", patterns: [/authorized to work/i, /legally authorized/i, /work authorization/i] },
+    ...(profile.confirmedAnswers?.work_authorization
+      ? []
+      : [
+          {
+            key: "work_authorization",
+            patterns: [
+              /authorized to work/i,
+              /legally authorized/i,
+              /work authorization/i,
+            ],
+          },
+        ]),
     { key: "demographics", patterns: [/gender/i, /race/i, /ethnicity/i, /veteran/i, /disability/i] },
   ];
 

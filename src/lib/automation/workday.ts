@@ -69,7 +69,7 @@ export class WorkdayAutomator implements PlatformAutomator {
           company: tenant,
           location: job.locationsText,
           description: (job.bulletFields ?? []).join("\n"),
-          postedAt: job.postedOn ? new Date(job.postedOn) : undefined,
+          postedAt: parseWorkdayPostedOn(job.postedOn),
           metadata: {
             companySlug: tenant,
             workdaySite: site,
@@ -97,4 +97,18 @@ export class WorkdayAutomator implements PlatformAutomator {
       autoSubmit: options?.autoSubmit,
     });
   }
+}
+
+function parseWorkdayPostedOn(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const relative = value.match(/(\d+)\+?\s+days?\s+ago/i);
+  if (relative) {
+    return new Date(Date.now() - Number(relative[1]) * 24 * 60 * 60 * 1000);
+  }
+  if (/today/i.test(value)) return new Date();
+  if (/yesterday/i.test(value)) {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }

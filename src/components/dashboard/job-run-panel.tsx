@@ -14,6 +14,8 @@ import {
   XCircle,
   SlidersHorizontal,
   Settings,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -25,7 +27,14 @@ import { cn } from "@/lib/utils";
 interface JobRunProgress {
   jobId: string | null;
   type: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status:
+    | "pending"
+    | "running"
+    | "pause_requested"
+    | "paused"
+    | "completed"
+    | "failed"
+    | "cancelled";
   stage: string;
   stageLabel: string;
   progress: number;
@@ -48,8 +57,21 @@ interface JobRunProgress {
       success: boolean;
       fetched: number;
       relevant?: number;
+      durationMs?: number;
+      lastSuccessfulFetch?: string;
       error?: string;
     }>;
+    searchStageCounts?: {
+      strict: number;
+      balanced: number;
+      recovery: number;
+    };
+    searchSummary?: {
+      primaryRoles?: string[];
+      relatedRoles?: string[];
+      locations?: string[];
+      sources?: string[];
+    };
     zeroResultDiagnosis?: {
       explanation: string[];
       suggestedActions: Array<
@@ -82,6 +104,7 @@ export function JobRunPanel({
   const [progress, setProgress] = useState<JobRunProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [controlling, setControlling] = useState(false);
   const [broadening, setBroadening] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
@@ -127,6 +150,11 @@ export function JobRunPanel({
         stopPolling();
         setRunning(false);
         setError(p.error || "Job failed");
+      }
+
+      if (p.status === "paused") {
+        stopPolling();
+        setRunning(false);
       }
     } catch {
       // silent poll failure
@@ -207,6 +235,36 @@ export function JobRunPanel({
     }
   };
 
+  const controlRun = async (action: "pause" | "resume") => {
+    setControlling(true);
+    try {
+      const response = await fetch("/api/jobs/search", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Search control failed");
+      toast.success(data.message);
+      if (action === "resume" && data.resumed) {
+        setRunning(true);
+        completedRef.current = false;
+        pollRef.current = setInterval(pollProgress, 1500);
+        await pollProgress();
+      } else if (action === "pause" && data.paused) {
+        await pollProgress();
+      }
+    } catch (controlError) {
+      toast.error(
+        controlError instanceof Error
+          ? controlError.message
+          : "Search control failed"
+      );
+    } finally {
+      setControlling(false);
+    }
+  };
+
   const broadenAndRetry = async () => {
     setBroadening(true);
     try {
@@ -259,7 +317,13 @@ export function JobRunPanel({
       .then((res) => res.json())
       .then((data) => {
         const p = data.progress as JobRunProgress | null;
-        if (p && (p.status === "pending" || p.status === "running")) {
+        if (p) setProgress(p);
+        if (
+          p &&
+          (p.status === "pending" ||
+            p.status === "running" ||
+            p.status === "pause_requested")
+        ) {
           completedRef.current = false;
           setRunning(true);
           setProgress(p);
@@ -279,7 +343,11 @@ export function JobRunPanel({
   return (
     <div className={cn("space-y-4", className)}>
       <Button
-        onClick={startRun}
+        onClick={
+          progress?.status === "paused"
+            ? () => void controlRun("resume")
+            : startRun
+        }
         disabled={running}
         className="h-11 gap-2 px-5"
         size="default"
@@ -289,21 +357,57 @@ export function JobRunPanel({
         ) : (
           <Icon className="h-4 w-4" />
         )}
-        {running ? "Running…" : label}
+        {running
+          ? "Running…"
+          : progress?.status === "paused"
+            ? "Resume search"
+            : label}
       </Button>
 
       {running && mode === "search" && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="ml-2 h-11 gap-1.5"
-          disabled={cancelling}
-          onClick={() => void cancelRun()}
-        >
-          <XCircle className="h-4 w-4" />
-          {cancelling ? "Cancelling…" : "Cancel search"}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-2 h-11 gap-1.5"
+            disabled={controlling || progress?.status === "pause_requested"}
+            onClick={() => void controlRun("pause")}
+          >
+            <Pause className="h-4 w-4" />
+            {progress?.status === "pause_requested" ? "Pausing…" : "Pause"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-2 h-11 gap-1.5"
+            disabled={cancelling}
+            onClick={() => void cancelRun()}
+          >
+            <XCircle className="h-4 w-4" />
+            {cancelling ? "Cancelling…" : "Cancel search"}
+          </Button>
+        </>
+      )}
+
+      {progress?.status === "paused" && !running && mode === "search" && (
+        <div className="flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-4 text-sm">
+          <Pause className="h-4 w-4 text-[var(--warning)]" />
+          <span className="flex-1 text-[var(--ink-secondary)]">
+            Search paused. Existing results remain available and refresh-safe.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            disabled={controlling}
+            onClick={() => void controlRun("resume")}
+          >
+            <Play className="h-3.5 w-3.5" />
+            Resume
+          </Button>
+        </div>
       )}
 
       {running && progress && (
@@ -331,8 +435,13 @@ export function JobRunPanel({
               />
               <StatPill
                 icon={CheckCircle2}
-                label="New"
-                value={String(progress.jobsNew)}
+                label="Matched"
+                value={String(progress.jobsRelevant)}
+              />
+              <StatPill
+                icon={FileText}
+                label="Excluded"
+                value={String(progress.jobsExcluded)}
               />
               {progress.currentCompany && (
                 <StatPill
@@ -415,11 +524,9 @@ export function JobRunPanel({
         </div>
       )}
 
-      {progress?.status === "completed" &&
-        !running &&
-        (progress.result?.sources?.length ?? 0) > 0 && (
+      {(progress?.result?.sources?.length ?? 0) > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
-            {progress.result?.sources?.map((source) => (
+            {progress?.result?.sources?.map((source) => (
               <div
                 key={source.source}
                 className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3"
@@ -441,11 +548,37 @@ export function JobRunPanel({
                 </div>
                 <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
                   {source.success
-                    ? `${source.fetched} fetched · ${source.relevant ?? 0} matched`
+                    ? `${source.fetched} fetched · ${source.relevant ?? 0} matched${
+                        source.durationMs != null
+                          ? ` · ${(source.durationMs / 1000).toFixed(1)}s`
+                          : ""
+                      }`
                     : source.error ?? "This source could not be searched."}
                 </p>
               </div>
             ))}
+          </div>
+        )}
+
+      {progress?.status === "completed" &&
+        !running &&
+        progress.result?.searchStageCounts && (
+          <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-4 text-sm">
+            <p className="font-medium text-[var(--ink)]">
+              How results were found
+            </p>
+            <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+              Exact search: {progress.result.searchStageCounts.strict} · Related
+              titles: {progress.result.searchStageCounts.balanced} · Recovery
+              search: {progress.result.searchStageCounts.recovery}
+            </p>
+            {progress.result.searchStageCounts.strict === 0 &&
+              progress.jobsRelevant > 0 && (
+                <p className="mt-2 text-xs text-[var(--accent)]">
+                  Exact search returned no matches. These roles were found using
+                  related titles or the disclosed recovery search.
+                </p>
+              )}
           </div>
         )}
 

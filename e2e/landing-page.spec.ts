@@ -95,7 +95,7 @@ test.describe("Kairela public homepage", () => {
       const backdrop = page.locator(".landing-mobile-sheet-backdrop");
       await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
       await expect(page.getByRole("link", { name: "For job seekers", exact: true })).toBeVisible();
-      await expect(backdrop).toHaveCSS("background-color", "rgb(251, 250, 245)");
+      await expect(backdrop).toHaveCSS("background-color", "rgb(255, 255, 255)");
 
       const overlay = await backdrop.evaluate((element) => {
         const rect = element.getBoundingClientRect();

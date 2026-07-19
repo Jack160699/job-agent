@@ -19,6 +19,11 @@ import { ChipListEditor } from "./chip-list-editor";
 import { EntryListEditor } from "./entry-list-editor";
 import { AtsScoreCard } from "./ats-score-card";
 import { searchJobTitles } from "@/lib/data/job-titles";
+import {
+  searchLocations,
+  formatLocationLabel,
+} from "@/lib/data/locations";
+import { searchAutocompleteCatalog } from "@/lib/data/autocomplete-catalogs";
 
 const EMPTY_EXPERIENCE: ExperienceEntry = {
   title: "",
@@ -336,7 +341,12 @@ export function ReviewScreen({
 
       <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
         <h2 className="text-sm font-semibold text-[var(--rf-ink)]">Skills</h2>
-        <ChipListEditor label="Skills" values={skills} onChange={setSkills} />
+        <ChipListEditor
+          label="Skills"
+          values={skills}
+          onChange={setSkills}
+          suggestions={(query) => searchAutocompleteCatalog("skills", query)}
+        />
       </section>
 
       <section className="space-y-2 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
@@ -364,9 +374,9 @@ export function ReviewScreen({
         addLabel="Add role"
         entrySummary={(e) => [e.title, e.company].filter(Boolean).join(" · ")}
         fields={[
-          { key: "title", label: "Title", placeholder: "Software Engineer" },
-          { key: "company", label: "Company", placeholder: "Acme Inc" },
-          { key: "location", label: "Location", placeholder: "Pune, India" },
+          { key: "title", label: "Title", placeholder: "Software Engineer", suggestions: searchJobTitles },
+          { key: "company", label: "Company", placeholder: "Acme Inc", suggestions: (query) => searchAutocompleteCatalog("companies", query) },
+          { key: "location", label: "Location", placeholder: "Pune, India", suggestions: (query) => searchLocations(query).map(formatLocationLabel) },
           { key: "startDate", label: "Start date", placeholder: "Jan 2022" },
           { key: "endDate", label: "End date", placeholder: "Present" },
           { key: "current", label: "I currently work here", type: "checkbox" },
@@ -386,9 +396,9 @@ export function ReviewScreen({
         addLabel="Add education"
         entrySummary={(e) => [e.degree, e.institution].filter(Boolean).join(" · ")}
         fields={[
-          { key: "degree", label: "Degree", placeholder: "B.Tech Computer Science" },
-          { key: "institution", label: "Institution", placeholder: "University name" },
-          { key: "field", label: "Field of study", placeholder: "Computer Science" },
+          { key: "degree", label: "Degree", placeholder: "B.Tech Computer Science", suggestions: (query) => searchAutocompleteCatalog("degrees", query) },
+          { key: "institution", label: "Institution", placeholder: "University name", suggestions: (query) => searchAutocompleteCatalog("institutions", query) },
+          { key: "field", label: "Field of study", placeholder: "Computer Science", suggestions: (query) => searchAutocompleteCatalog("specializations", query) },
           { key: "startDate", label: "Start date", placeholder: "2018" },
           { key: "endDate", label: "End date", placeholder: "2022" },
         ]}
@@ -420,6 +430,9 @@ export function ReviewScreen({
             setCertifications(next);
             setSectionsDirty(true);
           }}
+          suggestions={(query) =>
+            searchAutocompleteCatalog("certifications", query)
+          }
         />
       </section>
 
@@ -432,6 +445,9 @@ export function ReviewScreen({
             setLanguages(next);
             setSectionsDirty(true);
           }}
+          suggestions={(query) =>
+            searchAutocompleteCatalog("languages", query)
+          }
         />
       </section>
 
