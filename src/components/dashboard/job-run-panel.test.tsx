@@ -73,6 +73,48 @@ describe("JobRunPanel", () => {
     );
   });
 
+  it("shows diagnostics when jobs were fetched but every result was filtered out", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("/api/jobs/progress")) {
+        return jsonResponse({ progress: null });
+      }
+      if (u.includes("/api/jobs/search")) {
+        return jsonResponse({
+          queued: false,
+          total: 42,
+          relevant: 0,
+          new: 0,
+          excluded: 42,
+          filterImpact: { location_mismatch: 40, salary_below_minimum: 2 },
+          zeroResultDiagnosis: {
+            explanation: [
+              "We found 42 jobs, but none passed your filters. The largest reason was outside your preferred locations (40 jobs).",
+            ],
+            suggestedActions: ["include_remote", "reduce_salary_minimum"],
+          },
+          sources: [
+            {
+              source: "LINKEDIN",
+              success: false,
+              error: "authentication_required",
+            },
+          ],
+        });
+      }
+      return jsonResponse({});
+    });
+
+    render(<JobRunPanel mode="search" />);
+    fireEvent.click(screen.getByRole("button", { name: /Run Job Search/i }));
+
+    expect(await screen.findByText(/We found 42 jobs/i)).toBeInTheDocument();
+    expect(screen.getByText(/location mismatch: 40/i)).toBeInTheDocument();
+    expect(screen.getByText(/LINKEDIN: unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/42 relevant jobs/i)).not.toBeInTheDocument();
+  });
+
   it("broadening lowers the match threshold and adds remote, then re-runs the search", async () => {
     const fetchMock = vi.mocked(fetch);
     let putBody: Record<string, unknown> | null = null;

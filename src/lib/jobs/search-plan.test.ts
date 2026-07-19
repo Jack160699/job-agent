@@ -42,6 +42,8 @@ function settings(
     currentSalary: null,
     workAuthorization: null,
     travelWillingness: null,
+    sectorPreference: "PRIVATE",
+    governmentCategories: [],
     preferencesComplete: true,
     driveBackupEnabled: false,
     onboardingCompletedAt: new Date(),

@@ -6,6 +6,7 @@ import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/ca
 import { calculateAtsReadinessScore, type AtsReadinessScore } from "@/lib/resumes/ats-score";
 import { applyProfileEdits, type ProfileEdits } from "@/lib/resumes/profile-edit";
 import type { Prisma } from "@prisma/client";
+import { syncNormalizedCandidateProfile } from "@/lib/resumes/normalized-profile";
 
 type StoredContent = {
   sections: unknown;
@@ -43,6 +44,16 @@ const projectEntrySchema = z.object({
 });
 
 const editsSchema = z.object({
+  fullName: z.string().trim().max(200).nullable().optional(),
+  email: z.string().trim().email().max(320).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  currentLocation: z.string().trim().max(200).nullable().optional(),
+  currentRole: z.string().trim().max(200).nullable().optional(),
+  jobTitles: z.array(z.string().trim().max(200)).max(30).optional(),
+  skills: z.array(z.string().trim().max(120)).max(200).optional(),
+  linkedinUrl: z.string().trim().url().max(500).nullable().optional(),
+  githubUrl: z.string().trim().url().max(500).nullable().optional(),
+  portfolioUrl: z.string().trim().url().max(500).nullable().optional(),
   professionalSummary: z.string().trim().max(2000).nullable().optional(),
   experience: z.array(experienceEntrySchema).max(60).optional(),
   education: z.array(educationEntrySchema).max(60).optional(),
@@ -99,29 +110,42 @@ export async function PATCH(request: NextRequest) {
       atsScore: editedScore,
     } as unknown as Prisma.InputJsonValue;
 
-    const resume = await prisma.$transaction(async (tx) => {
-      await tx.masterResumeVersion.create({
-        data: {
-          masterResumeId: existing.id,
+    const resume = await prisma.$transaction(
+      async (tx) => {
+        await tx.masterResumeVersion.create({
+          data: {
+            masterResumeId: existing.id,
+            userId: user.id,
+            version: existing.version,
+            title: existing.title,
+            content: existing.content as Prisma.InputJsonValue,
+            rawText: existing.rawText,
+            skills: existing.skills,
+          },
+        });
+        const updated = await tx.masterResume.update({
+          where: { id: existing.id },
+          data: {
+            content: contentWithProfile,
+            skills: editedProfile.skills.value,
+            experience:
+              editedProfile.experience.value as unknown as Prisma.InputJsonValue,
+            education:
+              editedProfile.education.value as unknown as Prisma.InputJsonValue,
+            projects:
+              editedProfile.projects.value as unknown as Prisma.InputJsonValue,
+            version: { increment: 1 },
+          },
+        });
+        await syncNormalizedCandidateProfile(tx, {
           userId: user.id,
-          version: existing.version,
-          title: existing.title,
-          content: existing.content as Prisma.InputJsonValue,
-          rawText: existing.rawText,
-          skills: existing.skills,
-        },
-      });
-      return tx.masterResume.update({
-        where: { id: existing.id },
-        data: {
-          content: contentWithProfile,
-          experience: editedProfile.experience.value as unknown as Prisma.InputJsonValue,
-          education: editedProfile.education.value as unknown as Prisma.InputJsonValue,
-          projects: editedProfile.projects.value as unknown as Prisma.InputJsonValue,
-          version: { increment: 1 },
-        },
-      });
-    });
+          masterResumeId: updated.id,
+          profile: editedProfile,
+        });
+        return updated;
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
 
     await createAuditLog({
       userId: user.id,

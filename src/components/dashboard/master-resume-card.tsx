@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { History, ListChecks, Pencil, Trash2 } from "lucide-react";
+import { Download, History, ListChecks, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ResumeUploadForm } from "@/components/dashboard/resume-upload";
 import { StructuredResumeEditor } from "@/components/dashboard/structured-resume-editor";
 import { ResumeProfileSummary } from "@/components/dashboard/resume-profile-summary";
+import { ResumeTemplatePicker } from "@/components/dashboard/resume-template-picker";
 import { toast } from "sonner";
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 
@@ -189,6 +191,12 @@ export function MasterResumeCard({
           <History className="mr-1 h-3.5 w-3.5" />
           {showVersions ? "Hide history" : "History"}
         </Button>
+        <Button asChild type="button" size="sm" variant="outline">
+          <Link href="/api/resumes/master/source">
+            <Download className="mr-1 h-3.5 w-3.5" />
+            Original file
+          </Link>
+        </Button>
         <Button
           type="button"
           size="sm"
@@ -200,6 +208,7 @@ export function MasterResumeCard({
           {deleting ? "Deleting…" : "Delete"}
         </Button>
       </div>
+      <ResumeTemplatePicker />
       {showVersions && (
         <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-4">
           <p className="text-sm font-medium">Previous versions</p>

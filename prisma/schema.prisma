@@ -17,6 +17,16 @@ enum JobSource {
   LEVER
   ASHBY
   WORKDAY
+  UPSC
+  ISRO
+  NTPC
+  BEL
+  IOCL
+  IBPS
+  RAILWAYS
+  SSC
+  DRDO
+  RBI
   COMPANY_PORTAL
   OTHER
 
@@ -613,6 +623,8 @@ model UserSettings {
   currentSalary         Int?     @map("current_salary")
   workAuthorization     String?  @map("work_authorization")
   travelWillingness     String?  @map("travel_willingness")
+  sectorPreference      String   @default("PRIVATE") @map("sector_preference")
+  governmentCategories  String[] @default([]) @map("government_categories")
   preferencesComplete   Boolean  @default(false) @map("preferences_complete")
   driveBackupEnabled    Boolean  @default(false) @map("drive_backup_enabled")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")

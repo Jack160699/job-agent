@@ -136,4 +136,26 @@ describe("EntryListEditor", () => {
       { title: "First", company: "A" },
     ]);
   });
+
+  it("duplicates a structured entry next to the original", () => {
+    const onChange = vi.fn();
+    const entries: TestEntry[] = [{ title: "Engineer", company: "Acme" }];
+    render(
+      <EntryListEditor
+        title="Work experience"
+        entries={entries}
+        onChange={onChange}
+        fields={fields}
+        emptyEntry={emptyEntry}
+        entrySummary={summary}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /duplicate engineer/i }));
+    expect(onChange).toHaveBeenCalledWith([
+      { title: "Engineer", company: "Acme" },
+      { title: "Engineer", company: "Acme" },
+    ]);
+    expect(onChange.mock.calls[0][0][0]).not.toBe(onChange.mock.calls[0][0][1]);
+  });
 });

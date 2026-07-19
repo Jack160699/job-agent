@@ -16,6 +16,11 @@ const settingsSchema = z
     salaryMin: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
     salaryMax: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
     matchThreshold: z.number().min(0).max(100).optional(),
+    sectorPreference: z.enum(["PRIVATE", "GOVERNMENT", "BOTH"]).optional(),
+    governmentCategories: z
+      .array(z.string().trim().min(1).max(120))
+      .max(30)
+      .optional(),
     requireReview: z.boolean().optional(),
     autoSubmitEnabled: z.boolean().optional(),
     targetCompanies: z

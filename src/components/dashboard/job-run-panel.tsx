@@ -31,12 +31,38 @@ interface JobRunProgress {
   progress: number;
   jobsFound: number;
   jobsNew: number;
+  jobsRelevant: number;
+  jobsExcluded: number;
+  failedSources: Array<{ source: string; error?: string }>;
+  summary: string | null;
   currentCompany: string | null;
   currentAts: string | null;
   queuePosition: number | null;
   estimatedSecondsRemaining: number | null;
   logs: Array<{ time: string; level: string; message: string }>;
   error: string | null;
+  result: {
+    sources?: Array<{
+      source: string;
+      requested?: boolean;
+      success: boolean;
+      fetched: number;
+      relevant?: number;
+      error?: string;
+    }>;
+    zeroResultDiagnosis?: {
+      explanation: string[];
+      suggestedActions: Array<
+        | "retry_sources"
+        | "include_remote"
+        | "lower_match_threshold"
+        | "reduce_salary_minimum"
+        | "review_preferences"
+        | "review_profile"
+      >;
+    } | null;
+    filterImpact?: Record<string, number>;
+  } | null;
 }
 
 interface JobRunPanelProps {
@@ -132,12 +158,23 @@ export function JobRunPanel({
           progress: 100,
           jobsFound: data.total,
           jobsNew: data.new ?? 0,
+          jobsRelevant: data.relevant ?? data.total,
+          jobsExcluded: data.excluded ?? 0,
+          failedSources: (data.sources ?? [])
+            .filter((source: { success?: boolean }) => !source.success)
+            .map((source: { source: string; error?: string }) => source),
+          summary: null,
           currentCompany: null,
           currentAts: null,
           queuePosition: null,
           estimatedSecondsRemaining: null,
           logs: [],
           error: null,
+          result: {
+            zeroResultDiagnosis: data.zeroResultDiagnosis ?? null,
+            filterImpact: data.filterImpact ?? {},
+            sources: data.sources ?? [],
+          },
         });
         toast.success(`Found ${data.total} jobs (${data.new} new)`);
         onComplete?.();
@@ -371,20 +408,86 @@ export function JobRunPanel({
         />
       )}
 
-      {progress?.status === "completed" && !running && progress.jobsFound > 0 && (
+      {progress?.status === "completed" && !running && progress.jobsRelevant > 0 && (
         <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--success)]/20 bg-[var(--success-muted)] px-4 py-3 text-sm text-[var(--success)]">
           <CheckCircle2 className="h-4 w-4" />
-          Complete — {progress.jobsFound} jobs found, {progress.jobsNew} new
+          Complete — {progress.jobsRelevant} relevant jobs, {progress.jobsNew} new
         </div>
       )}
 
-      {mode === "search" && progress?.status === "completed" && !running && progress.jobsFound === 0 && (
+      {progress?.status === "completed" &&
+        !running &&
+        (progress.result?.sources?.length ?? 0) > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {progress.result?.sources?.map((source) => (
+              <div
+                key={source.source}
+                className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-[var(--ink)]">
+                    {source.source}
+                  </p>
+                  <span
+                    className={cn(
+                      "text-[11px] font-medium",
+                      source.success
+                        ? "text-[var(--success)]"
+                        : "text-[var(--warning)]"
+                    )}
+                  >
+                    {source.success ? "Searched" : "Unavailable"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                  {source.success
+                    ? `${source.fetched} fetched · ${source.relevant ?? 0} matched`
+                    : source.error ?? "This source could not be searched."}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+      {mode === "search" &&
+        progress?.status === "completed" &&
+        !running &&
+        progress.jobsRelevant === 0 && (
         <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning-muted)] p-4 text-sm">
-          <p className="font-medium text-[var(--ink)]">No jobs matched your current preferences</p>
-          <p className="text-xs text-[var(--ink-tertiary)]">
-            Sources were searched but nothing cleared your title, location, and skill filters this run.
-            Broaden your preferences or edit them directly, then run the search again.
+          <p className="font-medium text-[var(--ink)]">
+            No jobs matched your current preferences
           </p>
+          {(progress.result?.zeroResultDiagnosis?.explanation ?? [
+            "The search completed, but no current posting passed your filters.",
+          ]).map((message) => (
+            <p key={message} className="text-xs text-[var(--ink-tertiary)]">
+              {message}
+            </p>
+          ))}
+          {progress.failedSources.length > 0 && (
+            <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
+              <p className="text-xs font-medium text-[var(--ink)]">Source status</p>
+              {progress.failedSources.map((source) => (
+                <p key={source.source} className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                  {source.source}: unavailable{source.error ? ` — ${source.error}` : ""}
+                </p>
+              ))}
+            </div>
+          )}
+          {progress.result?.filterImpact &&
+            Object.keys(progress.result.filterImpact).length > 0 && (
+              <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-xs font-medium text-[var(--ink)]">Filter impact</p>
+                {Object.entries(progress.result.filterImpact)
+                  .sort((left, right) => right[1] - left[1])
+                  .slice(0, 4)
+                  .map(([reason, count]) => (
+                    <p key={reason} className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                      {reason.replaceAll("_", " ")}: {count}
+                    </p>
+                  ))}
+              </div>
+            )}
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

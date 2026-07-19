@@ -29,6 +29,12 @@ import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/ca
 import { parseResumeStructure } from "@/lib/resumes/parser";
 import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import {
+  buildFilterImpact,
+  buildZeroResultDiagnosis,
+} from "@/lib/jobs/diagnostics";
+import { unavailableEnabledSources } from "@/lib/jobs/source-capabilities";
+import { getOfficialGovernmentAdapters } from "@/lib/jobs/government-adapters";
+import {
   assertCanUseFeature,
   consumeFeature,
   recordUsage,
@@ -187,11 +193,39 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     new LeverAdapter(),
     new AshbyAdapter(),
     new WorkdayAdapter(),
+    ...getOfficialGovernmentAdapters(),
   ];
 
-  const defaultSources: JobSource[] = ["GREENHOUSE", "LEVER", "ASHBY", "WORKDAY"];
-  const enabled =
-    settings.enabledSources?.length > 0 ? settings.enabledSources : defaultSources;
+  const privateSources: JobSource[] = [
+    "GREENHOUSE",
+    "LEVER",
+    "ASHBY",
+    "WORKDAY",
+  ];
+  const governmentSources: JobSource[] = [
+    "UPSC",
+    "ISRO",
+    "NTPC",
+    "BEL",
+    "IOCL",
+    "IBPS",
+    "RAILWAYS",
+    "SSC",
+    "DRDO",
+    "RBI",
+  ];
+  const configuredPrivate =
+    settings.enabledSources?.length > 0
+      ? settings.enabledSources.filter(
+          (source) => !governmentSources.includes(source)
+        )
+      : privateSources;
+  const enabled: JobSource[] =
+    settings.sectorPreference === "GOVERNMENT"
+      ? governmentSources
+      : settings.sectorPreference === "BOTH"
+        ? [...new Set([...configuredPrivate, ...governmentSources])]
+        : configuredPrivate;
 
   await progress("discovering_sources", {
     label: "Checking target companies",
@@ -203,7 +237,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   const sourceFetchMs: Record<string, number> = {};
 
   const SOURCE_TIMEOUT_MS = Number(process.env.JOB_SOURCE_TIMEOUT_MS) || 10_000;
-  const SOURCE_CONCURRENCY = 4; // Greenhouse, Lever, Ashby, Workday — one slot each today.
+  const SOURCE_CONCURRENCY = 4;
 
   async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     let timer: ReturnType<typeof setTimeout>;
@@ -373,9 +407,25 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   // Bounded concurrency: every enabled source fetches independently
   // (Promise.allSettled), each with its own timeout, so one slow or failing
   // source (e.g. Workday) can never block the others. Current source count
-  // (4) is within SOURCE_CONCURRENCY, so this already runs fully in
-  // parallel; the cap exists so adding future sources stays bounded.
+  // Sources run in small parallel batches; the cap keeps official pages from
+  // being hit in an unbounded burst as coverage grows.
   const toFetch = adapters.filter((a) => enabled.includes(a.source as JobSource));
+  for (const capability of unavailableEnabledSources(
+    enabled,
+    adapters.map((adapter) => adapter.source as JobSource)
+  )) {
+    sourceResults.push({
+      source: capability.source,
+      requested: true,
+      success: false,
+      fetched: 0,
+      invalid: 0,
+      duplicates: 0,
+      expired: 0,
+      relevant: 0,
+      error: `${capability.status}: ${capability.explanation}`,
+    });
+  }
   for (let i = 0; i < toFetch.length; i += SOURCE_CONCURRENCY) {
     const batch = toFetch.slice(i, i + SOURCE_CONCURRENCY);
     await Promise.allSettled(batch.map((adapter) => fetchSource(adapter)));
@@ -715,6 +765,23 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
 
   const persistenceMs = Date.now() - persistStart;
   const totalSearchMs = Date.now() - searchStart;
+  const filterImpact = buildFilterImpact(
+    excluded.flatMap((entry) => entry.analysis.exclusions)
+  );
+  const zeroResultDiagnosis =
+    relevantCount === 0
+      ? buildZeroResultDiagnosis({
+          discovered: discovered.length,
+          excludedCount: excluded.length,
+          duplicates: deduplicated.duplicateCount,
+          filterImpact,
+          sources: sourceResults,
+          plan: {
+            titles: filters.titles,
+            locations: filters.locations,
+          },
+        })
+      : null;
   const timings = {
     sourceFetchMs,
     deduplicationMs,
@@ -732,6 +799,15 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     duplicates: deduplicated.duplicateCount,
     expired: expiredExisting.count,
     sources: sourceResults,
+    filterImpact,
+    zeroResultDiagnosis,
+    searchSummary: {
+      titles: filters.titles,
+      locations: filters.locations,
+      remote: filters.remote,
+      experienceYears: filters.experienceYears ?? null,
+      sources: enabled,
+    },
     searchPlanId: storedPlan.id,
     timings,
   });
@@ -759,6 +835,8 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
     duplicates: deduplicated.duplicateCount,
     expired: expiredExisting.count,
     sources: sourceResults,
+    filterImpact,
+    zeroResultDiagnosis,
     searchPlanId: storedPlan.id,
     excludedSample: excluded.slice(0, 5),
     timings,

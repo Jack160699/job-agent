@@ -5,6 +5,10 @@ import {
   rateLimit,
   RATE_LIMIT_PRESETS,
 } from "@/lib/security/rate-limit";
+import {
+  isResumeLength,
+  isResumeTemplateId,
+} from "@/lib/resumes/templates";
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +21,14 @@ export async function GET(
     const user = await resolveApiUser();
     const { id } = await params;
     const versionId = request.nextUrl.searchParams.get("versionId");
+    const requestedTemplate = request.nextUrl.searchParams.get("template");
+    const requestedLength = request.nextUrl.searchParams.get("length");
+    if (requestedTemplate && !isResumeTemplateId(requestedTemplate)) {
+      return NextResponse.json({ error: "Unknown resume template" }, { status: 400 });
+    }
+    if (requestedLength && !isResumeLength(requestedLength)) {
+      return NextResponse.json({ error: "Unknown resume length" }, { status: 400 });
+    }
     const current = await prisma.tailoredResume.findFirst({
       where: { id, userId: user.id },
       include: { job: { select: { title: true, company: true } } },
@@ -42,6 +54,14 @@ export async function GET(
       title: resume.title,
       rawText: resume.rawText,
       highlights: resume.highlights,
+      template:
+        requestedTemplate && isResumeTemplateId(requestedTemplate)
+          ? requestedTemplate
+          : "ats-classic",
+      length:
+        requestedLength && isResumeLength(requestedLength)
+          ? requestedLength
+          : "two-page",
     });
     const safeName = `${current.job?.company ?? "Kairela"}-${current.job?.title ?? resume.title}`
       .replace(/[^a-z0-9-]+/gi, "-")

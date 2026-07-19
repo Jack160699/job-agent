@@ -37,6 +37,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/client", "prisma"],
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/*.ttf",
+      "./node_modules/@expo-google-fonts/noto-sans-devanagari/700Bold/*.ttf",
+    ],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",

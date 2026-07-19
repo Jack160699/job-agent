@@ -7,7 +7,14 @@ import {
   getUserSettings,
   type JobResultsView,
 } from "@/lib/data/dashboard";
-import { Search, ExternalLink, MapPin, BriefcaseBusiness } from "lucide-react";
+import {
+  Search,
+  ExternalLink,
+  MapPin,
+  BriefcaseBusiness,
+  Landmark,
+  CalendarClock,
+} from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { JobsPageClient } from "@/components/dashboard/jobs-page-client";
 import prisma from "@/lib/db";
@@ -99,6 +106,13 @@ export default async function JobsPage({
                 uncertain?: string[];
               } | null;
               const application = job.applications?.[0];
+              const metadata = job.metadata as {
+                jobType?: string;
+                advertisementNumber?: string;
+                officialSource?: string;
+                verificationStatus?: string;
+              } | null;
+              const governmentJob = metadata?.jobType === "government";
               return (
                 <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
                   <CardContent className="flex items-start justify-between p-4">
@@ -110,6 +124,12 @@ export default async function JobsPage({
                         {analysis?.classification && (
                           <span className="rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                             {analysis.classification}
+                          </span>
+                        )}
+                        {governmentJob && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                            <Landmark className="h-3 w-3" />
+                            Official government source
                           </span>
                         )}
                       </div>
@@ -138,7 +158,30 @@ export default async function JobsPage({
                             ? `Posted ${formatRelativeTime(job.postedAt)}`
                             : `Found ${formatRelativeTime(job.discoveredAt)}`}
                         </span>
+                        {job.closesAt && (
+                          <span className="flex items-center gap-1 font-medium text-[var(--warning)]">
+                            <CalendarClock className="h-3 w-3" />
+                            Apply by{" "}
+                            {new Intl.DateTimeFormat("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            }).format(job.closesAt)}
+                          </span>
+                        )}
                       </div>
+                      {governmentJob && (
+                        <p className="mt-2 text-xs text-[var(--ink-secondary)]">
+                          {metadata?.officialSource}
+                          {metadata?.advertisementNumber
+                            ? ` · ${metadata.advertisementNumber}`
+                            : ""}
+                          {metadata?.verificationStatus ===
+                          "official_page_unverified_deadline"
+                            ? " · Deadline not stated on the listing page—verify the official notice"
+                            : ""}
+                        </p>
+                      )}
                       {(job.salaryMin != null || job.salaryMax != null) && (
                         <p className="mt-2 text-xs text-[var(--ink-secondary)]">
                           Salary: {job.salaryCurrency ?? "Currency unknown"}{" "}

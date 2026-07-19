@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from "lucide-react";
 
 export interface EntryFieldConfig<T> {
   key: keyof T;
@@ -61,6 +61,11 @@ export function EntryListEditor<T extends object>({
   };
 
   const addEntry = () => onChange([...entries, emptyEntry]);
+  const duplicateEntry = (idx: number) => {
+    const next = [...entries];
+    next.splice(idx + 1, 0, { ...entries[idx] });
+    onChange(next);
+  };
 
   return (
     <section className="space-y-3 rounded-[var(--rf-radius)] border border-[var(--rf-line)] bg-white p-4">
@@ -92,6 +97,14 @@ export function EntryListEditor<T extends object>({
                 {entrySummary(entry) || `Entry ${idx + 1}`}
               </p>
               <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  aria-label={`Duplicate ${entrySummary(entry) || "entry"}`}
+                  onClick={() => duplicateEntry(idx)}
+                  className="flex h-8 w-8 items-center justify-center rounded text-[var(--rf-ink-tertiary)] hover:text-[var(--rf-primary)]"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
                 <button
                   type="button"
                   aria-label="Move up"

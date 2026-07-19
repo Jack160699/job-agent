@@ -219,6 +219,29 @@ function locationMatches(
   job: DiscoveredJob,
   settings: UserSettings
 ): { ok: boolean; reason?: string; uncertain?: boolean } {
+  if (
+    [
+      "UPSC",
+      "ISRO",
+      "NTPC",
+      "BEL",
+      "IOCL",
+      "IBPS",
+      "RAILWAYS",
+      "SSC",
+      "DRDO",
+      "RBI",
+    ].includes(
+      job.source
+    ) &&
+    normalize(job.location || "") === "india"
+  ) {
+    return {
+      ok: true,
+      reason: "Nationwide official recruitment; verify the posting location",
+      uncertain: true,
+    };
+  }
   const result = locationsAreCompatible(settings.locations, job.location, {
     remotePreferred: settings.workModes.includes("REMOTE"),
     willingToRelocate: settings.willingToRelocate,
@@ -553,6 +576,8 @@ export type PreferencePayload = {
   excludedCompanies: string[];
   noticePeriodDays: number | null;
   matchThreshold: number;
+  sectorPreference: string;
+  governmentCategories: string[];
   preferencesComplete: boolean;
 };
 
@@ -574,6 +599,8 @@ export function settingsToPayload(settings: UserSettings): PreferencePayload {
     excludedCompanies: settings.excludedCompanies,
     noticePeriodDays: settings.noticePeriodDays,
     matchThreshold: settings.matchThreshold,
+    sectorPreference: settings.sectorPreference,
+    governmentCategories: settings.governmentCategories,
     preferencesComplete: settings.preferencesComplete,
   };
 }

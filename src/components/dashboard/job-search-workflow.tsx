@@ -34,6 +34,15 @@ interface JobRunProgress {
   completedAt: string | null;
   claimedAt: string | null;
   logs?: Array<{ message: string }>;
+  failedSources?: Array<{ source: string; error?: string }>;
+  summary?: string | null;
+  result?: {
+    filterImpact?: Record<string, number>;
+    zeroResultDiagnosis?: {
+      explanation?: string[];
+      suggestedActions?: string[];
+    };
+  } | null;
 }
 
 interface JobSearchWorkflowProps {
@@ -55,6 +64,7 @@ export function JobSearchWorkflow({
   const [completedBanner, setCompletedBanner] = useState<{
     relevant: number;
     new: number;
+    progress: JobRunProgress;
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const doneRef = useRef(false);
@@ -78,9 +88,19 @@ export function JobSearchWorkflow({
         doneRef.current = true;
         stopPolling();
         setRunning(false);
-        setCompletedBanner({ relevant: p.jobsRelevant, new: p.jobsNew });
+        setCompletedBanner({
+          relevant: p.jobsRelevant,
+          new: p.jobsNew,
+          progress: p,
+        });
         setExpanded(false);
-        toast.success(`Search complete — ${p.jobsRelevant} relevant jobs found`);
+        if (p.jobsRelevant > 0) {
+          toast.success(
+            `Search complete — ${p.jobsRelevant} relevant jobs found`
+          );
+        } else {
+          toast.warning("Search complete — review why no jobs matched");
+        }
         router.refresh();
       }
       if (p.status === "failed" && !doneRef.current) {
@@ -173,11 +193,17 @@ export function JobSearchWorkflow({
             setRunning(true);
             doneRef.current = false;
             pollRef.current = setInterval(pollProgress, 1200);
+          } else if (
+            p?.status === "completed" &&
+            p.jobsRelevant === 0 &&
+            lastResultCount === 0
+          ) {
+            setCompletedBanner({ relevant: 0, new: 0, progress: p });
           }
         })
         .catch(() => {});
     }
-  }, [pollProgress, running, completedBanner]);
+  }, [pollProgress, running, completedBanner, lastResultCount]);
 
   return (
     <div className="space-y-3">
@@ -213,25 +239,94 @@ export function JobSearchWorkflow({
 
       {/* Completion banner */}
       {completedBanner && !running && (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-[var(--success)]/25 bg-[var(--success-muted)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-sm text-[var(--success)]">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>
-              Search complete — {completedBanner.relevant} relevant jobs found
-              {completedBanner.new > 0 ? ` (${completedBanner.new} new)` : ""}
-            </span>
+        <div
+          className={cn(
+            "flex flex-col gap-3 rounded-[var(--radius-sm)] border px-4 py-3",
+            completedBanner.relevant > 0
+              ? "border-[var(--success)]/25 bg-[var(--success-muted)]"
+              : "border-[var(--warning)]/25 bg-[var(--warning-muted)]"
+          )}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-sm",
+                completedBanner.relevant > 0
+                  ? "text-[var(--success)]"
+                  : "text-[var(--warning)]"
+              )}
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>
+                {completedBanner.relevant > 0
+                  ? `Search complete — ${completedBanner.relevant} relevant jobs found${
+                      completedBanner.new > 0
+                        ? ` (${completedBanner.new} new)`
+                        : ""
+                    }`
+                  : "Search complete — no jobs passed your current filters"}
+              </span>
+            </div>
+            {completedBanner.relevant > 0 ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9"
+                onClick={() => {
+                  setCompletedBanner(null);
+                  document
+                    .getElementById("job-results")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                View results
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-9" asChild>
+                <Link href="/dashboard/settings">Review filters</Link>
+              </Button>
+            )}
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            onClick={() => {
-              setCompletedBanner(null);
-              document.getElementById("job-results")?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            View results
-          </Button>
+          {completedBanner.relevant === 0 && (
+            <div className="space-y-2 text-xs text-[var(--ink-secondary)]">
+              {(
+                completedBanner.progress.result?.zeroResultDiagnosis
+                  ?.explanation ?? [
+                  completedBanner.progress.summary ||
+                    "The sources completed, but no current posting matched every preference.",
+                ]
+              ).map((message) => (
+                <p key={message}>{message}</p>
+              ))}
+              {(completedBanner.progress.failedSources?.length ?? 0) > 0 && (
+                <div>
+                  <p className="font-medium text-[var(--ink)]">Source status</p>
+                  {completedBanner.progress.failedSources?.map((source) => (
+                    <p key={source.source} className="mt-1">
+                      {source.source}: {source.error || "temporarily unavailable"}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {completedBanner.progress.result?.filterImpact &&
+                Object.keys(completedBanner.progress.result.filterImpact)
+                  .length > 0 && (
+                  <div>
+                    <p className="font-medium text-[var(--ink)]">Filter impact</p>
+                    {Object.entries(
+                      completedBanner.progress.result.filterImpact
+                    )
+                      .sort((left, right) => right[1] - left[1])
+                      .slice(0, 4)
+                      .map(([reason, count]) => (
+                        <p key={reason} className="mt-1">
+                          {reason.replaceAll("_", " ")}: {count}
+                        </p>
+                      ))}
+                  </div>
+                )}
+            </div>
+          )}
         </div>
       )}
 

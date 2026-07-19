@@ -35,6 +35,8 @@ interface Settings {
   sheetsSyncEnabled: boolean;
   calendarSyncEnabled: boolean;
   targetCompanies?: string[];
+  sectorPreference?: string;
+  governmentCategories?: string[];
 }
 
 type GoogleStatus = {
@@ -96,6 +98,17 @@ export function SettingsForm({
   );
   const [targetCompanies, setTargetCompanies] = useState(
     initialSettings?.targetCompanies?.join(", ") || ""
+  );
+  const [sectorPreference, setSectorPreference] = useState<
+    "PRIVATE" | "GOVERNMENT" | "BOTH"
+  >(
+    initialSettings?.sectorPreference === "GOVERNMENT" ||
+      initialSettings?.sectorPreference === "BOTH"
+      ? initialSettings.sectorPreference
+      : "PRIVATE"
+  );
+  const [governmentCategories, setGovernmentCategories] = useState<string[]>(
+    initialSettings?.governmentCategories ?? []
   );
   const [googleBusy, setGoogleBusy] = useState<string | null>(null);
   const [gmailSync, setGmailSync] = useState(
@@ -305,6 +318,8 @@ export function SettingsForm({
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
+          sectorPreference,
+          governmentCategories,
           gmailSyncEnabled: googleConnected ? gmailSync : false,
           sheetsSyncEnabled: googleConnected ? sheetsSync : false,
           calendarSyncEnabled: googleConnected ? calendarSync : false,
@@ -345,6 +360,33 @@ export function SettingsForm({
             <CardTitle>Search Filters</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="sector-preference">Job sector</Label>
+                <select
+                  id="sector-preference"
+                  value={sectorPreference}
+                  onChange={(event) =>
+                    setSectorPreference(
+                      event.target.value as "PRIVATE" | "GOVERNMENT" | "BOTH"
+                    )
+                  }
+                  className="h-11 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)]"
+                >
+                  <option value="PRIVATE">Private sector</option>
+                  <option value="GOVERNMENT">Government and public sector</option>
+                  <option value="BOTH">Both</option>
+                </select>
+              </div>
+              {sectorPreference !== "PRIVATE" && (
+                <ChipListEditor
+                  label="Government job categories"
+                  values={governmentCategories}
+                  onChange={setGovernmentCategories}
+                  placeholder="e.g. Banking, Railway, PSU"
+                />
+              )}
+            </div>
             <div className="space-y-2">
               <Label>Job Titles</Label>
               <ChipListEditor

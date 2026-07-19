@@ -34,6 +34,16 @@ describe("detectJobSource", () => {
     ).toBe("WORKDAY");
   });
 
+  it("detects supported official government hosts", () => {
+    expect(detectJobSource("https://ssc.gov.in/notices")).toBe("SSC");
+    expect(
+      detectJobSource("https://www.drdo.gov.in/drdo/offerings/vacancies")
+    ).toBe("DRDO");
+    expect(
+      detectJobSource("https://opportunities.rbi.org.in/Scripts/Vacancies.aspx")
+    ).toBe("RBI");
+  });
+
   it("defaults to company portal", () => {
     expect(detectJobSource("https://careers.example.com/jobs/123")).toBe(
       "COMPANY_PORTAL"

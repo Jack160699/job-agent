@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyProfileEdits } from "./profile-edit";
+import {
+  applyProfileEdits,
+  mergeExtractedProfilePreservingUserEdits,
+} from "./profile-edit";
 import type { ParsedCareerProfile } from "./career-profile";
 
 function baseProfile(): ParsedCareerProfile {
@@ -91,5 +94,69 @@ describe("applyProfileEdits", () => {
     const edited = applyProfileEdits(profile, { projects: [] });
     expect(edited.projects.value).toEqual([]);
     expect(edited.projects.directlyFound).toBe(true);
+  });
+
+  it("marks identity, career targets, skills, and links as explicit user edits", () => {
+    const edited = applyProfileEdits(baseProfile(), {
+      fullName: "Aarav Sharma",
+      currentRole: "Implementation Analyst",
+      jobTitles: ["Implementation Analyst", "Operations Analyst"],
+      skills: ["SQL", "Jira"],
+      linkedinUrl: "https://www.linkedin.com/in/aarav",
+    });
+
+    expect(edited.fullName).toMatchObject({
+      value: "Aarav Sharma",
+      confidence: 1,
+      source: "user_edit",
+      needsReview: false,
+    });
+    expect(edited.jobTitles.value).toEqual([
+      "Implementation Analyst",
+      "Operations Analyst",
+    ]);
+    expect(edited.skills.value).toEqual(["SQL", "Jira"]);
+    expect(edited.linkedinUrl.value).toBe("https://www.linkedin.com/in/aarav");
+  });
+
+  it("preserves user edits while accepting fresh values for unconfirmed fields", () => {
+    const current = applyProfileEdits(baseProfile(), {
+      fullName: "Aarav Sharma",
+      skills: ["SQL", "Jira"],
+    });
+    current.email = {
+      value: "old@example.com",
+      confidence: 0.7,
+      source: "header",
+      directlyFound: true,
+      needsReview: true,
+    };
+    const reprocessed = baseProfile();
+    reprocessed.fullName = {
+      value: "Incorrect Extracted Name",
+      confidence: 0.8,
+      source: "header",
+      directlyFound: true,
+      needsReview: false,
+    };
+    reprocessed.skills = {
+      value: ["Python"],
+      confidence: 0.9,
+      source: "skills",
+      directlyFound: true,
+      needsReview: false,
+    };
+    reprocessed.email = {
+      value: "new@example.com",
+      confidence: 0.95,
+      source: "header",
+      directlyFound: true,
+      needsReview: false,
+    };
+
+    const merged = mergeExtractedProfilePreservingUserEdits(current, reprocessed);
+    expect(merged.fullName.value).toBe("Aarav Sharma");
+    expect(merged.skills.value).toEqual(["SQL", "Jira"]);
+    expect(merged.email.value).toBe("new@example.com");
   });
 });

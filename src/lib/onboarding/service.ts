@@ -1,5 +1,5 @@
 import prisma from "@/lib/db";
-import type { UserPersona } from "@prisma/client";
+import { Prisma, type UserPersona } from "@prisma/client";
 import {
   computeCompletionPct,
   type OnboardingDraft,
@@ -14,11 +14,24 @@ import {
 import type { ParsedCareerProfile } from "@/lib/resumes/career-profile";
 
 export async function getOrCreateOnboardingState(userId: string) {
-  return prisma.onboardingState.upsert({
-    where: { userId },
-    create: { userId, currentStep: "welcome", draftData: {} },
-    update: {},
-  });
+  try {
+    return await prisma.onboardingState.upsert({
+      where: { userId },
+      create: { userId, currentStep: "welcome", draftData: {} },
+      update: {},
+    });
+  } catch (error) {
+    // Two server components may initialize a new account concurrently.
+    // Prisma's upsert can still surface P2002 under that race; the other
+    // request has already created the desired owner row, so read it back.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return prisma.onboardingState.findUniqueOrThrow({ where: { userId } });
+    }
+    throw error;
+  }
 }
 
 export async function loadOnboardingDraft(userId: string): Promise<OnboardingDraft> {
@@ -91,22 +104,38 @@ export async function saveOnboardingProgress(
   const resume = await prisma.masterResume.findUnique({ where: { userId } });
   const completionPct = computeCompletionPct(persona, merged, Boolean(resume));
 
-  const state = await prisma.onboardingState.upsert({
-    where: { userId },
-    create: {
-      userId,
-      currentStep: patch.currentStep ?? "welcome",
-      completedSteps: patch.completedSteps ?? [],
-      draftData: merged as object,
-      completionPct,
-    },
-    update: {
-      ...(patch.currentStep ? { currentStep: patch.currentStep } : {}),
-      ...(patch.completedSteps ? { completedSteps: patch.completedSteps } : {}),
-      draftData: merged as object,
-      completionPct,
-    },
-  });
+  const stateUpdate = {
+    ...(patch.currentStep ? { currentStep: patch.currentStep } : {}),
+    ...(patch.completedSteps ? { completedSteps: patch.completedSteps } : {}),
+    draftData: merged as object,
+    completionPct,
+  };
+  let state;
+  try {
+    state = await prisma.onboardingState.upsert({
+      where: { userId },
+      create: {
+        userId,
+        currentStep: patch.currentStep ?? "welcome",
+        completedSteps: patch.completedSteps ?? [],
+        draftData: merged as object,
+        completionPct,
+      },
+      update: stateUpdate,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      state = await prisma.onboardingState.update({
+        where: { userId },
+        data: stateUpdate,
+      });
+    } else {
+      throw error;
+    }
+  }
 
   if (merged.fullName || merged.currentLocation || merged.linkedinUrl) {
     await prisma.user.update({

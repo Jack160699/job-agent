@@ -64,6 +64,16 @@ export const JOB_SOURCES: Record<JobSource, { name: string; canAutoApply: boolea
   LEVER: { name: "Lever", canAutoApply: true },
   ASHBY: { name: "Ashby", canAutoApply: true },
   WORKDAY: { name: "Workday", canAutoApply: true },
+  UPSC: { name: "UPSC", canAutoApply: false },
+  ISRO: { name: "ISRO", canAutoApply: false },
+  NTPC: { name: "NTPC", canAutoApply: false },
+  BEL: { name: "BEL", canAutoApply: false },
+  IOCL: { name: "IndianOil", canAutoApply: false },
+  IBPS: { name: "IBPS", canAutoApply: false },
+  RAILWAYS: { name: "Railway Recruitment Board", canAutoApply: false },
+  SSC: { name: "Staff Selection Commission", canAutoApply: false },
+  DRDO: { name: "DRDO", canAutoApply: false },
+  RBI: { name: "Reserve Bank of India", canAutoApply: false },
   COMPANY_PORTAL: { name: "Company Portal", canAutoApply: false },
   OTHER: { name: "Other", canAutoApply: false },
 };
@@ -77,5 +87,15 @@ export function detectJobSource(url: string): JobSource {
   if (url.includes("lever.co") || url.includes("jobs.lever.co")) return "LEVER";
   if (url.includes("ashbyhq.com") || url.includes("jobs.ashbyhq.com")) return "ASHBY";
   if (url.includes("myworkdayjobs.com") || url.includes("workday.com")) return "WORKDAY";
+  if (url.includes("upsc.gov.in") || url.includes("upsconline.nic.in")) return "UPSC";
+  if (url.includes("isro.gov.in")) return "ISRO";
+  if (url.includes("ntpc.co.in")) return "NTPC";
+  if (url.includes("bel-india.in")) return "BEL";
+  if (url.includes("iocl.com")) return "IOCL";
+  if (url.includes("ibps.in")) return "IBPS";
+  if (url.includes("rrbcdg.gov.in") || url.includes("rrbapply.gov.in")) return "RAILWAYS";
+  if (url.includes("ssc.gov.in")) return "SSC";
+  if (url.includes("drdo.gov.in")) return "DRDO";
+  if (url.includes("opportunities.rbi.org.in") || url.includes("rbi.org.in")) return "RBI";
   return "COMPANY_PORTAL";
 }

@@ -7,6 +7,14 @@ import { extractCareerProfile, type ParsedCareerProfile } from "@/lib/resumes/ca
 import { calculateAtsReadinessScore, type AtsReadinessScore } from "@/lib/resumes/ats-score";
 import { enqueueJob, claimAndProcessJob } from "@/lib/jobs/background";
 import type { Prisma } from "@prisma/client";
+import { mergeExtractedProfilePreservingUserEdits } from "@/lib/resumes/profile-edit";
+import { syncNormalizedCandidateProfile } from "@/lib/resumes/normalized-profile";
+import {
+  preserveResumeFile,
+  recordResumeSource,
+  sha256Resume,
+  type ResumeSourceRecord,
+} from "@/lib/resumes/resume-source";
 
 type StoredContent = {
   sections: unknown;
@@ -55,6 +63,7 @@ export async function POST(request: NextRequest) {
     const user = await resolveApiUser();
     let title = "Master Resume";
     let parsedResume;
+    let sourceRecord: ResumeSourceRecord;
     if (request.headers.get("content-type")?.includes("multipart/form-data")) {
       const form = await request.formData();
       const file = form.get("file");
@@ -68,11 +77,30 @@ export async function POST(request: NextRequest) {
       if (typeof submittedTitle === "string" && submittedTitle.trim()) {
         title = submittedTitle.trim().slice(0, 120);
       }
+      const bytes = new Uint8Array(await file.arrayBuffer());
       parsedResume = await parseResumeFile({
         name: file.name,
         type: file.type,
-        bytes: new Uint8Array(await file.arrayBuffer()),
+        bytes,
       });
+      const contentSha256 = sha256Resume(bytes);
+      const storagePath = await preserveResumeFile({
+        userId: user.id,
+        filename: file.name,
+        mediaType: parsedResume.content.source.mediaType,
+        bytes,
+        contentSha256,
+      });
+      sourceRecord = {
+        sourceType: "file",
+        originalFilename: file.name.slice(0, 255),
+        mediaType: parsedResume.content.source.mediaType,
+        storagePath,
+        contentSha256,
+        byteSize: bytes.byteLength,
+        rawText: parsedResume.rawText,
+        parser: parsedResume.content.source.parser,
+      };
     } else {
       const parsed = resumeSchema.safeParse(await request.json());
       if (!parsed.success) {
@@ -90,14 +118,37 @@ export async function POST(request: NextRequest) {
         mediaType: "text/plain",
         parser: "manual",
       });
+      const bytes = new TextEncoder().encode(parsed.data.rawText);
+      sourceRecord = {
+        sourceType: "manual",
+        originalFilename: null,
+        mediaType: "text/plain",
+        storagePath: null,
+        contentSha256: sha256Resume(bytes),
+        byteSize: bytes.byteLength,
+        rawText: parsedResume.rawText,
+        parser: "manual",
+      };
     }
     const parseCompletedAt = Date.now();
-    const { rawText, skills, content } = parsedResume;
+    const { rawText, content } = parsedResume;
+    const existingBeforeParse = await prisma.masterResume.findUnique({
+      where: { userId: user.id },
+      select: { content: true },
+    });
+    const currentProfile =
+      (
+        existingBeforeParse?.content as Partial<StoredContent> | null | undefined
+      )?.profile ?? null;
 
     // Instant path (Phase 3): deterministic extraction + baseline ATS score
     // only — no AI call — so the response never waits on OpenAI.
     const deterministicStart = Date.now();
-    const profile = extractCareerProfile(parsedResume);
+    const profile = mergeExtractedProfilePreservingUserEdits(
+      currentProfile,
+      extractCareerProfile(parsedResume)
+    );
+    const persistedSkills = profile.skills.value;
     const deterministicExtractionMs = Date.now() - deterministicStart;
     const atsScore = calculateAtsReadinessScore(profile, rawText);
     const aiConfigured = Boolean(process.env.OPENAI_API_KEY);
@@ -109,58 +160,88 @@ export async function POST(request: NextRequest) {
       enrichment: { status: aiConfigured ? "pending" : "skipped" },
     } as unknown as Prisma.InputJsonValue;
 
-    const resume = await prisma.$transaction(async (tx) => {
-      const existing = await tx.masterResume.findUnique({
-        where: { userId: user.id },
-      });
-      if (!existing) {
-        return tx.masterResume.create({
-          data: {
+    const resume = await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.masterResume.findUnique({
+          where: { userId: user.id },
+        });
+        if (!existing) {
+          const created = await tx.masterResume.create({
+            data: {
+              userId: user.id,
+              title,
+              content: contentWithProfile,
+              rawText,
+              skills: persistedSkills,
+              experience:
+                profile.experience.value as unknown as Prisma.InputJsonValue,
+              education:
+                profile.education.value as unknown as Prisma.InputJsonValue,
+              projects:
+                profile.projects.value as unknown as Prisma.InputJsonValue,
+              version: 1,
+            },
+          });
+          await syncNormalizedCandidateProfile(tx, {
             userId: user.id,
+            masterResumeId: created.id,
+            profile,
+          });
+          await recordResumeSource(tx, {
+            userId: user.id,
+            masterResumeId: created.id,
+            source: sourceRecord,
+          });
+          return created;
+        }
+
+        await tx.masterResumeVersion.create({
+          data: {
+            masterResumeId: existing.id,
+            userId: user.id,
+            version: existing.version,
+            title: existing.title,
+            content: existing.content as Prisma.InputJsonValue,
+            rawText: existing.rawText,
+            skills: existing.skills,
+          },
+        });
+        const updated = await tx.masterResume.update({
+          where: { id: existing.id },
+          data: {
             title,
             content: contentWithProfile,
             rawText,
-            skills,
-            experience: profile.experience.value as unknown as Prisma.InputJsonValue,
-            education: profile.education.value as unknown as Prisma.InputJsonValue,
+            skills: persistedSkills,
+            experience:
+              profile.experience.value as unknown as Prisma.InputJsonValue,
+            education:
+              profile.education.value as unknown as Prisma.InputJsonValue,
             projects: profile.projects.value as unknown as Prisma.InputJsonValue,
-            version: 1,
+            version: { increment: 1 },
           },
         });
-      }
-
-      await tx.masterResumeVersion.create({
-        data: {
-          masterResumeId: existing.id,
+        await syncNormalizedCandidateProfile(tx, {
           userId: user.id,
-          version: existing.version,
-          title: existing.title,
-          content: existing.content as Prisma.InputJsonValue,
-          rawText: existing.rawText,
-          skills: existing.skills,
-        },
-      });
-      return tx.masterResume.update({
-        where: { id: existing.id },
-        data: {
-          title,
-          content: contentWithProfile,
-          rawText,
-          skills,
-          experience: profile.experience.value as unknown as Prisma.InputJsonValue,
-          education: profile.education.value as unknown as Prisma.InputJsonValue,
-          projects: profile.projects.value as unknown as Prisma.InputJsonValue,
-          version: { increment: 1 },
-        },
-      });
-    });
+          masterResumeId: updated.id,
+          profile,
+        });
+        await recordResumeSource(tx, {
+          userId: user.id,
+          masterResumeId: updated.id,
+          source: sourceRecord,
+        });
+        return updated;
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
 
     await createAuditLog({
       userId: user.id,
       action: "RESUME_UPLOADED",
       resource: "master_resume",
       resourceId: resume.id,
-      message: `Master resume updated with ${skills.length} skills detected`,
+      message: `Master resume updated with ${persistedSkills.length} skills detected`,
       level: "AUDIT",
       metadata: { atsScore: atsScore.totalScore, deterministicExtractionMs },
     });

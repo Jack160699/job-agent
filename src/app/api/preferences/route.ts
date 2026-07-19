@@ -31,6 +31,8 @@ export async function GET() {
             excludedCompanies: settings.excludedCompanies,
             noticePeriodDays: settings.noticePeriodDays,
             matchThreshold: settings.matchThreshold,
+            sectorPreference: settings.sectorPreference,
+            governmentCategories: settings.governmentCategories,
             preferencesComplete: settings.preferencesComplete,
           }
         : null,
@@ -71,6 +73,8 @@ export async function PUT(request: NextRequest) {
         excludedCompanies: body.excludedCompanies || [],
         noticePeriodDays: body.noticePeriodDays ?? null,
         matchThreshold: body.matchThreshold ?? 70,
+        sectorPreference: body.sectorPreference ?? "PRIVATE",
+        governmentCategories: body.governmentCategories || [],
         preferencesComplete: complete,
         onboardingCompletedAt: complete ? new Date() : null,
         enabledSources: body.enabledSources || [
@@ -97,6 +101,8 @@ export async function PUT(request: NextRequest) {
         excludedCompanies: body.excludedCompanies,
         noticePeriodDays: body.noticePeriodDays,
         matchThreshold: body.matchThreshold,
+        sectorPreference: body.sectorPreference,
+        governmentCategories: body.governmentCategories,
         preferencesComplete: complete,
         onboardingCompletedAt: complete ? new Date() : undefined,
         enabledSources: body.enabledSources,
