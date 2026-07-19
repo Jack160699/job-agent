@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatIndiaDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -341,7 +342,7 @@ export function AnswerBankManager() {
                     <dt className="text-[var(--ink-tertiary)]">Last used</dt>
                     <dd className="mt-1 text-[var(--ink)]">
                       {answer.lastUsedAt
-                        ? new Date(answer.lastUsedAt).toLocaleString()
+                        ? formatIndiaDateTime(answer.lastUsedAt)
                         : "Never"}
                     </dd>
                   </div>
@@ -378,7 +379,7 @@ export function AnswerBankManager() {
                             {displayValue(version.answer)}
                           </p>
                           <p className="mt-1 text-[var(--ink-tertiary)]">
-                            {new Date(version.createdAt).toLocaleString()}
+                            {formatIndiaDateTime(version.createdAt)}
                           </p>
                         </div>
                       ))

@@ -1,5 +1,12 @@
 import { test, expect } from "vitest";
-import { cn, formatCurrency, formatDate, getMatchScoreColor, truncate } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  formatIndiaDateTime,
+  getMatchScoreColor,
+  truncate,
+} from "@/lib/utils";
 
 test("cn merges class names", () => {
   expect(cn("foo", "bar")).toBe("foo bar");
@@ -13,6 +20,13 @@ test("formatCurrency formats USD", () => {
 test("formatDate formats dates", () => {
   const result = formatDate("2026-01-15");
   expect(result).toContain("2026");
+});
+
+test("formatIndiaDateTime is deterministic across server and browser time zones", () => {
+  expect(formatIndiaDateTime("2026-07-19T20:30:00.000Z")).toBe(
+    "20/07/2026, 02:00 IST"
+  );
+  expect(formatIndiaDateTime("not-a-date")).toBe("Unknown");
 });
 
 test("getMatchScoreColor returns correct colors", () => {

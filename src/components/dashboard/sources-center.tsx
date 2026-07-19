@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatIndiaDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -191,7 +192,7 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                   <dt className="text-[var(--ink-tertiary)]">Last success</dt>
                   <dd className="mt-1 font-medium text-[var(--ink)]">
                     {item.lastSuccessfulFetch
-                      ? new Date(item.lastSuccessfulFetch).toLocaleString()
+                      ? formatIndiaDateTime(item.lastSuccessfulFetch)
                       : "Never"}
                   </dd>
                 </div>

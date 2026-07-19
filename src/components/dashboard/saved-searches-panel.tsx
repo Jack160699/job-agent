@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Bell, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { formatIndiaDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 
 type AlertFrequency = "OFF" | "DAILY" | "WEEKLY";
@@ -175,7 +176,7 @@ export function SavedSearchesPanel({
                   </p>
                   {search.nextRunAt && (
                     <p className="mt-0.5 text-[11px] text-[var(--accent)]">
-                      Next alert: {new Date(search.nextRunAt).toLocaleString()}
+                      Next alert: {formatIndiaDateTime(search.nextRunAt)}
                     </p>
                   )}
                 </div>

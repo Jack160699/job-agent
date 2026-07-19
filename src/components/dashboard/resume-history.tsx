@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { REMOVED_MASTER_LABEL } from "@/lib/resumes/history-policy";
+import { formatIndiaDateTime } from "@/lib/utils";
 
 export type ResumeHistoryEntry = {
   key: string;
@@ -304,7 +305,7 @@ export function ResumeHistory({
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
-                    Created {new Date(entry.createdAt).toLocaleString()}
+                    Created {formatIndiaDateTime(entry.createdAt)}
                   </p>
                   {entry.job && (
                     <p className="mt-1 text-sm text-[var(--ink-secondary)]">

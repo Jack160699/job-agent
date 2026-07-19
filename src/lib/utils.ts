@@ -21,6 +21,19 @@ export function formatDate(date: Date | string): string {
   }).format(new Date(date));
 }
 
+export function formatIndiaDateTime(date: Date | string): string {
+  const instant = new Date(date);
+  if (Number.isNaN(instant.getTime())) return "Unknown";
+
+  const indiaTime = new Date(instant.getTime() + 330 * 60 * 1000);
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${pad(indiaTime.getUTCDate())}/${pad(
+    indiaTime.getUTCMonth() + 1
+  )}/${indiaTime.getUTCFullYear()}, ${pad(indiaTime.getUTCHours())}:${pad(
+    indiaTime.getUTCMinutes()
+  )} IST`;
+}
+
 export function formatRelativeTime(date: Date | string): string {
   const now = new Date();
   const then = new Date(date);

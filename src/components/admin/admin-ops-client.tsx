@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatIndiaDateTime } from "@/lib/utils";
 import { Activity, Database, ListOrdered } from "lucide-react";
 
 interface HealthData {
@@ -139,7 +140,7 @@ export function AdminOpsClient() {
                       </td>
                       <td>
                         {source.lastSuccessfulFetch
-                          ? new Date(source.lastSuccessfulFetch).toLocaleString()
+                          ? formatIndiaDateTime(source.lastSuccessfulFetch)
                           : "Never"}
                       </td>
                       <td>
@@ -159,7 +160,7 @@ export function AdminOpsClient() {
 
       {health?.timestamp && (
         <p className="text-xs text-[var(--ink-tertiary)]">
-          Last checked: {new Date(health.timestamp).toLocaleString()}
+          Last checked: {formatIndiaDateTime(health.timestamp)}
         </p>
       )}
     </div>
