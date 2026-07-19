@@ -1,4 +1,5 @@
 import type { JobSource } from "@prisma/client";
+import { publicDiscoveryCapability } from "./public-discovery";
 
 export type SourceCapabilityStatus =
   | "healthy"
@@ -18,6 +19,10 @@ export interface SourceCapability {
   status: SourceCapabilityStatus;
   searchable: boolean;
   explanation: string;
+  publicDiscoveryStatus?: "available" | "setup_required";
+  authenticatedConnectionStatus?: "connected" | "connection_required";
+  publicDiscoveryProvider?: string | null;
+  importSupported?: boolean;
 }
 
 export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
@@ -142,20 +147,28 @@ export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
   LINKEDIN: {
     source: "LINKEDIN",
     displayName: "LinkedIn Jobs",
-    accessMethod: "Permitted user session or partner integration",
+    accessMethod: "Public index discovery or imported job link",
     status: "authentication_required",
     searchable: false,
     explanation:
-      "Direct search is unavailable until a permitted authenticated integration is connected.",
+      "Authenticated LinkedIn features require an approved connection. Public discovery requires a configured search provider.",
+    publicDiscoveryStatus: "setup_required",
+    authenticatedConnectionStatus: "connection_required",
+    publicDiscoveryProvider: null,
+    importSupported: true,
   },
   NAUKRI: {
     source: "NAUKRI",
     displayName: "Naukri",
-    accessMethod: "Permitted user session or partner integration",
+    accessMethod: "Public index discovery or imported job link",
     status: "authentication_required",
     searchable: false,
     explanation:
-      "Direct search is unavailable until a permitted authenticated integration is connected.",
+      "Authenticated Naukri features require an approved connection. Public discovery requires a configured search provider.",
+    publicDiscoveryStatus: "setup_required",
+    authenticatedConnectionStatus: "connection_required",
+    publicDiscoveryProvider: null,
+    importSupported: true,
   },
   INDEED: {
     source: "INDEED",
@@ -191,6 +204,27 @@ export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
     explanation: "No production adapter is configured.",
   },
 };
+
+export function getSourceCapabilities(
+  env: Record<string, string | undefined> = process.env
+): Record<JobSource, SourceCapability> {
+  const discovery = publicDiscoveryCapability(env);
+  const capabilities = { ...SOURCE_CAPABILITIES };
+  for (const source of ["LINKEDIN", "NAUKRI"] as const) {
+    const current = capabilities[source];
+    capabilities[source] = {
+      ...current,
+      status: discovery.available ? "healthy" : "authentication_required",
+      searchable: discovery.available,
+      publicDiscoveryStatus: discovery.status,
+      publicDiscoveryProvider: discovery.provider,
+      explanation: discovery.available
+        ? `Domain-restricted public discovery is available through ${discovery.provider}. Authenticated platform features still require an approved connection.`
+        : "No approved public-search provider is configured. Job-link import remains available; authenticated platform features require an approved connection.",
+    };
+  }
+  return capabilities;
+}
 
 export function unavailableEnabledSources(
   enabled: JobSource[],

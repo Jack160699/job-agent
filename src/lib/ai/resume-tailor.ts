@@ -49,6 +49,17 @@ export type GroundingCategory =
 
 export interface GroundingReport {
   version: "grounding-v2";
+  claims: Array<{
+    category: GroundingCategory;
+    claim: string;
+    sourceResume: "Master Resume";
+    sourceSection: string;
+    sourceExcerpt: string | null;
+    state: "SOURCE_CONFIRMED" | "AI_REWORDED" | "UNSUPPORTED";
+    userConfirmed: boolean;
+    aiImproved: boolean;
+    reviewRequired: boolean;
+  }>;
   excluded: Array<{
     category: GroundingCategory;
     claim: string;
@@ -158,7 +169,40 @@ export function groundTailoredResume(
     "years",
   ]);
   const excluded: GroundingReport["excluded"] = [];
+  const claims: GroundingReport["claims"] = [];
   let acceptedCount = 0;
+  const masterLines = master.rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const sourceSection = (category: GroundingCategory) =>
+    category === "employer" ||
+    category === "job_title" ||
+    category === "employment_date" ||
+    category === "responsibility" ||
+    category === "achievement" ||
+    category === "metric"
+      ? "Experience"
+      : category === "education"
+        ? "Education"
+        : category === "project"
+          ? "Projects"
+          : category === "skill"
+            ? "Skills"
+            : "Summary";
+  const sourceExcerpt = (value: string) => {
+    const valueTokens = tokens(value);
+    return (
+      masterLines.find((line) => {
+        const normalizedLine = line.toLowerCase();
+        return (
+          normalizedLine.includes(value.toLowerCase()) ||
+          valueTokens.filter((token) => normalizedLine.includes(token)).length >=
+            Math.max(1, Math.ceil(valueTokens.length * 0.7))
+        );
+      })?.slice(0, 320) ?? null
+    );
+  };
 
   const tokens = (value: string) =>
     value
@@ -176,6 +220,17 @@ export function groundTailoredResume(
     const unsupportedNumbers = (needle.match(/\b\d+(?:[.,]\d+)?%?\b/g) ?? [])
       .filter((number) => !sourceNumbers.has(number));
     if (unsupportedNumbers.length > 0) {
+      claims.push({
+        category: category === "employment_date" ? category : "metric",
+        claim: value,
+        sourceResume: "Master Resume",
+        sourceSection: sourceSection(category),
+        sourceExcerpt: sourceExcerpt(value),
+        state: "UNSUPPORTED",
+        userConfirmed: false,
+        aiImproved: true,
+        reviewRequired: true,
+      });
       excluded.push({
         category: "metric",
         claim: value,
@@ -188,6 +243,17 @@ export function groundTailoredResume(
     }
     if (haystack.includes(needle)) {
       acceptedCount++;
+      claims.push({
+        category,
+        claim: value,
+        sourceResume: "Master Resume",
+        sourceSection: sourceSection(category),
+        sourceExcerpt: sourceExcerpt(value),
+        state: "SOURCE_CONFIRMED",
+        userConfirmed: false,
+        aiImproved: false,
+        reviewRequired: false,
+      });
       return true;
     }
     const claimTokens = tokens(needle);
@@ -198,8 +264,30 @@ export function groundTailoredResume(
         : 0;
     if (claimTokens.length >= 3 && coverage >= minimumCoverage) {
       acceptedCount++;
+      claims.push({
+        category,
+        claim: value,
+        sourceResume: "Master Resume",
+        sourceSection: sourceSection(category),
+        sourceExcerpt: sourceExcerpt(value),
+        state: "AI_REWORDED",
+        userConfirmed: false,
+        aiImproved: true,
+        reviewRequired: true,
+      });
       return true;
     }
+    claims.push({
+      category,
+      claim: value,
+      sourceResume: "Master Resume",
+      sourceSection: sourceSection(category),
+      sourceExcerpt: sourceExcerpt(value),
+      state: "UNSUPPORTED",
+      userConfirmed: false,
+      aiImproved: true,
+      reviewRequired: true,
+    });
     excluded.push({ category, claim: value, reasonCode: "NOT_IN_MASTER" });
     return false;
   };
@@ -249,6 +337,17 @@ export function groundTailoredResume(
       job.description
     )
   ) {
+    claims.push({
+      category: "responsibility",
+      claim: "Instruction embedded in job description",
+      sourceResume: "Master Resume",
+      sourceSection: "Job description",
+      sourceExcerpt: null,
+      state: "UNSUPPORTED",
+      userConfirmed: false,
+      aiImproved: false,
+      reviewRequired: true,
+    });
     excluded.push({
       category: "responsibility",
       claim: "Instruction embedded in job description",
@@ -269,6 +368,7 @@ export function groundTailoredResume(
     rawText: master.rawText,
     groundingReport: {
       version: "grounding-v2",
+      claims,
       excluded,
       acceptedCount,
       gaps,
@@ -295,6 +395,23 @@ function tailorResumeFallback(input: TailorResumeInput): GroundedTailoredResume 
     rawText: input.masterResume.rawText,
     groundingReport: {
       version: "grounding-v2",
+      claims: relevantSkills.map((skill) => ({
+        category: "skill" as const,
+        claim: skill,
+        sourceResume: "Master Resume" as const,
+        sourceSection: "Skills",
+        sourceExcerpt:
+          input.masterResume.rawText
+            .split(/\r?\n/)
+            .find((line) =>
+              line.toLowerCase().includes(skill.toLowerCase())
+            )
+            ?.slice(0, 320) ?? null,
+        state: "SOURCE_CONFIRMED" as const,
+        userConfirmed: false,
+        aiImproved: false,
+        reviewRequired: false,
+      })),
       excluded: [],
       acceptedCount: relevantSkills.length,
       gaps: [

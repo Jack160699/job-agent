@@ -75,12 +75,19 @@ describe("JobRunPanel", () => {
 
   it("shows diagnostics when jobs were fetched but every result was filtered out", async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockImplementation((url) => {
+    fetchMock.mockImplementation((url, init) => {
       const u = String(url);
       if (u.includes("/api/jobs/progress")) {
         return jsonResponse({ progress: null });
       }
       if (u.includes("/api/jobs/search")) {
+        if (String(init?.body ?? "").includes('"source":"LINKEDIN"')) {
+          return jsonResponse({
+            queued: true,
+            jobId: "retry-job",
+            retrySource: "LINKEDIN",
+          });
+        }
         return jsonResponse({
           queued: false,
           total: 42,
@@ -113,6 +120,19 @@ describe("JobRunPanel", () => {
     expect(screen.getByText(/location mismatch: 40/i)).toBeInTheDocument();
     expect(screen.getByText(/LINKEDIN: unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText(/42 relevant jobs/i)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Retry this source/i })
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/jobs/search?async=true",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ source: "LINKEDIN" }),
+        })
+      )
+    );
   });
 
   it("broadening lowers the match threshold and adds remote, then re-runs the search", async () => {

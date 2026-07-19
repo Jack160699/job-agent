@@ -2,7 +2,7 @@ import prisma from "@/lib/db";
 import { searchJobs } from "@/lib/jobs/pipeline";
 import { createAuditLog } from "@/lib/audit";
 import { getAppBaseUrl } from "@/lib/brand/urls";
-import type { Prisma } from "@prisma/client";
+import type { JobSource, Prisma } from "@prisma/client";
 
 export type JobType =
   | "SEARCH_JOBS"
@@ -21,6 +21,9 @@ interface JobPayload {
   jobId?: string;
   applicationId?: string;
   resumeId?: string;
+  sources?: JobSource[];
+  ignoreSourceCooldown?: boolean;
+  savedSearchId?: string;
 }
 
 const INTERACTIVE_PRIORITY = 100;
@@ -232,7 +235,10 @@ export async function resumePausedJob(userId: string, type: JobType) {
 }
 
 /** Idempotent interactive search — returns existing active job or creates a prioritized one. */
-export async function enqueueInteractiveSearch(userId: string) {
+export async function enqueueInteractiveSearch(
+  userId: string,
+  options?: { sources?: JobSource[]; ignoreSourceCooldown?: boolean }
+) {
   await recoverStaleJobs();
 
   // Cancel any stale pending searches so a fresh interactive run can start
@@ -267,7 +273,13 @@ export async function enqueueInteractiveSearch(userId: string) {
   const job = await prisma.backgroundJob.create({
     data: {
       type: "SEARCH_JOBS",
-      payload: { userId } as Prisma.InputJsonValue,
+      payload: {
+        userId,
+        ...(options?.sources?.length ? { sources: options.sources } : {}),
+        ...(options?.ignoreSourceCooldown
+          ? { ignoreSourceCooldown: true }
+          : {}),
+      } as Prisma.InputJsonValue,
       status: "pending",
       priority: INTERACTIVE_PRIORITY,
       source: "interactive",
@@ -285,6 +297,7 @@ export async function enqueueInteractiveSearch(userId: string) {
     userId,
     priority: INTERACTIVE_PRIORITY,
     source: "interactive",
+    sources: options?.sources,
   });
 
   triggerWorkerRemote();
@@ -386,7 +399,11 @@ async function claimAndRunJob(job: {
     switch (job.type as JobType) {
       case "SEARCH_JOBS":
         if (payload.userId) {
-          result = await searchJobs(payload.userId, job.id);
+          result = await searchJobs(payload.userId, job.id, {
+            sources: payload.sources,
+            ignoreSourceCooldown: payload.ignoreSourceCooldown,
+            savedSearchId: payload.savedSearchId,
+          });
         } else {
           throw new Error("SEARCH_JOBS missing userId");
         }
@@ -652,12 +669,33 @@ export async function schedulePeriodicJobs() {
     include: { settings: true },
   });
 
+  const now = new Date();
+  const dueSavedSearches = await prisma.savedSearch.findMany({
+    where: {
+      alertsEnabled: true,
+      alertFrequency: { in: ["DAILY", "WEEKLY"] },
+      nextRunAt: { lte: now },
+    },
+    take: 500,
+  });
+  const usersWithDueSavedSearch = new Set(
+    dueSavedSearches.map((search) => search.userId)
+  );
+
   let scheduled = 0;
   for (const user of users) {
     if (!user.settings?.preferencesComplete) continue;
-    await enqueueJob("SEARCH_JOBS", { userId: user.id }, { source: "scheduled" });
-    await enqueueJob("RUN_AGENT", { userId: user.id }, { source: "scheduled" });
-    if (user.settings.notificationsEnabled) {
+    if (!usersWithDueSavedSearch.has(user.id)) {
+      await enqueueJob(
+        "SEARCH_JOBS",
+        { userId: user.id },
+        { source: "scheduled" }
+      );
+    }
+    if (
+      user.settings.notificationsEnabled &&
+      !usersWithDueSavedSearch.has(user.id)
+    ) {
       await enqueueJob(
         "GENERATE_RECOMMENDATIONS",
         { userId: user.id },
@@ -667,13 +705,38 @@ export async function schedulePeriodicJobs() {
     scheduled++;
   }
 
+  let alertsScheduled = 0;
+  for (const savedSearch of dueSavedSearches) {
+    await enqueueJob(
+      "SEARCH_JOBS",
+      { userId: savedSearch.userId, savedSearchId: savedSearch.id },
+      { source: "saved_search_alert" }
+    );
+    await enqueueJob(
+      "GENERATE_RECOMMENDATIONS",
+      { userId: savedSearch.userId },
+      { source: "saved_search_alert" }
+    );
+    const intervalDays = savedSearch.alertFrequency === "WEEKLY" ? 7 : 1;
+    await prisma.savedSearch.update({
+      where: { id: savedSearch.id },
+      data: {
+        nextRunAt: new Date(
+          now.getTime() + intervalDays * 24 * 60 * 60 * 1000
+        ),
+      },
+    });
+    alertsScheduled++;
+  }
+
   await createAuditLog({
     action: "CRON_SCHEDULE_RUN",
-    message: `Scheduled periodic jobs for ${scheduled} users`,
+    message: `Scheduled periodic jobs for ${scheduled} users and ${alertsScheduled} saved-search alerts`,
     level: "INFO",
+    metadata: { usersScheduled: scheduled, alertsScheduled },
   });
 
-  return { scheduled, skipped: false };
+  return { scheduled, alertsScheduled, skipped: false };
 }
 
 export async function getQueueStats() {

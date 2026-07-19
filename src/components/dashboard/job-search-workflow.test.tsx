@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JobSearchWorkflow } from "./job-search-workflow";
 
 vi.mock("next/navigation", () => ({
@@ -21,11 +21,12 @@ describe("JobSearchWorkflow", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it("restores zero-result diagnostics instead of showing a false success", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
+    const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           progress: {
@@ -57,8 +58,8 @@ describe("JobSearchWorkflow", () => {
             },
           },
         }),
-      })
-    );
+      });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <JobSearchWorkflow
@@ -79,5 +80,75 @@ describe("JobSearchWorkflow", () => {
     expect(
       screen.queryByText(/42 relevant jobs found/i)
     ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Retry this source/i })
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/jobs/search?async=true",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ source: "BEL" }),
+        })
+      )
+    );
+  });
+
+  it("pauses and resumes the persisted search through the real control API", async () => {
+    let status = "running";
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url) === "/api/jobs/search" && init?.method === "PATCH") {
+        const action = JSON.parse(String(init.body)).action as "pause" | "resume";
+        status = action === "pause" ? "paused" : "running";
+        return {
+          ok: true,
+          json: async () =>
+            action === "pause"
+              ? { paused: true, message: "Search paused." }
+              : { resumed: true, jobId: "search-1", message: "Search resumed." },
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          progress: {
+            jobId: "search-1",
+            status,
+            stage: status,
+            stageLabel: status === "paused" ? "Paused" : "Searching sources",
+            progress: 40,
+            jobsFound: 3,
+            jobsNew: 2,
+            jobsRelevant: 2,
+            jobsExcluded: 1,
+            queuePosition: null,
+            error: null,
+            stalled: false,
+            completedAt: null,
+            claimedAt: "2026-07-19T00:00:00.000Z",
+          },
+        }),
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<JobSearchWorkflow preferencesComplete />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Pause$/i }));
+
+    expect(
+      await screen.findByText(/Search paused\. Results already saved/i)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Resume$/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/jobs/search",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ action: "resume" }),
+        })
+      )
+    );
   });
 });

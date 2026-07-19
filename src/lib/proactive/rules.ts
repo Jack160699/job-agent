@@ -28,6 +28,9 @@ export interface RecommendationSnapshot {
     company: string;
     score: number;
   };
+  newHighMatchCount: number;
+  closingSoonCount: number;
+  governmentDeadlineCount: number;
   lastSearchAt?: Date;
   pendingReviewCount: number;
   unreadRecruiterReplies: number;
@@ -120,6 +123,56 @@ export function buildRecommendationCandidates(
       ],
       suggestedAction: "Review the match explanation before deciding whether to prepare an application.",
       actionUrl: "/dashboard/matches",
+      expiresAt: new Date(now.getTime() + 7 * DAY_MS),
+    });
+  }
+
+  if (snapshot.newHighMatchCount > 0) {
+    recommendations.push({
+      type: "new_high_match",
+      category: "matches",
+      priority: "high",
+      title: `${snapshot.newHighMatchCount} new high-match role${snapshot.newHighMatchCount === 1 ? "" : "s"}`,
+      body: "These roles were newly discovered in the last 24 hours and meet your configured match threshold.",
+      reason: "Reviewing fresh high-match roles early can help you act before a posting closes.",
+      evidence: [{ label: "New high matches", value: snapshot.newHighMatchCount }],
+      suggestedAction: "Review the new matches and their source evidence.",
+      actionUrl: "/dashboard/jobs",
+      expiresAt: new Date(now.getTime() + 2 * DAY_MS),
+    });
+  }
+
+  if (snapshot.closingSoonCount > 0) {
+    recommendations.push({
+      type: "closing_soon",
+      category: "deadlines",
+      priority: "high",
+      title: `${snapshot.closingSoonCount} saved opportunity deadline${snapshot.closingSoonCount === 1 ? "" : "s"} approaching`,
+      body: "One or more active opportunities close within the next three days.",
+      reason: "Closing-soon alerts help prevent a verified deadline from passing unnoticed.",
+      evidence: [{ label: "Closing within 72 hours", value: snapshot.closingSoonCount }],
+      suggestedAction: "Open the official posting and verify the deadline before preparing an application.",
+      actionUrl: "/dashboard/jobs",
+      expiresAt: new Date(now.getTime() + 3 * DAY_MS),
+    });
+  }
+
+  if (snapshot.governmentDeadlineCount > 0) {
+    recommendations.push({
+      type: "government_deadline",
+      category: "deadlines",
+      priority: "high",
+      title: `${snapshot.governmentDeadlineCount} government deadline${snapshot.governmentDeadlineCount === 1 ? "" : "s"} approaching`,
+      body: "Official government opportunities in your results close within the next seven days.",
+      reason: "Government application windows are strict and should be confirmed on the official notice.",
+      evidence: [
+        {
+          label: "Official deadlines within 7 days",
+          value: snapshot.governmentDeadlineCount,
+        },
+      ],
+      suggestedAction: "Review eligibility and the official notification before the deadline.",
+      actionUrl: "/dashboard/jobs",
       expiresAt: new Date(now.getTime() + 7 * DAY_MS),
     });
   }

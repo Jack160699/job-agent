@@ -11,7 +11,11 @@ import {
 import { getOfficialGovernmentAdapters } from "@/lib/jobs/government-adapters";
 import { buildDiscoveryBoards } from "@/lib/jobs/preferences";
 import { buildUserSearchPlan } from "@/lib/jobs/search-plan";
-import { SOURCE_CAPABILITIES } from "@/lib/jobs/source-capabilities";
+import { getSourceCapabilities } from "@/lib/jobs/source-capabilities";
+import {
+  PublicDiscoveryAdapter,
+  PublicDiscoveryError,
+} from "@/lib/jobs/public-discovery";
 import { rateLimit, RATE_LIMIT_PRESETS } from "@/lib/security/rate-limit";
 
 export const maxDuration = 30;
@@ -40,12 +44,13 @@ export async function POST(request: NextRequest) {
   try {
     const user = await resolveApiUser();
     const body = (await request.json()) as { source?: string };
-    if (!body.source || !(body.source in SOURCE_CAPABILITIES)) {
+    const capabilities = getSourceCapabilities();
+    if (!body.source || !(body.source in capabilities)) {
       return NextResponse.json({ error: "INVALID_SOURCE" }, { status: 400 });
     }
 
     const source = body.source as JobSource;
-    const capability = SOURCE_CAPABILITIES[source];
+    const capability = capabilities[source];
     if (!capability.searchable) {
       return NextResponse.json(
         {
@@ -68,6 +73,8 @@ export async function POST(request: NextRequest) {
 
     const plan = buildUserSearchPlan(settings);
     const adapters = [
+      new PublicDiscoveryAdapter("LINKEDIN"),
+      new PublicDiscoveryAdapter("NAUKRI"),
       new GreenhouseAdapter(),
       new LeverAdapter(),
       new AshbyAdapter(),
@@ -105,6 +112,27 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Connection test failed";
+    if (error instanceof PublicDiscoveryError) {
+      return NextResponse.json(
+        {
+          error: error.code.toLowerCase(),
+          message,
+          quotaStatus:
+            error.code === "QUOTA_EXHAUSTED"
+              ? "exhausted"
+              : error.code === "RATE_LIMITED"
+                ? "rate_limited"
+                : "unavailable",
+        },
+        {
+          status:
+            error.code === "QUOTA_EXHAUSTED" ||
+            error.code === "RATE_LIMITED"
+              ? 429
+              : 503,
+        }
+      );
+    }
     return NextResponse.json(
       { error: "SOURCE_TEST_FAILED", message },
       { status: message === "Unauthorized" ? 401 : 502 }

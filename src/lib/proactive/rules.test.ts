@@ -15,6 +15,9 @@ function snapshot(
     hasResume: true,
     activeJobCount: 4,
     strongMatchCount: 0,
+    newHighMatchCount: 0,
+    closingSoonCount: 0,
+    governmentDeadlineCount: 0,
     lastSearchAt: new Date("2026-07-14T08:00:00.000Z"),
     pendingReviewCount: 0,
     unreadRecruiterReplies: 0,
@@ -47,6 +50,25 @@ describe("proactive recommendation rules", () => {
       now
     );
     expect(stale.some((item) => item.type === "search_stale")).toBe(true);
+  });
+
+  it("creates real in-app alert candidates for fresh matches and verified deadlines", () => {
+    const candidates = buildRecommendationCandidates(
+      snapshot({
+        newHighMatchCount: 2,
+        closingSoonCount: 1,
+        governmentDeadlineCount: 1,
+      }),
+      now
+    );
+
+    expect(candidates.map((candidate) => candidate.type)).toEqual(
+      expect.arrayContaining([
+        "new_high_match",
+        "closing_soon",
+        "government_deadline",
+      ])
+    );
   });
 
   it("creates evidence-backed match and review recommendations", () => {

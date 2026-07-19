@@ -6,6 +6,7 @@ import {
   isSeniorityCompatible,
   locationsAreCompatible,
   normalizeText,
+  normalizeTitle,
   seniorityForExperience,
   titlesAreRelated,
 } from "./normalization";
@@ -206,6 +207,86 @@ function titleMatches(jobTitle: string, preferredTitles: string[]): boolean {
   );
 }
 
+const PROFESSION_EVIDENCE: Record<
+  string,
+  { label: string; terms: string[] }
+> = {
+  nursing_healthcare: {
+    label: "Healthcare qualifications and setting",
+    terms: [
+      "nursing",
+      "registered nurse",
+      "gnm",
+      "bsc nursing",
+      "patient care",
+      "clinical",
+      "hospital",
+      "ward",
+      "icu",
+      "medical claims",
+      "healthcare",
+    ],
+  },
+  teaching_education: {
+    label: "Education qualifications and teaching context",
+    terms: [
+      "b ed",
+      "bed",
+      "teaching",
+      "teacher",
+      "lecturer",
+      "faculty",
+      "subject",
+      "curriculum",
+      "academic",
+      "school",
+      "university",
+    ],
+  },
+  banking: {
+    label: "Banking and finance evidence",
+    terms: [
+      "banking",
+      "finance",
+      "accounts",
+      "credit",
+      "risk",
+      "compliance",
+      "customer service",
+      "clerical",
+      "probationary officer",
+    ],
+  },
+  technician_apprentice: {
+    label: "Trade and engineering evidence",
+    terms: [
+      "diploma",
+      "iti",
+      "trade",
+      "apprentice",
+      "maintenance",
+      "electrical",
+      "mechanical",
+      "electronics",
+      "field service",
+    ],
+  },
+};
+
+function addProfessionEvidence(
+  family: string | null,
+  jobText: string,
+  reasons: string[]
+): number {
+  if (!family) return 0;
+  const profile = PROFESSION_EVIDENCE[family];
+  if (!profile) return 0;
+  const matches = [...new Set(profile.terms.filter((term) => jobText.includes(term)))];
+  if (!matches.length) return 0;
+  reasons.push(`${profile.label}: ${matches.slice(0, 4).join(", ")}`);
+  return Math.min(15, matches.length * 3);
+}
+
 export function detectWorkMode(job: DiscoveredJob): WorkMode {
   if (job.workMode && job.workMode !== "UNKNOWN") return job.workMode;
   const loc = normalize(job.location || "");
@@ -327,12 +408,14 @@ export function evaluateJobAgainstPreferences(
   score += 20;
   reasons.push("Title matches a target or explicitly adjacent role");
 
+  const jobText = normalize(`${job.title} ${job.description}`);
   const userSeniority = seniorityForExperience(settings.experienceYears);
   const roleSeniority = detectSeniority(`${job.title} ${job.description}`);
   const seniority = isSeniorityCompatible(
     userSeniority,
     roleSeniority,
-    settings.employmentTypes.includes("INTERNSHIP")
+    settings.employmentTypes.includes("INTERNSHIP") ||
+      /\b(trainee|apprentice)\b/.test(jobText)
   );
   if (!seniority.compatible) {
     breakdown.seniorityMatch = 0;
@@ -407,7 +490,10 @@ export function evaluateJobAgainstPreferences(
     if (!job.salaryMin && !job.salaryMax) uncertain.push("Salary was not stated");
   }
 
-  const jobText = normalize(`${job.title} ${job.description}`);
+  const matchedTitleFamily =
+    normalizeTitle(job.title).family ??
+    settings.jobTitles.map((title) => normalizeTitle(title).family).find(Boolean) ??
+    null;
   const matchedSkills = settings.requiredSkills.filter((s) =>
     jobText.includes(normalize(s))
   );
@@ -425,6 +511,8 @@ export function evaluateJobAgainstPreferences(
   score += Math.min(25, matchedSkills.length * 8);
   if (matchedSkills.length) reasons.push(`Skills: ${matchedSkills.join(", ")}`);
 
+  score += addProfessionEvidence(matchedTitleFamily, jobText, reasons);
+
   const preferredHits = (settings.preferredSkills || []).filter((s) =>
     jobText.includes(normalize(s))
   );
@@ -434,11 +522,24 @@ export function evaluateJobAgainstPreferences(
   if (settings.experienceYears != null) {
     const exp = settings.experienceYears;
     if (job.experienceMin != null && exp < job.experienceMin) {
-      exclusions.push(
-        `Role requires ${job.experienceMin}+ years; profile has ${exp}`
-      );
-      breakdown.experienceMatch = 0;
-      return result(false, "Rejected — experience requirement mismatch");
+      const entryFriendly =
+        exp === 0 &&
+        /\b(entry level|entry|fresher|graduate|trainee|intern|internship|apprentice)\b/.test(
+          jobText
+        );
+      if (entryFriendly) {
+        breakdown.experienceMatch = 60;
+        concerns.push(
+          `The posting states ${job.experienceMin}+ years, but also identifies the role as entry-level, graduate, trainee, intern, or apprentice`
+        );
+        reasons.push("Fresher-friendly wording keeps this role reviewable");
+      } else {
+        exclusions.push(
+          `Role requires ${job.experienceMin}+ years; profile has ${exp}`
+        );
+        breakdown.experienceMatch = 0;
+        return result(false, "Rejected — experience requirement mismatch");
+      }
     } else {
       breakdown.experienceMatch = 85;
       reasons.push(`Experience requirement is compatible with ${exp} years`);

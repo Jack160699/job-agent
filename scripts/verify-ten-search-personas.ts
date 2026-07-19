@@ -5,17 +5,17 @@ const runId = `kairela-verification-${Date.now()}`;
 
 const personas = [
   {
-    name: "Software engineer",
-    titles: ["Software Engineer"],
+    name: "MCA fresher software developer",
+    titles: ["Software Developer", "Associate Software Engineer"],
     skills: ["TypeScript", "React", "Node.js"],
     locations: ["Pune", "Bengaluru", "India"],
-    experience: 3,
+    experience: 0,
     sector: "PRIVATE",
   },
   {
-    name: "Operations associate",
-    titles: ["Operations Associate"],
-    skills: ["Operations", "Excel", "Process improvement"],
+    name: "Operations and implementation analyst",
+    titles: ["Operations Analyst", "Implementation Analyst"],
+    skills: ["Operations", "Implementation", "Process improvement"],
     locations: ["Bengaluru", "Hyderabad", "India"],
     experience: 2,
     sector: "PRIVATE",
@@ -29,47 +29,7 @@ const personas = [
     sector: "PRIVATE",
   },
   {
-    name: "Banking analyst",
-    titles: ["Banking Analyst", "Financial Analyst"],
-    skills: ["Banking", "Risk", "Excel"],
-    locations: ["Mumbai", "Bengaluru", "India"],
-    experience: 3,
-    sector: "PRIVATE",
-  },
-  {
-    name: "Healthcare specialist",
-    titles: ["Healthcare Specialist", "Clinical Specialist"],
-    skills: ["Healthcare", "Clinical", "Patient care"],
-    locations: ["Hyderabad", "Bengaluru", "India"],
-    experience: 7,
-    sector: "PRIVATE",
-  },
-  {
-    name: "Education specialist",
-    titles: ["Education Specialist", "Instructional Designer"],
-    skills: ["Teaching", "Curriculum", "Learning design"],
-    locations: ["Bengaluru", "Remote", "India"],
-    experience: 3,
-    sector: "PRIVATE",
-  },
-  {
-    name: "Sales executive",
-    titles: ["Sales Executive", "Account Executive"],
-    skills: ["Sales", "CRM", "Business development"],
-    locations: ["Delhi", "Gurugram", "India"],
-    experience: 3,
-    sector: "PRIVATE",
-  },
-  {
-    name: "Service technician",
-    titles: ["Service Technician", "Technical Support Engineer"],
-    skills: ["Technical support", "Troubleshooting", "Maintenance"],
-    locations: ["Chennai", "Bengaluru", "India"],
-    experience: 2,
-    sector: "PRIVATE",
-  },
-  {
-    name: "Graduate trainee",
+    name: "B.Tech computer-science fresher",
     titles: ["Graduate Engineer Trainee", "Junior Software Engineer"],
     skills: ["Java", "SQL", "Problem solving"],
     locations: ["Pune", "Hyderabad", "India"],
@@ -77,12 +37,52 @@ const personas = [
     sector: "PRIVATE",
   },
   {
-    name: "Government and PSU applicant",
-    titles: ["Engineer", "Officer", "Graduate Apprentice"],
-    skills: ["Engineering", "Aptitude", "Administration"],
+    name: "General graduate government candidate",
+    titles: ["Officer", "Assistant", "Graduate Apprentice"],
+    skills: ["Administration", "Aptitude", "Communication"],
     locations: ["India"],
-    experience: 2,
+    experience: 0,
     sector: "GOVERNMENT",
+  },
+  {
+    name: "Diploma technician and apprenticeship candidate",
+    titles: ["Technician", "Junior Engineer", "Technician Apprentice"],
+    skills: ["Diploma", "Maintenance", "Electrical"],
+    locations: ["Chennai", "Bengaluru", "India"],
+    experience: 0,
+    sector: "PRIVATE",
+  },
+  {
+    name: "Banking candidate",
+    titles: ["Banking Associate", "Credit Analyst", "Banking Officer"],
+    skills: ["Banking", "Finance", "Customer service"],
+    locations: ["Mumbai", "Bengaluru", "India"],
+    experience: 1,
+    sector: "PRIVATE",
+  },
+  {
+    name: "Nursing and healthcare candidate",
+    titles: ["Staff Nurse", "Registered Nurse", "Nursing Officer"],
+    skills: ["Patient care", "GNM", "Nursing"],
+    locations: ["Hyderabad", "Bengaluru", "India"],
+    experience: 1,
+    sector: "PRIVATE",
+  },
+  {
+    name: "Teacher and education candidate",
+    titles: ["Teacher", "Lecturer", "Academic Coordinator"],
+    skills: ["Teaching", "Curriculum", "BEd"],
+    locations: ["Bengaluru", "Remote", "India"],
+    experience: 2,
+    sector: "PRIVATE",
+  },
+  {
+    name: "Sales and marketing professional",
+    titles: ["Sales Executive", "Marketing Executive", "Business Development Executive"],
+    skills: ["Sales", "CRM", "Digital marketing"],
+    locations: ["Delhi", "Gurugram", "India"],
+    experience: 3,
+    sector: "PRIVATE",
   },
 ] as const;
 
@@ -94,6 +94,8 @@ const selectedPersonas = Number.isInteger(requestedPersonaIndex)
 async function main() {
   const createdUserIds: string[] = [];
   const evidence: Array<Record<string, unknown>> = [];
+  const uniqueCanonicalJobs = new Set<string>();
+  let officialGovernmentJobs = 0;
   try {
     for (const [index, persona] of selectedPersonas.entries()) {
       const user = await prisma.user.create({
@@ -137,6 +139,15 @@ async function main() {
       const active = await prisma.job.count({
         where: { userId: user.id, status: "ACTIVE" },
       });
+      const activeJobs = await prisma.job.findMany({
+        where: { userId: user.id, status: "ACTIVE" },
+        select: { canonicalUrl: true, sourceUrl: true, metadata: true },
+      });
+      for (const job of activeJobs) {
+        uniqueCanonicalJobs.add(job.canonicalUrl ?? job.sourceUrl);
+        const metadata = job.metadata as { jobType?: string } | null;
+        if (metadata?.jobType === "government") officialGovernmentJobs++;
+      }
       evidence.push({
         persona: persona.name,
         raw: result.total,
@@ -181,6 +192,8 @@ async function main() {
             (sum, item) => sum + Number(item.saved ?? 0),
             0
           ),
+          uniqueRealJobs: uniqueCanonicalJobs.size,
+          officialGovernmentJobs,
           evidence,
         },
         null,

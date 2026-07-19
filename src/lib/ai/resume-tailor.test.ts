@@ -53,6 +53,22 @@ describe("groundTailoredResume", () => {
         expect.objectContaining({ category: "employer", claim: "Other Corp" }),
       ])
     );
+    expect(grounded.groundingReport.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claim: "TypeScript",
+          sourceResume: "Master Resume",
+          sourceSection: "Skills",
+          state: "SOURCE_CONFIRMED",
+          reviewRequired: false,
+        }),
+        expect.objectContaining({
+          claim: "Kubernetes",
+          state: "UNSUPPORTED",
+          reviewRequired: true,
+        }),
+      ])
+    );
   });
 
   it("rejects changed dates, inflated metrics and invented education/projects", () => {

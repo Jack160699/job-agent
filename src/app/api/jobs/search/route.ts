@@ -12,6 +12,7 @@ import {
 import { hasMinimumPreferences } from "@/lib/jobs/preferences";
 import { EntitlementError } from "@/lib/entitlements";
 import prisma from "@/lib/db";
+import { JobSource } from "@prisma/client";
 
 export const maxDuration = 60;
 
@@ -42,13 +43,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const body = (await request.json().catch(() => ({}))) as {
+      source?: string;
+    };
+    const requestedSource = body.source;
+    if (
+      requestedSource &&
+      !Object.values(JobSource).includes(requestedSource as JobSource)
+    ) {
+      return NextResponse.json(
+        { error: "UNKNOWN_SOURCE", message: "Choose a supported source." },
+        { status: 400 }
+      );
+    }
+
     const asyncMode =
       request.nextUrl.searchParams.get("async") === "true" ||
-      request.headers.get("x-async-search") === "true";
+      request.headers.get("x-async-search") === "true" ||
+      Boolean(requestedSource);
 
     if (asyncMode) {
       const queueStart = Date.now();
-      const { job, deduped } = await enqueueInteractiveSearch(user.id);
+      const source = requestedSource as JobSource | undefined;
+      const { job, deduped } = await enqueueInteractiveSearch(user.id, {
+        sources: source ? [source] : undefined,
+        ignoreSourceCooldown: Boolean(source),
+      });
       const queueCreationMs = Date.now() - queueStart;
 
       // Targeted kick: claim and run this specific job only, rather than
@@ -69,6 +89,7 @@ export async function POST(request: NextRequest) {
         status: job.status,
         jobId: job.id,
         deduped,
+        retrySource: source ?? null,
         queuedAt: job.queuedAt.toISOString(),
       });
       response.headers.set(

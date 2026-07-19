@@ -75,14 +75,24 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "clinical specialist",
     "clinical research associate",
     "staff nurse",
+    "ward nurse",
+    "icu nurse",
+    "nurse practitioner",
     "registered nurse",
     "nursing officer",
     "clinical coordinator",
     "clinical associate",
     "healthcare associate",
+    "healthcare coordinator",
     "medical officer",
     "medical representative",
     "patient care coordinator",
+    "medical operations associate",
+    "hospital operations executive",
+    "clinical data coordinator",
+    "medical support specialist",
+    "healthcare customer support",
+    "medical claims associate",
   ],
   teaching_education: [
     "teacher",
@@ -270,6 +280,9 @@ export function detectSeniority(value: string): Seniority {
   const text = normalizeText(value);
   if (/\b(intern|internship|trainee|apprentice)\b/.test(text)) return "INTERN";
   if (/\b(manager|head|director|vp|vice president)\b/.test(text)) return "MANAGER";
+  // "Staff" is a professional nursing title, not an engineering seniority
+  // marker. Treating Staff Nurse as a lead role excluded entry-level nurses.
+  if (/\bstaff nurse\b/.test(text)) return "UNKNOWN";
   if (/\b(lead|principal|staff|architect)\b/.test(text)) return "LEAD";
   if (/\b(senior|sr)\b/.test(text)) return "SENIOR";
   if (/\b(junior|jr|associate)\b/.test(text)) return "JUNIOR";

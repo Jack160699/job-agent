@@ -41,6 +41,17 @@ export type ResumeHistoryEntry = {
     version?: string;
     acceptedCount?: number;
     gaps?: string[];
+    claims?: Array<{
+      category?: string;
+      claim?: string;
+      sourceResume?: string;
+      sourceSection?: string;
+      sourceExcerpt?: string | null;
+      state?: "SOURCE_CONFIRMED" | "AI_REWORDED" | "UNSUPPORTED";
+      userConfirmed?: boolean;
+      aiImproved?: boolean;
+      reviewRequired?: boolean;
+    }>;
     excluded?: Array<{
       category?: string;
       claim?: string;
@@ -460,6 +471,46 @@ export function ResumeHistory({
                     </li>
                   ))}
                 </ul>
+                {(opened.groundingReport.claims?.length ?? 0) > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h5 className="text-sm font-medium">
+                      Claim-to-source inspector
+                    </h5>
+                    {opened.groundingReport.claims?.map((claim, index) => (
+                      <article
+                        key={`${claim.category}-${claim.claim}-${index}`}
+                        className="rounded-md border border-[var(--line)] p-3 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-[var(--ink)]">
+                            {claim.claim}
+                          </span>
+                          <span className="rounded bg-[var(--surface-sunken)] px-2 py-0.5 text-[10px]">
+                            {claim.state === "SOURCE_CONFIRMED"
+                              ? "Source confirmed"
+                              : claim.state === "AI_REWORDED"
+                                ? "AI-improved wording · review required"
+                                : "Unsupported · excluded"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[var(--ink-tertiary)]">
+                          Source: {claim.sourceResume ?? "Master Resume"} ·{" "}
+                          {claim.sourceSection ?? claim.category ?? "Resume"}
+                        </p>
+                        {claim.sourceExcerpt && (
+                          <blockquote className="mt-2 border-l-2 border-[var(--line-strong)] pl-2 text-[var(--ink-secondary)]">
+                            {claim.sourceExcerpt}
+                          </blockquote>
+                        )}
+                        <p className="mt-2 text-[var(--ink-tertiary)]">
+                          User confirmed: {claim.userConfirmed ? "Yes" : "Not yet"} ·
+                          AI wording: {claim.aiImproved ? "Yes" : "No"} · Review:{" "}
+                          {claim.reviewRequired ? "Required" : "Not required"}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

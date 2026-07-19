@@ -90,6 +90,9 @@ export async function generateProactiveRecommendations(userId: string) {
     masterResume,
     activeJobCount,
     strongMatches,
+    newHighMatchCount,
+    closingSoonCount,
+    governmentDeadlineCount,
     lastSearch,
     pendingReviewCount,
     unreadRecruiterReplies,
@@ -114,6 +117,38 @@ export async function generateProactiveRecommendations(userId: string) {
         title: true,
         company: true,
         matchScore: true,
+      },
+    }),
+    prisma.job.count({
+      where: {
+        userId,
+        status: "ACTIVE",
+        matchScore: { gte: settings.matchThreshold },
+        discoveredAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+      },
+    }),
+    prisma.job.count({
+      where: {
+        userId,
+        status: "ACTIVE",
+        closesAt: {
+          gte: now,
+          lte: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+        },
+      },
+    }),
+    prisma.job.count({
+      where: {
+        userId,
+        status: "ACTIVE",
+        closesAt: {
+          gte: now,
+          lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        },
+        metadata: {
+          path: ["jobType"],
+          equals: "government",
+        },
       },
     }),
     prisma.backgroundJob.findFirst({
@@ -155,6 +190,9 @@ export async function generateProactiveRecommendations(userId: string) {
     hasResume: Boolean(masterResume),
     activeJobCount,
     strongMatchCount: strongMatches.length,
+    newHighMatchCount,
+    closingSoonCount,
+    governmentDeadlineCount,
     strongestMatch:
       strongestMatch?.matchScore != null
         ? {

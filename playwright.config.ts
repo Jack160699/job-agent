@@ -26,6 +26,8 @@ const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: require.resolve("./e2e/global-setup"),
+  tsconfig: "./tsconfig.json",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.RC_AUDIT === "1" ? 0 : 2,

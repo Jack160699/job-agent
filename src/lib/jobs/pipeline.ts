@@ -34,6 +34,7 @@ import {
 } from "@/lib/jobs/diagnostics";
 import { unavailableEnabledSources } from "@/lib/jobs/source-capabilities";
 import { getOfficialGovernmentAdapters } from "@/lib/jobs/government-adapters";
+import { PublicDiscoveryAdapter } from "@/lib/jobs/public-discovery";
 import {
   assertCanUseFeature,
   consumeFeature,
@@ -109,10 +110,69 @@ export async function archiveLegacyJobs(userId: string) {
   return legacyIds.length;
 }
 
-export async function searchJobs(userId: string, backgroundJobId?: string) {
+export async function searchJobs(
+  userId: string,
+  backgroundJobId?: string,
+  options?: {
+    sources?: JobSource[];
+    ignoreSourceCooldown?: boolean;
+    savedSearchId?: string;
+  }
+) {
   const searchStart = Date.now();
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  if (!settings) throw new Error("User settings not found");
+  const baseSettings = await prisma.userSettings.findUnique({ where: { userId } });
+  if (!baseSettings) throw new Error("User settings not found");
+
+  const savedSearch = options?.savedSearchId
+    ? await prisma.savedSearch.findFirst({
+        where: { id: options.savedSearchId, userId },
+      })
+    : null;
+  if (options?.savedSearchId && !savedSearch) {
+    throw new Error("Saved search not found");
+  }
+  const savedFilters = (savedSearch?.filters ?? {}) as Record<string, unknown>;
+  const settings = savedSearch
+    ? {
+        ...baseSettings,
+        jobTitles: savedSearch.titles,
+        locations: savedSearch.locations,
+        sectorPreference: savedSearch.sector,
+        governmentCategories: savedSearch.governmentCategories,
+        enabledSources: savedSearch.sources,
+        workModes: Array.isArray(savedFilters.workModes)
+          ? savedFilters.workModes
+          : baseSettings.workModes,
+        employmentTypes: Array.isArray(savedFilters.employmentTypes)
+          ? savedFilters.employmentTypes
+          : baseSettings.employmentTypes,
+        industries: Array.isArray(savedFilters.industries)
+          ? savedFilters.industries
+          : baseSettings.industries,
+        requiredSkills: Array.isArray(savedFilters.requiredSkills)
+          ? savedFilters.requiredSkills
+          : baseSettings.requiredSkills,
+        preferredSkills: Array.isArray(savedFilters.preferredSkills)
+          ? savedFilters.preferredSkills
+          : baseSettings.preferredSkills,
+        experienceYears:
+          typeof savedFilters.experienceYears === "number"
+            ? savedFilters.experienceYears
+            : baseSettings.experienceYears,
+        salaryMin:
+          typeof savedFilters.salaryMin === "number"
+            ? savedFilters.salaryMin
+            : baseSettings.salaryMin,
+        salaryMax:
+          typeof savedFilters.salaryMax === "number"
+            ? savedFilters.salaryMax
+            : baseSettings.salaryMax,
+        matchThreshold:
+          typeof savedFilters.matchThreshold === "number"
+            ? savedFilters.matchThreshold
+            : baseSettings.matchThreshold,
+      }
+    : baseSettings;
 
   if (!hasMinimumPreferences(settings)) {
     throw new Error("PREFERENCES_INCOMPLETE");
@@ -199,6 +259,8 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   };
 
   const adapters = [
+    new PublicDiscoveryAdapter("LINKEDIN"),
+    new PublicDiscoveryAdapter("NAUKRI"),
     new GreenhouseAdapter(),
     new LeverAdapter(),
     new AshbyAdapter(),
@@ -279,7 +341,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       consecutiveFailures: currentHealth?.consecutiveFailures ?? 0,
       disabledUntil: currentHealth?.disabledUntil,
     });
-    if (healthDecision.disabled) {
+    if (healthDecision.disabled && !options?.ignoreSourceCooldown) {
       if (
         healthDecision.until &&
         (!currentHealth?.disabledUntil ||
@@ -445,9 +507,14 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
   // source (e.g. Workday) can never block the others. Current source count
   // Sources run in small parallel batches; the cap keeps official pages from
   // being hit in an unbounded burst as coverage grows.
-  const toFetch = adapters.filter((a) => enabled.includes(a.source as JobSource));
+  const selectedSources = options?.sources?.length
+    ? enabled.filter((source) => options.sources?.includes(source))
+    : enabled;
+  const toFetch = adapters.filter((a) =>
+    selectedSources.includes(a.source as JobSource)
+  );
   for (const capability of unavailableEnabledSources(
-    enabled,
+    selectedSources,
     adapters.map((adapter) => adapter.source as JobSource)
   )) {
     sourceResults.push({
@@ -874,7 +941,7 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       locations: filters.locations,
       remote: filters.remote,
       experienceYears: filters.experienceYears ?? null,
-      sources: enabled,
+      sources: selectedSources,
     },
     searchPlanId: storedPlan.id,
     timings,
@@ -894,6 +961,13 @@ export async function searchJobs(userId: string, backgroundJobId?: string) {
       timings,
     },
   });
+
+  if (savedSearch) {
+    await prisma.savedSearch.update({
+      where: { id: savedSearch.id },
+      data: { lastRunAt: new Date() },
+    });
+  }
 
   return {
     total: discovered.length,

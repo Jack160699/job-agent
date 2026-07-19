@@ -106,6 +106,7 @@ export function JobRunPanel({
   const [cancelling, setCancelling] = useState(false);
   const [controlling, setControlling] = useState(false);
   const [broadening, setBroadening] = useState(false);
+  const [retryingSource, setRetryingSource] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
 
@@ -304,6 +305,33 @@ export function JobRunPanel({
       toast.error(err instanceof Error ? err.message : "Could not broaden search");
     } finally {
       setBroadening(false);
+    }
+  };
+
+  const retrySource = async (source: string) => {
+    setRetryingSource(source);
+    setError(null);
+    completedRef.current = false;
+    try {
+      const response = await fetch("/api/jobs/search?async=true", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Source retry failed");
+      }
+      setRunning(true);
+      toast.success(`Retrying ${source} only. Existing results are preserved.`);
+      pollRef.current = setInterval(pollProgress, 1500);
+      await pollProgress();
+    } catch (retryError) {
+      toast.error(
+        retryError instanceof Error ? retryError.message : "Source retry failed"
+      );
+    } finally {
+      setRetryingSource(null);
     }
   };
 
@@ -555,6 +583,20 @@ export function JobRunPanel({
                       }`
                     : source.error ?? "This source could not be searched."}
                 </p>
+                {!source.success && mode === "search" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="mt-2 h-8 px-2 text-xs"
+                    disabled={running || retryingSource === source.source}
+                    onClick={() => void retrySource(source.source)}
+                  >
+                    {retryingSource === source.source
+                      ? "Retrying…"
+                      : "Retry this source"}
+                  </Button>
+                )}
               </div>
             ))}
           </div>

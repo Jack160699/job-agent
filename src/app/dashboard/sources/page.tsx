@@ -6,7 +6,7 @@ import {
   SourcesCenter,
   type SourceCenterItem,
 } from "@/components/dashboard/sources-center";
-import { SOURCE_CAPABILITIES } from "@/lib/jobs/source-capabilities";
+import { getSourceCapabilities } from "@/lib/jobs/source-capabilities";
 
 export default async function SourcesPage() {
   const user = await getDbUser();
@@ -26,7 +26,7 @@ export default async function SourcesPage() {
   const countBySource = new Map(
     counts.map((item) => [item.source, item._count._all])
   );
-  const items: SourceCenterItem[] = Object.values(SOURCE_CAPABILITIES).map(
+  const items: SourceCenterItem[] = Object.values(getSourceCapabilities()).map(
     (capability) => {
       const state = healthBySource.get(capability.source);
       return {

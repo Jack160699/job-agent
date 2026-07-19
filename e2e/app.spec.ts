@@ -5,7 +5,7 @@ test.describe("Landing Page", () => {
   test("renders hero section", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "Your career, managed by Kairela."
+      /Your career,\s*managed by Kairela\./
     );
   });
 

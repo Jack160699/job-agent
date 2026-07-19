@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ResumeHistory, type ResumeHistoryEntry } from "./resume-history";
 
@@ -28,6 +28,19 @@ const orphanedTailored: ResumeHistoryEntry = {
   groundingReport: {
     acceptedCount: 4,
     gaps: ["Kubernetes"],
+    claims: [
+      {
+        category: "skill",
+        claim: "TypeScript",
+        sourceResume: "Master Resume",
+        sourceSection: "Skills",
+        sourceExcerpt: "TypeScript engineer",
+        state: "SOURCE_CONFIRMED",
+        userConfirmed: false,
+        aiImproved: false,
+        reviewRequired: false,
+      },
+    ],
     excluded: [
       {
         category: "skill",
@@ -61,5 +74,15 @@ describe("ResumeHistory", () => {
       screen.getByText("1 proposed change(s) excluded by grounding.")
     ).toBeInTheDocument();
     expect(screen.queryByText(/file:\/\//i)).not.toBeInTheDocument();
+  });
+
+  it("shows claim-to-source evidence in the resume inspector", () => {
+    render(<ResumeHistory entries={[orphanedTailored]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Open/i }));
+
+    expect(screen.getByText("Claim-to-source inspector")).toBeInTheDocument();
+    expect(screen.getByText("Source confirmed")).toBeInTheDocument();
+    expect(screen.getAllByText("TypeScript engineer").length).toBeGreaterThan(0);
+    expect(screen.getByText(/User confirmed: Not yet/i)).toBeInTheDocument();
   });
 });

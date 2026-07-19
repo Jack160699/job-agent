@@ -28,6 +28,10 @@ export interface SourceCenterItem {
   requests: number;
   lastSuccessfulFetch: string | null;
   lastError: string | null;
+  publicDiscoveryStatus?: "available" | "setup_required";
+  authenticatedConnectionStatus?: "connected" | "connection_required";
+  publicDiscoveryProvider?: string | null;
+  importSupported?: boolean;
 }
 
 const statusLabels: Record<string, string> = {
@@ -55,6 +59,9 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
   const [testResults, setTestResults] = useState<
     Record<string, { jobs: number; durationMs: number; verifiedAt: string }>
   >({});
+  const [testErrors, setTestErrors] = useState<
+    Record<string, { status: string; message: string }>
+  >({});
 
   const testConnection = async (source: string) => {
     setTesting(source);
@@ -65,7 +72,21 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
         body: JSON.stringify({ source }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || "Test failed");
+      if (!response.ok) {
+        setTestErrors((current) => ({
+          ...current,
+          [source]: {
+            status: data.quotaStatus || data.error || "unavailable",
+            message: data.message || "Public discovery test failed",
+          },
+        }));
+        throw new Error(data.message || data.error || "Test failed");
+      }
+      setTestErrors((current) => {
+        const next = { ...current };
+        delete next[source];
+        return next;
+      });
       setTestResults((current) => ({ ...current, [source]: data }));
       toast.success(
         `${source} responded with ${data.jobs} current query results`
@@ -80,8 +101,17 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {items.map((item) => {
-        const requiresAuth = item.status === "authentication_required";
+        const requiresAuth =
+          item.authenticatedConnectionStatus === "connection_required" ||
+          item.status === "authentication_required";
         const testResult = testResults[item.source];
+        const testError = testErrors[item.source];
+        const sourceHome =
+          item.source === "LINKEDIN"
+            ? "https://www.linkedin.com/jobs/"
+            : item.source === "NAUKRI"
+              ? "https://www.naukri.com/"
+              : null;
         return (
           <Card key={item.source} className="h-full">
             <CardHeader className="pb-3">
@@ -115,10 +145,26 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
               </p>
 
               {requiresAuth && (
-                <div className="rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning-muted)] p-3 text-xs text-[var(--ink-secondary)]">
-                  Kairela will continue searching permitted public sources. A
-                  LinkedIn sign-in identity does not grant Jobs API access, and
-                  Kairela does not treat it as a source connection.
+                <div className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning-muted)] p-3 text-xs text-[var(--ink-secondary)]">
+                  {item.publicDiscoveryStatus && (
+                    <p>
+                      <strong>Public discovery:</strong>{" "}
+                      {item.publicDiscoveryStatus === "available"
+                        ? `Available via ${item.publicDiscoveryProvider}`
+                        : "Setup required"}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Authenticated connection:</strong> Connection
+                    required. A normal Kairela sign-in does not grant platform
+                    Jobs API access.
+                  </p>
+                  {item.importSupported && (
+                    <p>
+                      <strong>Imported links:</strong> Available for permitted
+                      public metadata and canonical-source preservation.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -165,6 +211,18 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                   Test passed: {testResult.jobs} results in {testResult.durationMs} ms
                 </p>
               )}
+              {item.publicDiscoveryStatus && (
+                <p className="text-xs text-[var(--ink-tertiary)]">
+                  Search-provider quota:{" "}
+                  {testError?.status === "exhausted"
+                    ? "Exhausted"
+                    : testError?.status === "rate_limited"
+                      ? "Temporarily rate limited"
+                      : testResult
+                        ? "Available at last test"
+                        : "Not reported until a connection test"}
+                </p>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 {item.searchable ? (
@@ -181,9 +239,11 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                     ) : (
                       <RefreshCw className="h-3.5 w-3.5" />
                     )}
-                    Test connection
+                    {item.publicDiscoveryStatus
+                      ? "Test public discovery"
+                      : "Test connection"}
                   </Button>
-                ) : requiresAuth ? (
+                ) : item.importSupported || requiresAuth ? (
                   <Button type="button" size="sm" variant="outline" asChild>
                     <Link href="/dashboard/jobs">
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -195,6 +255,14 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                     <CircleOff className="h-3.5 w-3.5" />
                     No safe connection method configured
                   </span>
+                )}
+                {sourceHome && (
+                  <Button type="button" size="sm" variant="ghost" asChild>
+                    <a href={sourceHome} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open source
+                    </a>
+                  </Button>
                 )}
                 <Button type="button" size="sm" variant="ghost" asChild>
                   <Link href="/dashboard/settings">Change source settings</Link>

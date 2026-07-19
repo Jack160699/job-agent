@@ -160,6 +160,7 @@ model User {
   jobImports               JobImport[]
   jobFeedback              JobFeedback[]
   searchPlans              SearchPlan[]
+  savedSearches            SavedSearch[]
   sourceHealth             JobSourceHealth[]
   jobProvenance            JobProvenance[]
   proactiveRecommendations ProactiveRecommendation[]
@@ -357,6 +358,32 @@ model SearchPlan {
 
   @@index([userId, createdAt])
   @@map("search_plans")
+}
+
+model SavedSearch {
+  id                   String      @id @default(uuid()) @db.Uuid
+  userId               String      @map("user_id") @db.Uuid
+  name                 String
+  titles               String[]
+  locations            String[]
+  sector               String
+  governmentCategories String[]    @default([]) @map("government_categories")
+  filters              Json
+  searchStage          String      @default("strict") @map("search_stage")
+  sources              JobSource[] @default([])
+  alertFrequency       String      @default("OFF") @map("alert_frequency")
+  alertsEnabled        Boolean     @default(false) @map("alerts_enabled")
+  nextRunAt            DateTime?   @map("next_run_at")
+  lastRunAt            DateTime?   @map("last_run_at")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([alertsEnabled, nextRunAt])
+  @@index([userId, createdAt])
+  @@map("saved_searches")
 }
 
 model JobSourceHealth {

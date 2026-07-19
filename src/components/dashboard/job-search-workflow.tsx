@@ -11,6 +11,9 @@ import {
   ChevronUp,
   Settings2,
   Square,
+  Pause,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -61,6 +64,8 @@ export function JobSearchWorkflow({
   const [progress, setProgress] = useState<JobRunProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [controlling, setControlling] = useState(false);
+  const [retryingSource, setRetryingSource] = useState<string | null>(null);
   const [completedBanner, setCompletedBanner] = useState<{
     relevant: number;
     new: number;
@@ -115,6 +120,10 @@ export function JobSearchWorkflow({
         setRunning(false);
         setError("Search was cancelled. Start a new search when ready.");
       }
+      if (p.status === "paused") {
+        stopPolling();
+        setRunning(false);
+      }
       if (p.stalled && running) {
         stopPolling();
         setRunning(false);
@@ -125,7 +134,7 @@ export function JobSearchWorkflow({
     }
   }, [running, router, stopPolling]);
 
-  const startRun = async () => {
+  const startRun = async (source?: string) => {
     if (!preferencesComplete) {
       router.push("/dashboard/onboarding");
       return;
@@ -137,7 +146,15 @@ export function JobSearchWorkflow({
     doneRef.current = false;
 
     try {
-      const res = await fetch("/api/jobs/search?async=true", { method: "POST" });
+      const res = await fetch("/api/jobs/search?async=true", {
+        method: "POST",
+        ...(source
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ source }),
+            }
+          : {}),
+      });
       const data = await res.json();
 
       if (res.status === 422 && data.redirect) {
@@ -147,6 +164,10 @@ export function JobSearchWorkflow({
       }
       if (!res.ok) throw new Error(data.error || data.message || "Failed to start");
 
+      if (source) {
+        setRetryingSource(source);
+        toast.success(`Retrying ${source} only. Existing results are preserved.`);
+      }
       pollRef.current = setInterval(pollProgress, 1200);
       await pollProgress();
     } catch (err) {
@@ -154,6 +175,38 @@ export function JobSearchWorkflow({
       const msg = err instanceof Error ? err.message : "Failed to start search";
       setError(msg);
       toast.error(msg);
+    } finally {
+      setRetryingSource(null);
+    }
+  };
+
+  const controlRun = async (action: "pause" | "resume") => {
+    setControlling(true);
+    try {
+      const response = await fetch("/api/jobs/search", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Search control failed");
+      toast.success(data.message);
+      if (action === "resume" && data.resumed) {
+        doneRef.current = false;
+        setRunning(true);
+        pollRef.current = setInterval(pollProgress, 1200);
+        await pollProgress();
+      } else if (action === "pause" && data.paused) {
+        await pollProgress();
+      }
+    } catch (controlError) {
+      toast.error(
+        controlError instanceof Error
+          ? controlError.message
+          : "Search control failed"
+      );
+    } finally {
+      setControlling(false);
     }
   };
 
@@ -189,7 +242,13 @@ export function JobSearchWorkflow({
         .then((r) => r.json())
         .then((d) => {
           const p = d.progress as JobRunProgress | null;
-          if (p && (p.status === "pending" || p.status === "running")) {
+          if (p) setProgress(p);
+          if (
+            p &&
+            (p.status === "pending" ||
+              p.status === "running" ||
+              p.status === "pause_requested")
+          ) {
             setRunning(true);
             doneRef.current = false;
             pollRef.current = setInterval(pollProgress, 1200);
@@ -211,7 +270,7 @@ export function JobSearchWorkflow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            onClick={startRun}
+            onClick={() => void startRun()}
             disabled={running}
             className="h-11 min-h-[44px] gap-2"
           >
@@ -302,9 +361,28 @@ export function JobSearchWorkflow({
                 <div>
                   <p className="font-medium text-[var(--ink)]">Source status</p>
                   {completedBanner.progress.failedSources?.map((source) => (
-                    <p key={source.source} className="mt-1">
-                      {source.source}: {source.error || "temporarily unavailable"}
-                    </p>
+                    <div
+                      key={source.source}
+                      className="mt-1 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <p>
+                        {source.source}:{" "}
+                        {source.error || "temporarily unavailable"}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 text-xs"
+                        disabled={retryingSource === source.source}
+                        onClick={() => void startRun(source.source)}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        {retryingSource === source.source
+                          ? "Retrying…"
+                          : "Retry this source"}
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -330,6 +408,25 @@ export function JobSearchWorkflow({
         </div>
       )}
 
+      {progress?.status === "paused" && !running && (
+        <div className="flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--warning)]/25 bg-[var(--warning-muted)] p-3 text-sm">
+          <Pause className="h-4 w-4 text-[var(--warning)]" />
+          <span className="flex-1 text-[var(--ink-secondary)]">
+            Search paused. Results already saved remain available.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1"
+            disabled={controlling}
+            onClick={() => void controlRun("resume")}
+          >
+            <Play className="h-3.5 w-3.5" />
+            Resume
+          </Button>
+        </div>
+      )}
+
       {/* Compact progress — desktop inline, mobile sticky strip */}
       {running && (
         <div
@@ -352,6 +449,17 @@ export function JobSearchWorkflow({
               </div>
               <Progress value={progress?.progress ?? 5} className="mt-2 h-1.5" />
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1 text-[var(--ink-tertiary)]"
+              disabled={controlling || progress?.status === "pause_requested"}
+              onClick={() => void controlRun("pause")}
+            >
+              <Pause className="h-3 w-3" />
+              {progress?.status === "pause_requested" ? "Pausing…" : "Pause"}
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -421,7 +529,7 @@ export function JobSearchWorkflow({
               ? "Start a new search whenever you are ready."
               : "Check your preferences and try again. The queue may be recovering."
           }
-          onRetry={startRun}
+          onRetry={() => void startRun()}
           retrying={running}
         />
       )}

@@ -193,6 +193,56 @@ describe("preference-aware discovery", () => {
     expect(result.exclusions.join(" ")).toMatch(/seniority|exceeds/i);
   });
 
+  it("does not misclassify Staff Nurse as an engineering lead role", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        title: "Staff Nurse",
+        company: "City Hospital",
+        location: "Pune, India",
+        description:
+          "Staff Nurse for ward patient care. GNM or BSc Nursing registration required.",
+      }),
+      baseSettings({
+        jobTitles: ["Registered Nurse"],
+        experienceYears: 0,
+        requiredSkills: ["Patient care"],
+        preferredSkills: ["GNM"],
+        locations: ["Pune"],
+        workModes: ["ONSITE"],
+        salaryMin: null,
+        salaryMax: null,
+        matchThreshold: 50,
+      })
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.reasons.join(" ")).toMatch(/healthcare qualifications/i);
+    expect(result.exclusions.join(" ")).not.toMatch(/seniority/i);
+  });
+
+  it("keeps explicitly fresher-friendly roles reviewable despite a stated experience minimum", () => {
+    const result = evaluateJobAgainstPreferences(
+      sampleJob({
+        title: "Graduate Engineer Trainee",
+        description:
+          "Entry level graduate engineer trainee. React TypeScript. One year preferred.",
+        experienceMin: 1,
+      }),
+      baseSettings({
+        jobTitles: ["Software Developer"],
+        experienceYears: 0,
+        workModes: ["ONSITE", "HYBRID", "REMOTE"],
+        salaryMin: null,
+        salaryMax: null,
+        matchThreshold: 50,
+      })
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.reasons.join(" ")).toMatch(/fresher-friendly/i);
+    expect(result.concerns.join(" ")).toMatch(/1\+ years/i);
+  });
+
   it("does not compare salaries with different currencies", () => {
     const result = evaluateJobAgainstPreferences(
       sampleJob({

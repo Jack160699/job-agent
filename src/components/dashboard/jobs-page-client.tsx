@@ -4,6 +4,7 @@ import Link from "next/link";
 import { JobSearchWorkflow } from "@/components/dashboard/job-search-workflow";
 import { cn } from "@/lib/utils";
 import type { JobResultsView } from "@/lib/data/dashboard";
+import { SavedSearchesPanel } from "@/components/dashboard/saved-searches-panel";
 
 export function JobsPageClient({
   preferencesComplete,
@@ -32,6 +33,7 @@ export function JobsPageClient({
         lastSearchAt={lastSearchAt}
         lastResultCount={lastResultCount}
       />
+      <SavedSearchesPanel preferencesComplete={preferencesComplete} />
       <div className="flex gap-2 overflow-x-auto border-b border-[var(--line)] pb-2">
         {views.map((view) => (
           <Link
