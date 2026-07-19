@@ -75,7 +75,17 @@ export async function deleteUserByEmail(email: string) {
   const user = data.users.find((u) => u.email === email);
   if (!user) return;
 
-  await admin.auth.admin.deleteUser(user.id);
+  // The application user table is intentionally separate from auth.users.
+  // Remove it explicitly so all owner-scoped resume, onboarding, and job
+  // records cascade during E2E cleanup instead of becoming orphaned fixtures.
+  const { error: applicationDeleteError } = await admin
+    .from("users")
+    .delete()
+    .eq("id", user.id);
+  if (applicationDeleteError) throw applicationDeleteError;
+
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
+  if (authDeleteError) throw authDeleteError;
 }
 
 export async function isSignupRateLimited(): Promise<boolean> {
