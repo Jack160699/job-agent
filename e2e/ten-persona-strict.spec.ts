@@ -242,18 +242,30 @@ ${persona.titles.join(", ")}
 `;
 }
 
-async function makePdf(text: string): Promise<Buffer> {
-  const { PDFDocument, StandardFonts } = await import("pdf-lib");
-  const document = await PDFDocument.create();
-  const font = await document.embedFont(StandardFonts.Helvetica);
-  const page = document.addPage([612, 792]);
-  let y = 760;
-  for (const line of text.split("\n")) {
-    if (y < 35) break;
-    page.drawText(line.slice(0, 92), { x: 38, y, size: 10, font });
-    y -= 14;
+async function makePdf(page: Page, text: string): Promise<Buffer> {
+  // Chromium's print pipeline preserves paragraph boundaries in the PDF text
+  // layer. Drawing isolated glyph runs with pdf-lib looks correct visually but
+  // some extractors legitimately flatten every run into one line, turning the
+  // fixture itself into a poor test of Kairela's structured parser.
+  const printPage = await page.context().newPage();
+  try {
+    await printPage.setContent(
+      "<!doctype html><html><body><pre id=\"resume\" style=\"font: 12px/1.45 Arial; white-space: pre-wrap\"></pre></body></html>"
+    );
+    await printPage.locator("#resume").evaluate(
+      (element, resumeText) => {
+        element.textContent = resumeText;
+      },
+      text
+    );
+    return await printPage.pdf({
+      format: "A4",
+      margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" },
+      printBackground: true,
+    });
+  } finally {
+    await printPage.close();
   }
-  return Buffer.from(await document.save());
 }
 
 async function makeDocx(text: string): Promise<Buffer> {
@@ -362,7 +374,9 @@ async function uploadResume(page: Page, persona: Persona) {
       .click();
   } else {
     const buffer =
-      persona.format === "pdf" ? await makePdf(resume) : await makeDocx(resume);
+      persona.format === "pdf"
+        ? await makePdf(page, resume)
+        : await makeDocx(resume);
     await page.getByLabel("Choose a resume file to upload").setInputFiles({
       name: `${persona.slug}.${persona.format}`,
       mimeType:

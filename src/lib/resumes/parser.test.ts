@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseResumeFile,
   parseResumeStructure,
+  reconstructPdfTextItems,
 } from "@/lib/resumes/parser";
 
 const resumeText = `Jane Doe
@@ -45,6 +46,41 @@ describe("resume parsing", () => {
 
     expect(parsed.content.source.parser).toBe("utf8");
     expect(parsed.content.source.fileName).toBe("resume.txt");
+  });
+
+  it("preserves PDF line boundaries used by structured resume extraction", () => {
+    const reconstructed = reconstructPdfTextItems([
+      {
+        str: "Jane Doe",
+        hasEOL: true,
+        transform: [10, 0, 0, 10, 40, 760],
+      },
+      {
+        str: "Software Engineer | Pune, India",
+        hasEOL: true,
+        transform: [10, 0, 0, 10, 40, 744],
+      },
+      {
+        str: "EXPERIENCE",
+        hasEOL: true,
+        transform: [10, 0, 0, 10, 40, 712],
+      },
+      {
+        str: "Senior Engineer | Acme | 2021 - Present",
+        hasEOL: true,
+        transform: [10, 0, 0, 10, 40, 696],
+      },
+    ]);
+
+    expect(reconstructed).toBe(
+      "Jane Doe\nSoftware Engineer | Pune, India\nEXPERIENCE\nSenior Engineer | Acme | 2021 - Present"
+    );
+    expect(
+      parseResumeStructure(`${reconstructed}\n\nSKILLS\nTypeScript, React, SQL`, {
+        mediaType: "application/pdf",
+        parser: "unpdf",
+      }).content.sections.map((section) => section.heading)
+    ).toContain("EXPERIENCE");
   });
 
   it("rejects spoofed or unsupported files", async () => {

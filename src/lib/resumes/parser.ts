@@ -78,6 +78,49 @@ export interface ParsedResume {
   };
 }
 
+type PdfTextItemLike = {
+  str?: unknown;
+  hasEOL?: unknown;
+  transform?: unknown;
+};
+
+/**
+ * PDF.js exposes the line-ending signal on each text item, but unpdf's
+ * high-level extractText helper joins those items with spaces. Resumes depend
+ * on line and section boundaries for safe, deterministic extraction, so keep
+ * PDF.js's explicit EOL markers and use vertical movement as a fallback for
+ * PDFs whose producers omit hasEOL.
+ */
+export function reconstructPdfTextItems(items: readonly unknown[]): string {
+  let output = "";
+  let previousY: number | null = null;
+
+  for (const candidate of items) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const item = candidate as PdfTextItemLike;
+    if (typeof item.str !== "string" || item.str.length === 0) continue;
+
+    const transform = Array.isArray(item.transform) ? item.transform : null;
+    const y =
+      transform && typeof transform[5] === "number" ? transform[5] : null;
+    const movedToNewLine =
+      previousY != null && y != null && Math.abs(y - previousY) > 2;
+
+    if (output && movedToNewLine && !output.endsWith("\n")) {
+      output = `${output.trimEnd()}\n`;
+    }
+    output += item.str;
+    if (item.hasEOL === true) {
+      output = `${output.trimEnd()}\n`;
+    } else if (!output.endsWith(" ")) {
+      output += " ";
+    }
+    previousY = y;
+  }
+
+  return output.trim();
+}
+
 function normalizeText(value: string): string {
   return value
     .replace(/\u0000/g, "")
@@ -153,10 +196,15 @@ export async function parseResumeFile(input: {
     extension === "pdf" &&
     new TextDecoder().decode(input.bytes.slice(0, 5)) === "%PDF-"
   ) {
-    const { extractText, getDocumentProxy } = await import("unpdf");
+    const { getDocumentProxy } = await import("unpdf");
     const document = await getDocumentProxy(input.bytes);
-    const result = await extractText(document, { mergePages: true });
-    text = Array.isArray(result.text) ? result.text.join("\n") : result.text;
+    const pages: string[] = [];
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push(reconstructPdfTextItems(content.items));
+    }
+    text = pages.filter(Boolean).join("\n\n");
     parser = "unpdf";
     mediaType = "application/pdf";
   } else if (
