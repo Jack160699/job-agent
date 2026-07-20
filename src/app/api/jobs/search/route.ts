@@ -17,14 +17,17 @@ import { JobSource } from "@prisma/client";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
-  if (limited) return limited;
-
   const requestStart = Date.now();
   try {
     const authStart = Date.now();
     const user = await resolveApiUser();
     const authResolutionMs = Date.now() - authStart;
+    const limited = await rateLimit(request, {
+      ...RATE_LIMIT_PRESETS.jobSearch,
+      keyPrefix: "job-search",
+      userId: user.id,
+    });
+    if (limited) return limited;
 
     const dbStart = Date.now();
     const settings = await prisma.userSettings.findUnique({
@@ -143,11 +146,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
-  if (limited) return limited;
-
   try {
     const user = await resolveApiUser();
+    const limited = await rateLimit(request, {
+      ...RATE_LIMIT_PRESETS.jobSearch,
+      keyPrefix: "job-search",
+      userId: user.id,
+    });
+    if (limited) return limited;
     const cancelled = await cancelActiveJob(user.id, "SEARCH_JOBS");
     return NextResponse.json({
       cancelled: cancelled > 0,
@@ -167,11 +173,14 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
-  if (limited) return limited;
-
   try {
     const user = await resolveApiUser();
+    const limited = await rateLimit(request, {
+      ...RATE_LIMIT_PRESETS.jobSearch,
+      keyPrefix: "job-search",
+      userId: user.id,
+    });
+    if (limited) return limited;
     const body = (await request.json()) as { action?: "pause" | "resume" };
     if (body.action === "pause") {
       const count = await pauseActiveJob(user.id, "SEARCH_JOBS");

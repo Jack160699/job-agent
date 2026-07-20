@@ -1,6 +1,7 @@
 export default function ResumeHistoryLoading() {
   return (
     <div
+      data-navigation-loading
       className="space-y-4 p-4 md:p-6"
       aria-busy="true"
       aria-label="Loading resume history"

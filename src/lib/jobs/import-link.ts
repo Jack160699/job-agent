@@ -86,6 +86,27 @@ function detectSource(url: URL): JobSource {
   }
   if (host === "naukri.com" || host.endsWith(".naukri.com")) return "NAUKRI";
   if (host === "indeed.com" || host.endsWith(".indeed.com")) return "INDEED";
+  if (host === "foundit.in" || host.endsWith(".foundit.in")) return "FOUNDIT";
+  if (host === "shine.com" || host.endsWith(".shine.com")) return "SHINE";
+  if (host === "timesjobs.com" || host.endsWith(".timesjobs.com")) return "TIMESJOBS";
+  if (host === "cutshort.io" || host.endsWith(".cutshort.io")) return "CUTSHORT";
+  if (host === "instahyre.com" || host.endsWith(".instahyre.com")) return "INSTAHYRE";
+  if (host === "internshala.com" || host.endsWith(".internshala.com")) {
+    return "INTERNSHALA";
+  }
+  if (host === "apna.co" || host.endsWith(".apna.co")) return "APNA";
+  if (host === "freshersworld.com" || host.endsWith(".freshersworld.com")) {
+    return "FRESHERSWORLD";
+  }
+  if (
+    host === "hirist.tech" ||
+    host.endsWith(".hirist.tech") ||
+    host === "hirist.com" ||
+    host.endsWith(".hirist.com")
+  ) {
+    return "HIRIST";
+  }
+  if (host === "iimjobs.com" || host.endsWith(".iimjobs.com")) return "IIMJOBS";
   if (host.endsWith("greenhouse.io") || host === "greenhouse.io") return "GREENHOUSE";
   if (host.endsWith("lever.co") || host === "lever.co") return "LEVER";
   if (host.endsWith("ashbyhq.com") || host === "ashbyhq.com") return "ASHBY";

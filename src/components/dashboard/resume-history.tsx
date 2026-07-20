@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { REMOVED_MASTER_LABEL } from "@/lib/resumes/history-policy";
 import { formatIndiaDateTime } from "@/lib/utils";
+import { SafeFixReviewPanel } from "./safe-fix-review-panel";
 
 export type ResumeHistoryEntry = {
   key: string;
@@ -513,6 +514,9 @@ export function ResumeHistory({
                   </div>
                 )}
               </div>
+            )}
+            {opened.documentType === "TAILORED" && opened.isCurrent && (
+              <SafeFixReviewPanel resumeId={opened.id} />
             )}
           </div>
         </div>

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.next();
   }

@@ -15,8 +15,14 @@ export interface UnlinkDecision {
  */
 export function canUnlinkIdentity(
   identities: IdentitySummary[],
-  _target: IdentitySummary
+  target: IdentitySummary
 ): UnlinkDecision {
+  if (!identities.some((identity) => identity.provider === target.provider)) {
+    return {
+      allowed: false,
+      reason: "This sign-in method is no longer connected.",
+    };
+  }
   if (identities.length <= 1) {
     return {
       allowed: false,

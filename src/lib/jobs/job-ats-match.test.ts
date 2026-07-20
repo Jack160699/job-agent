@@ -51,9 +51,7 @@ describe("calculateJobAtsMatch", () => {
     const j = job();
     const a = calculateJobAtsMatch(p, j, 0.9);
     const b = calculateJobAtsMatch(p, j, 0.9);
-    const { generatedAt: _a, ...restA } = a;
-    const { generatedAt: _b, ...restB } = b;
-    expect(restA).toEqual(restB);
+    expect({ ...a, generatedAt: b.generatedAt }).toEqual(b);
   });
 
   it("category scores sum to the total (no hard blockers)", () => {
@@ -112,6 +110,47 @@ describe("calculateJobAtsMatch", () => {
     expect(remote.eligibilityIssues).toHaveLength(0);
     const remoteLocationCategory = remote.categories.find((c) => c.key === "locationEligibility")!;
     expect(remoteLocationCategory.score).toBe(remoteLocationCategory.maxScore);
+  });
+
+  it("treats Staff Nurse as a professional title and warns when stated registration is unconfirmed", () => {
+    const nursingText = `Priya Rao
+Staff Nurse | Bengaluru, India
+
+SUMMARY
+Patient care professional with ward and ICU experience.
+
+EXPERIENCE
+Staff Nurse | Community Hospital | 2024 - Present
+- Delivered patient care and maintained clinical records.
+
+EDUCATION
+BSc Nursing | State Nursing College | 2024
+
+SKILLS
+Patient Care, ICU, Ward Care`;
+    const nursingProfile = extractCareerProfile(
+      parseResumeStructure(nursingText, {
+        mediaType: "text/plain",
+        parser: "test",
+      })
+    );
+    const result = calculateJobAtsMatch(
+      nursingProfile,
+      job({
+        title: "Staff Nurse",
+        description:
+          "BSc Nursing or GNM with registration at the State Nursing Council. Ward patient care.",
+        requiredSkills: ["Patient Care"],
+        preferredSkills: ["ICU"],
+        experienceMin: 0,
+        experienceMax: 2,
+      }),
+      0.9
+    );
+    expect(result.eligibilityIssues).toEqual([
+      expect.stringMatching(/registration was not confirmed/i),
+    ]);
+    expect(result.hardBlockers).toHaveLength(0);
   });
 
   it("stamps the current score version and total is always within 0-100", () => {

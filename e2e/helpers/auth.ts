@@ -16,6 +16,9 @@ export function getSharedE2ECredentials() {
 
 export async function loginWithSharedAccount(page: Page) {
   const { email, password } = getSharedE2ECredentials();
+  if (process.env.VERCEL_SHARE_URL) {
+    await page.goto(process.env.VERCEL_SHARE_URL);
+  }
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
@@ -78,10 +81,15 @@ export async function deleteUserByEmail(email: string) {
   // The application user table is intentionally separate from auth.users.
   // Remove it explicitly so all owner-scoped resume, onboarding, and job
   // records cascade during E2E cleanup instead of becoming orphaned fixtures.
-  const { error: applicationDeleteError } = await admin
+  const { data: applicationUser, error: lookupError } = await admin
     .from("users")
-    .delete()
-    .eq("id", user.id);
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  const { error: applicationDeleteError } = applicationUser
+    ? await admin.from("users").delete().eq("id", applicationUser.id)
+    : { error: null };
   if (applicationDeleteError) throw applicationDeleteError;
 
   const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);

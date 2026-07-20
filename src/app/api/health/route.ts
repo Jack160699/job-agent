@@ -6,18 +6,31 @@ import prisma from "@/lib/db";
 import { isAdminUser } from "@/lib/auth/admin";
 
 export async function GET() {
+  const requestStart = performance.now();
+  const timings: string[] = [];
   const publicChecks: Record<string, unknown> = {
     status: "ok",
     timestamp: new Date().toISOString(),
   };
 
   try {
+    const databaseStart = performance.now();
     await prisma.$queryRaw`SELECT 1`;
+    timings.push(`database;dur=${(performance.now() - databaseStart).toFixed(1)}`);
     publicChecks.database = "connected";
   } catch {
     publicChecks.status = "degraded";
     publicChecks.database = "unavailable";
-    return NextResponse.json(publicChecks, { status: 503 });
+    const response = NextResponse.json(publicChecks, { status: 503 });
+    response.headers.set(
+      "Server-Timing",
+      `${timings.join(", ")}, total;dur=${(performance.now() - requestStart).toFixed(1)}`
+    );
+    response.headers.set(
+      "X-Kairela-Server-Timing",
+      response.headers.get("Server-Timing") ?? ""
+    );
+    return response;
   }
 
   // Admin diagnostics require verifying the caller's session, which is a
@@ -31,18 +44,33 @@ export async function GET() {
   const hasSessionCookie = (await cookies())
     .getAll()
     .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  const authStart = performance.now();
   const admin = hasSessionCookie ? await isAdminUser().catch(() => false) : false;
+  timings.push(`authentication;dur=${(performance.now() - authStart).toFixed(1)}`);
   if (!admin) {
-    return NextResponse.json(publicChecks, { status: 200 });
+    const response = NextResponse.json(publicChecks, { status: 200 });
+    response.headers.set(
+      "Server-Timing",
+      `${timings.join(", ")}, total;dur=${(performance.now() - requestStart).toFixed(1)}`
+    );
+    response.headers.set(
+      "X-Kairela-Server-Timing",
+      response.headers.get("Server-Timing") ?? ""
+    );
+    return response;
   }
 
   try {
+    const diagnosticsStart = performance.now();
     const pendingJobs = await prisma.backgroundJob.count({
       where: { status: "pending" },
     });
     const queueStats = await getQueueStats();
+    timings.push(
+      `diagnostics;dur=${(performance.now() - diagnosticsStart).toFixed(1)}`
+    );
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         ...publicChecks,
         supabase: isSupabaseConfigured() ? "configured" : "missing",
@@ -65,10 +93,28 @@ export async function GET() {
       },
       { status: 200 }
     );
+    response.headers.set(
+      "Server-Timing",
+      `${timings.join(", ")}, total;dur=${(performance.now() - requestStart).toFixed(1)}`
+    );
+    response.headers.set(
+      "X-Kairela-Server-Timing",
+      response.headers.get("Server-Timing") ?? ""
+    );
+    return response;
   } catch {
-    return NextResponse.json(
+    const response = NextResponse.json(
       { ...publicChecks, diagnostics: "unavailable" },
       { status: 200 }
     );
+    response.headers.set(
+      "Server-Timing",
+      `${timings.join(", ")}, total;dur=${(performance.now() - requestStart).toFixed(1)}`
+    );
+    response.headers.set(
+      "X-Kairela-Server-Timing",
+      response.headers.get("Server-Timing") ?? ""
+    );
+    return response;
   }
 }

@@ -46,9 +46,7 @@ describe("calculateAtsReadinessScore", () => {
     const a = calculateAtsReadinessScore(profile, rawText);
     const b = calculateAtsReadinessScore(profile, rawText);
     // generatedAt legitimately differs; everything else must be byte-identical.
-    const { generatedAt: _a, ...restA } = a;
-    const { generatedAt: _b, ...restB } = b;
-    expect(restA).toEqual(restB);
+    expect({ ...a, generatedAt: b.generatedAt }).toEqual(b);
   });
 
   it("category scores sum exactly to the total score", () => {

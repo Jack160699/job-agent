@@ -61,6 +61,16 @@ export const JOB_SOURCES: Record<JobSource, { name: string; canAutoApply: boolea
   WELLFOUND: { name: "Wellfound", canAutoApply: false },
   NAUKRI: { name: "Naukri", canAutoApply: false },
   INDEED: { name: "Indeed", canAutoApply: false },
+  FOUNDIT: { name: "Foundit", canAutoApply: false },
+  SHINE: { name: "Shine", canAutoApply: false },
+  TIMESJOBS: { name: "TimesJobs", canAutoApply: false },
+  CUTSHORT: { name: "Cutshort", canAutoApply: false },
+  INSTAHYRE: { name: "Instahyre", canAutoApply: false },
+  INTERNSHALA: { name: "Internshala", canAutoApply: false },
+  APNA: { name: "Apna", canAutoApply: false },
+  FRESHERSWORLD: { name: "Freshersworld", canAutoApply: false },
+  HIRIST: { name: "Hirist", canAutoApply: false },
+  IIMJOBS: { name: "iimjobs", canAutoApply: false },
   GREENHOUSE: { name: "Greenhouse", canAutoApply: true },
   LEVER: { name: "Lever", canAutoApply: true },
   ASHBY: { name: "Ashby", canAutoApply: true },
@@ -84,6 +94,16 @@ export function detectJobSource(url: string): JobSource {
   if (url.includes("wellfound.com") || url.includes("angel.co")) return "WELLFOUND";
   if (url.includes("naukri.com")) return "NAUKRI";
   if (url.includes("indeed.com")) return "INDEED";
+  if (url.includes("foundit.in")) return "FOUNDIT";
+  if (url.includes("shine.com")) return "SHINE";
+  if (url.includes("timesjobs.com")) return "TIMESJOBS";
+  if (url.includes("cutshort.io")) return "CUTSHORT";
+  if (url.includes("instahyre.com")) return "INSTAHYRE";
+  if (url.includes("internshala.com")) return "INTERNSHALA";
+  if (url.includes("apna.co")) return "APNA";
+  if (url.includes("freshersworld.com")) return "FRESHERSWORLD";
+  if (url.includes("hirist.tech") || url.includes("hirist.com")) return "HIRIST";
+  if (url.includes("iimjobs.com")) return "IIMJOBS";
   if (url.includes("greenhouse.io") || url.includes("boards.greenhouse.io")) return "GREENHOUSE";
   if (url.includes("lever.co") || url.includes("jobs.lever.co")) return "LEVER";
   if (url.includes("ashbyhq.com") || url.includes("jobs.ashbyhq.com")) return "ASHBY";

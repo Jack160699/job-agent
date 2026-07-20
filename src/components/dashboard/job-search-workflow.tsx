@@ -41,6 +41,20 @@ interface JobRunProgress {
   summary?: string | null;
   result?: {
     filterImpact?: Record<string, number>;
+    sources?: Array<{
+      source: string;
+      success: boolean;
+      fetched: number;
+      invalid?: number;
+      duplicates?: number;
+      expired?: number;
+      relevant?: number;
+      error?: string;
+    }>;
+    searchSummary?: {
+      queriesGenerated?: Array<{ title: string; location: string | null }>;
+      sources?: string[];
+    };
     zeroResultDiagnosis?: {
       explanation?: string[];
       suggestedActions?: string[];
@@ -357,6 +371,51 @@ export function JobSearchWorkflow({
               ).map((message) => (
                 <p key={message}>{message}</p>
               ))}
+              {completedBanner.progress.result?.searchSummary && (
+                <div>
+                  <p className="font-medium text-[var(--ink)]">
+                    Queries tested
+                  </p>
+                  {(completedBanner.progress.result.searchSummary
+                    .queriesGenerated?.length ?? 0) > 0 ? (
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                      {completedBanner.progress.result.searchSummary.queriesGenerated
+                        ?.slice(0, 6)
+                        .map((query, index) => (
+                        <li key={`${query.title}-${query.location}-${index}`}>
+                          {query.title}
+                          {query.location ? ` in ${query.location}` : ""}
+                        </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1">
+                      No query could be generated from the current profile.
+                    </p>
+                  )}
+                </div>
+              )}
+              {(completedBanner.progress.result?.sources?.length ?? 0) > 0 && (
+                <div>
+                  <p className="font-medium text-[var(--ink)]">Source results</p>
+                  <div className="mt-1 space-y-1">
+                    {completedBanner.progress.result?.sources?.map((source) => {
+                      const rejected =
+                        (source.invalid ?? 0) +
+                        (source.duplicates ?? 0) +
+                        (source.expired ?? 0);
+                      return (
+                        <p key={source.source}>
+                          {source.source}:{" "}
+                          {source.success ? "completed" : "unavailable"} · fetched{" "}
+                          {source.fetched} · rejected {rejected} · relevant{" "}
+                          {source.relevant ?? 0}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {(completedBanner.progress.failedSources?.length ?? 0) > 0 && (
                 <div>
                   <p className="font-medium text-[var(--ink)]">Source status</p>
@@ -384,6 +443,64 @@ export function JobSearchWorkflow({
                       </Button>
                     </div>
                   ))}
+                </div>
+              )}
+              {(completedBanner.progress.result?.zeroResultDiagnosis
+                ?.suggestedActions?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {completedBanner.progress.result?.zeroResultDiagnosis?.suggestedActions?.map(
+                    (action) => {
+                      if (action === "retry_sources") {
+                        return (
+                          <Button
+                            key={action}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={() => void startRun()}
+                          >
+                            Retry available sources
+                          </Button>
+                        );
+                      }
+                      const profileAction = action === "review_profile";
+                      const sourcesAction = action === "review_sources";
+                      const existingAction = action === "view_existing_jobs";
+                      const labels: Record<string, string> = {
+                        include_remote: "Add remote locations",
+                        lower_match_threshold: "Broaden role match",
+                        reduce_salary_minimum: "Review minimum salary",
+                        review_preferences: "Review search preferences",
+                        review_profile: "Review resume profile",
+                        review_sources: "Review source status",
+                        view_existing_jobs: "View existing jobs",
+                      };
+                      return (
+                        <Button
+                          key={action}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          asChild
+                        >
+                          <Link
+                            href={
+                              existingAction
+                                ? "/dashboard/jobs"
+                                : sourcesAction
+                                  ? "/dashboard/sources"
+                                  : profileAction
+                                ? "/dashboard/resumes"
+                                : "/dashboard/settings#job-preferences"
+                            }
+                          >
+                            {labels[action] ?? "Review search"}
+                          </Link>
+                        </Button>
+                      );
+                    }
+                  )}
                 </div>
               )}
               {completedBanner.progress.result?.filterImpact &&

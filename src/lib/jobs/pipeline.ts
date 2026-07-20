@@ -34,7 +34,11 @@ import {
 } from "@/lib/jobs/diagnostics";
 import { unavailableEnabledSources } from "@/lib/jobs/source-capabilities";
 import { getOfficialGovernmentAdapters } from "@/lib/jobs/government-adapters";
-import { PublicDiscoveryAdapter } from "@/lib/jobs/public-discovery";
+import {
+  PUBLIC_DISCOVERY_SOURCES,
+  PublicDiscoveryAdapter,
+  publicDiscoveryCapability,
+} from "@/lib/jobs/public-discovery";
 import {
   assertCanUseFeature,
   consumeFeature,
@@ -259,8 +263,9 @@ export async function searchJobs(
   };
 
   const adapters = [
-    new PublicDiscoveryAdapter("LINKEDIN"),
-    new PublicDiscoveryAdapter("NAUKRI"),
+    ...PUBLIC_DISCOVERY_SOURCES.map(
+      (source) => new PublicDiscoveryAdapter(source)
+    ),
     new GreenhouseAdapter(),
     new LeverAdapter(),
     new AshbyAdapter(),
@@ -274,6 +279,9 @@ export async function searchJobs(
     "ASHBY",
     "WORKDAY",
   ];
+  const configuredPublicSources: JobSource[] = publicDiscoveryCapability().available
+    ? [...PUBLIC_DISCOVERY_SOURCES]
+    : [];
   const governmentSources: JobSource[] = [
     "UPSC",
     "ISRO",
@@ -291,13 +299,16 @@ export async function searchJobs(
       ? settings.enabledSources.filter(
           (source) => !governmentSources.includes(source)
         )
-      : privateSources;
+      : [...privateSources, ...configuredPublicSources];
+  const configuredPrivateWithDiscovery = [
+    ...new Set([...configuredPrivate, ...configuredPublicSources]),
+  ];
   const enabled: JobSource[] =
     settings.sectorPreference === "GOVERNMENT"
       ? governmentSources
       : settings.sectorPreference === "BOTH"
-        ? [...new Set([...configuredPrivate, ...governmentSources])]
-        : configuredPrivate;
+        ? [...new Set([...configuredPrivateWithDiscovery, ...governmentSources])]
+        : configuredPrivateWithDiscovery;
 
   await progress("discovering_sources", {
     label: "Checking target companies",

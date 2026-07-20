@@ -8,6 +8,9 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+vi.mock("./safe-fix-review-panel", () => ({
+  SafeFixReviewPanel: () => <div>Safe fix review</div>,
+}));
 
 const orphanedTailored: ResumeHistoryEntry = {
   key: "tailored-current-1",

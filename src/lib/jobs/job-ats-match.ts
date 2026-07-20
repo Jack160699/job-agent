@@ -75,6 +75,13 @@ const SENIORITY_LEVELS: Array<{ level: number; markers: string[] }> = [
 function seniorityOf(text: string | null): number {
   if (!text) return 2;
   const lower = text.toLowerCase();
+  if (
+    /\b(staff nurse|nursing officer|registered nurse|clinical nurse|staff pharmacist)\b/.test(
+      lower
+    )
+  ) {
+    return 2;
+  }
   for (let i = SENIORITY_LEVELS.length - 1; i >= 0; i--) {
     if (SENIORITY_LEVELS[i].markers.some((m) => lower.includes(m))) {
       return SENIORITY_LEVELS[i].level;
@@ -197,10 +204,40 @@ function scoreEducationRequirements(
   description: string
 ): number {
   const weight = WEIGHTS.educationRequirements;
-  const mentionsDegree = /\b(bachelor|master|degree|b\.?s\.?|m\.?s\.?|phd)\b/i.test(description);
-  if (!mentionsDegree) return weight; // not a stated requirement
-  const hasEducation = profile.education.value.length > 0;
-  return hasEducation ? weight : round1(weight * 0.3);
+  const requirementPatterns = [
+    /\b(gnm|general nursing and midwifery)\b/i,
+    /\b(bsc|b\.?\s?sc\.?)\s+nursing\b/i,
+    /\b(msc|m\.?\s?sc\.?)\s+nursing\b/i,
+    /\b(b\.?\s?ed\.?|bachelor of education)\b/i,
+    /\b(iti|industrial training institute)\b/i,
+    /\bdiploma\b/i,
+    /\b(bachelor|master|degree|b\.?s\.?|m\.?s\.?|phd)\b/i,
+  ];
+  const required = requirementPatterns.filter((pattern) => pattern.test(description));
+  if (required.length === 0) return weight;
+  const educationText = profile.education.value
+    .flatMap((entry) => [
+      entry.degree ?? "",
+      entry.field ?? "",
+      entry.evidence ?? "",
+    ])
+    .join(" ");
+  const certificationText = profile.certifications.value.join(" ");
+  const groundedQualifications = `${educationText} ${certificationText}`;
+  if (!groundedQualifications.trim()) return round1(weight * 0.3);
+  const matched = required.filter((pattern) => pattern.test(groundedQualifications));
+  return round1((matched.length / required.length) * weight);
+}
+
+function groundedQualificationText(profile: ParsedCareerProfile): string {
+  return [
+    ...profile.education.value.flatMap((entry) => [
+      entry.degree ?? "",
+      entry.field ?? "",
+      entry.evidence ?? "",
+    ]),
+    ...profile.certifications.value,
+  ].join(" ");
 }
 
 function scoreResponsibilityAlignment(profile: ParsedCareerProfile, description: string): number {
@@ -279,6 +316,20 @@ export function calculateJobAtsMatch(
   const eligibilityIssues: string[] = [];
   const missingKeywords: string[] = [];
   const hardBlockers: string[] = [];
+
+  if (
+    /\b(staff nurse|nursing officer|registered nurse|clinical nurse)\b/i.test(
+      `${job.title} ${job.description}`
+    ) &&
+    /\b(registration|registered with|nursing council)\b/i.test(job.description) &&
+    !/\b(registered nurse|nursing council|registration no|rn)\b/i.test(
+      groundedQualificationText(profile)
+    )
+  ) {
+    eligibilityIssues.push(
+      "This nursing role states a registration requirement, but nursing registration was not confirmed in the resume."
+    );
+  }
 
   const candidateSkills = skillSetOf(profile);
   const required = scoreSkillMatch(job.requiredSkills, candidateSkills, WEIGHTS.requiredSkillMatch);

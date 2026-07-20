@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __publicDiscoveryTest,
+  configuredPublicSearchProviders,
   discoverPublicJobs,
 } from "./public-discovery";
 
@@ -19,6 +20,10 @@ const filters = {
 };
 
 describe("public job discovery", () => {
+  beforeEach(() => {
+    __publicDiscoveryTest.resetProtectionState();
+  });
+
   it("accepts canonical LinkedIn Jobs URLs and rejects other domains", () => {
     expect(
       __publicDiscoveryTest.canonicalIndexedJobUrl(
@@ -43,6 +48,36 @@ describe("public job discovery", () => {
     ).toBe(
       "https://www.naukri.com/job-listings-staff-nurse-hospital-bengaluru-1"
     );
+  });
+
+  it("validates individual jobs for expanded Indian public sources", () => {
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "INDEED",
+        "https://in.indeed.com/viewjob?jk=abc123&utm_source=index"
+      )
+    ).toBe("https://in.indeed.com/viewjob?jk=abc123");
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "INTERNSHALA",
+        "https://internshala.com/job/detail/graduate-trainee-123"
+      )
+    ).toBe("https://internshala.com/job/detail/graduate-trainee-123");
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "WELLFOUND",
+        "https://wellfound.com/jobs"
+      )
+    ).toBeNull();
+  });
+
+  it("supports the documented SerpAPI variable and legacy alias", () => {
+    expect(configuredPublicSearchProviders({ SERPAPI_KEY: "configured" })).toEqual([
+      "serpapi",
+    ]);
+    expect(
+      configuredPublicSearchProviders({ SERPAPI_API_KEY: "legacy" })
+    ).toEqual(["serpapi"]);
   });
 
   it("deduplicates, labels, and rejects expired indexed results", async () => {
@@ -84,8 +119,8 @@ describe("public job discovery", () => {
       company: "Apollo Hospitals",
       metadata: {
         provenance: "public_discovery",
-        discoveryLabel: "Public discovery",
-        authenticatedConnection: "Connection required",
+        discoveryLabel: "Public discovery available",
+        authenticatedConnection: "Authenticated connection required",
       },
     });
   });
@@ -168,6 +203,52 @@ describe("public job discovery", () => {
       code: "PROVIDER_ERROR",
       message: "Public-discovery provider returned HTTP 503.",
     });
+  });
+
+  it("fails over to the next configured provider", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            webPages: {
+              value: [
+                {
+                  name: "Staff Nurse - Apollo Hospitals | LinkedIn",
+                  url: "https://in.linkedin.com/jobs/view/staff-nurse-987",
+                  snippet: "Current nursing role.",
+                },
+              ],
+            },
+          }),
+          { status: 200 }
+        )
+      ) as unknown as typeof fetch;
+
+    const jobs = await discoverPublicJobs("LINKEDIN", filters, {
+      fetcher,
+      env: {
+        BRAVE_SEARCH_API_KEY: "brave",
+        BING_SEARCH_API_KEY: "bing",
+      },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(jobs[0]?.metadata?.provider).toBe("bing");
+  });
+
+  it("caches identical searches to protect provider quota", async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ web: { results: [] } }), { status: 200 })
+    ) as unknown as typeof fetch;
+    const options = {
+      fetcher,
+      env: { BRAVE_SEARCH_API_KEY: "test-key" },
+    };
+    await discoverPublicJobs("LINKEDIN", filters, options);
+    await discoverPublicJobs("LINKEDIN", filters, options);
+    expect(fetcher).toHaveBeenCalledTimes(filters.queries.length);
   });
 
   it("reports missing provider configuration without claiming connection", async () => {

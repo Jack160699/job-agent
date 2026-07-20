@@ -24,6 +24,7 @@ import { KairelaLogo } from "@/components/brand/kairela-logo";
 import { KairelaMark } from "@/components/brand/kairela-mark";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { NavigationPerformance } from "@/components/performance/navigation-performance";
 
 const mainNav = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
@@ -104,6 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-[var(--canvas)]">
+      <NavigationPerformance />
       {/* Desktop sidebar — deep navy, the app's one strategic dark panel */}
       <aside
         className="fixed left-0 top-0 z-30 hidden h-dvh w-[var(--sidebar-width)] flex-col border-r border-[var(--navy-line)] bg-[var(--navy)] md:flex"

@@ -2,8 +2,6 @@ import { DashboardHeader } from "@/components/dashboard/sidebar";
 import { StatCard } from "@/components/dashboard/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAnalytics } from "@/lib/data/dashboard";
-import { Progress } from "@/components/ui/progress";
-import { BarChart3 } from "lucide-react";
 
 export default async function AnalyticsPage() {
   const analytics = await getAnalytics();

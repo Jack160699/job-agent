@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, getMatchScoreBg, getMatchScoreColor } from "@/lib/utils";
+import { cn, getMatchScoreBg } from "@/lib/utils";
 
 interface MatchScoreBadgeProps {
   score: number;

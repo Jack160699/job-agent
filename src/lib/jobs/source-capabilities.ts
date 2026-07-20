@@ -1,5 +1,8 @@
 import type { JobSource } from "@prisma/client";
-import { publicDiscoveryCapability } from "./public-discovery";
+import {
+  PUBLIC_DISCOVERY_SOURCES,
+  publicDiscoveryCapability,
+} from "./public-discovery";
 
 export type SourceCapabilityStatus =
   | "healthy"
@@ -23,6 +26,28 @@ export interface SourceCapability {
   authenticatedConnectionStatus?: "connected" | "connection_required";
   publicDiscoveryProvider?: string | null;
   importSupported?: boolean;
+}
+
+function publicSource(
+  source: JobSource,
+  displayName: string,
+  options: { connection?: boolean; importSupported?: boolean } = {}
+): SourceCapability {
+  return {
+    source,
+    displayName,
+    accessMethod: "Domain-restricted public index discovery",
+    status: options.connection ? "authentication_required" : "misconfigured",
+    searchable: false,
+    explanation:
+      "No approved public-search provider is configured. Individual job-link import remains available where supported.",
+    publicDiscoveryStatus: "setup_required",
+    authenticatedConnectionStatus: options.connection
+      ? "connection_required"
+      : undefined,
+    publicDiscoveryProvider: null,
+    importSupported: options.importSupported ?? true,
+  };
 }
 
 export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
@@ -144,48 +169,22 @@ export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
     explanation:
       "The official page presents a CAPTCHA challenge to the server adapter; no bypass is used.",
   },
-  LINKEDIN: {
-    source: "LINKEDIN",
-    displayName: "LinkedIn Jobs",
-    accessMethod: "Public index discovery or imported job link",
-    status: "authentication_required",
-    searchable: false,
-    explanation:
-      "Authenticated LinkedIn features require an approved connection. Public discovery requires a configured search provider.",
-    publicDiscoveryStatus: "setup_required",
-    authenticatedConnectionStatus: "connection_required",
-    publicDiscoveryProvider: null,
-    importSupported: true,
-  },
-  NAUKRI: {
-    source: "NAUKRI",
-    displayName: "Naukri",
-    accessMethod: "Public index discovery or imported job link",
-    status: "authentication_required",
-    searchable: false,
-    explanation:
-      "Authenticated Naukri features require an approved connection. Public discovery requires a configured search provider.",
-    publicDiscoveryStatus: "setup_required",
-    authenticatedConnectionStatus: "connection_required",
-    publicDiscoveryProvider: null,
-    importSupported: true,
-  },
-  INDEED: {
-    source: "INDEED",
-    displayName: "Indeed",
-    accessMethod: "Approved feed or direct-link discovery",
-    status: "unavailable",
-    searchable: false,
-    explanation: "No approved production feed is configured.",
-  },
-  WELLFOUND: {
-    source: "WELLFOUND",
-    displayName: "Wellfound",
-    accessMethod: "Approved feed or direct-link discovery",
-    status: "unavailable",
-    searchable: false,
-    explanation: "No approved production feed is configured.",
-  },
+  LINKEDIN: publicSource("LINKEDIN", "LinkedIn Jobs", {
+    connection: true,
+  }),
+  NAUKRI: publicSource("NAUKRI", "Naukri", { connection: true }),
+  INDEED: publicSource("INDEED", "Indeed India"),
+  WELLFOUND: publicSource("WELLFOUND", "Wellfound"),
+  FOUNDIT: publicSource("FOUNDIT", "Foundit India"),
+  SHINE: publicSource("SHINE", "Shine"),
+  TIMESJOBS: publicSource("TIMESJOBS", "TimesJobs"),
+  CUTSHORT: publicSource("CUTSHORT", "Cutshort"),
+  INSTAHYRE: publicSource("INSTAHYRE", "Instahyre"),
+  INTERNSHALA: publicSource("INTERNSHALA", "Internshala"),
+  APNA: publicSource("APNA", "Apna"),
+  FRESHERSWORLD: publicSource("FRESHERSWORLD", "Freshersworld"),
+  HIRIST: publicSource("HIRIST", "Hirist"),
+  IIMJOBS: publicSource("IIMJOBS", "iimjobs"),
   COMPANY_PORTAL: {
     source: "COMPANY_PORTAL",
     displayName: "Company career pages",
@@ -210,17 +209,26 @@ export function getSourceCapabilities(
 ): Record<JobSource, SourceCapability> {
   const discovery = publicDiscoveryCapability(env);
   const capabilities = { ...SOURCE_CAPABILITIES };
-  for (const source of ["LINKEDIN", "NAUKRI"] as const) {
+  for (const source of PUBLIC_DISCOVERY_SOURCES) {
     const current = capabilities[source];
+    const connectionRequired = source === "LINKEDIN" || source === "NAUKRI";
     capabilities[source] = {
       ...current,
-      status: discovery.available ? "healthy" : "authentication_required",
+      status: discovery.available
+        ? "healthy"
+        : connectionRequired
+          ? "authentication_required"
+          : "misconfigured",
       searchable: discovery.available,
       publicDiscoveryStatus: discovery.status,
       publicDiscoveryProvider: discovery.provider,
       explanation: discovery.available
-        ? `Domain-restricted public discovery is available through ${discovery.provider}. Authenticated platform features still require an approved connection.`
-        : "No approved public-search provider is configured. Job-link import remains available; authenticated platform features require an approved connection.",
+        ? `Domain-restricted public discovery is available through ${discovery.providers.join(
+            ", "
+          )}. Only public index metadata and validated individual job URLs are stored.`
+        : connectionRequired
+          ? "No approved public-search provider is configured. Job-link import remains available; authenticated platform features require an approved connection."
+          : "No approved public-search provider is configured. Individual job-link import remains available where supported.",
     };
   }
   return capabilities;

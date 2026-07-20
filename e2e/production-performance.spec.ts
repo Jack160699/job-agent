@@ -58,12 +58,15 @@ test("records privacy-safe production navigation and API latency samples", async
 
   const measurements: Record<string, Sample> = {};
   const publicHome: number[] = [];
+  const livenessApi: number[] = [];
   const healthApi: number[] = [];
   for (let index = 0; index < 5; index++) {
     publicHome.push(await measurePage(page, "/"));
+    livenessApi.push(await measureApi(request, "/api/live"));
     healthApi.push(await measureApi(request, "/api/health"));
   }
   measurements.public_home_dom_ready_ms = summarize(publicHome);
+  measurements.liveness_api_ms = summarize(livenessApi);
   measurements.health_api_ms = summarize(healthApi);
 
   const loginStartedAt = performance.now();
