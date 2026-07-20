@@ -76,7 +76,6 @@ export async function deleteUserByEmail(email: string) {
   const admin = getAdminClient();
   const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const user = data.users.find((u) => u.email === email);
-  if (!user) return;
 
   // The application user table is intentionally separate from auth.users.
   // Remove it explicitly so all owner-scoped resume, onboarding, and job
@@ -87,13 +86,30 @@ export async function deleteUserByEmail(email: string) {
     .eq("email", email)
     .maybeSingle();
   if (lookupError) throw lookupError;
+  if (applicationUser) {
+    const { data: storedFiles, error: storageListError } = await admin.storage
+      .from("resume-sources")
+      .list(applicationUser.id, { limit: 1000 });
+    if (storageListError) throw storageListError;
+    const storagePaths = (storedFiles ?? [])
+      .filter((file) => Boolean(file.id))
+      .map((file) => `${applicationUser.id}/${file.name}`);
+    if (storagePaths.length > 0) {
+      const { error: storageDeleteError } = await admin.storage
+        .from("resume-sources")
+        .remove(storagePaths);
+      if (storageDeleteError) throw storageDeleteError;
+    }
+  }
   const { error: applicationDeleteError } = applicationUser
     ? await admin.from("users").delete().eq("id", applicationUser.id)
     : { error: null };
   if (applicationDeleteError) throw applicationDeleteError;
 
-  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
-  if (authDeleteError) throw authDeleteError;
+  if (user) {
+    const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
+    if (authDeleteError) throw authDeleteError;
+  }
 }
 
 export async function isSignupRateLimited(): Promise<boolean> {
