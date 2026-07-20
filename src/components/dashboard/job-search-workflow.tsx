@@ -437,6 +437,21 @@ export function JobSearchWorkflow({
               ).map((message) => (
                 <p key={message}>{message}</p>
               ))}
+              {completedBanner.progress.result?.searchStageCounts && (
+                <div>
+                  <p className="font-medium text-[var(--ink)]">
+                    Search stages
+                  </p>
+                  <p className="mt-1">
+                    Exact search:{" "}
+                    {completedBanner.progress.result.searchStageCounts.strict} ·
+                    Related titles:{" "}
+                    {completedBanner.progress.result.searchStageCounts.balanced} ·
+                    Recovery search:{" "}
+                    {completedBanner.progress.result.searchStageCounts.recovery}
+                  </p>
+                </div>
+              )}
               {completedBanner.progress.result?.searchSummary && (
                 <div>
                   <p className="font-medium text-[var(--ink)]">

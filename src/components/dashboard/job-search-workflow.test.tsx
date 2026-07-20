@@ -49,6 +49,16 @@ describe("JobSearchWorkflow", () => {
             ],
             summary: "Found 42 raw roles, 0 relevant, 42 excluded.",
             result: {
+              searchStageCounts: {
+                strict: 0,
+                balanced: 0,
+                recovery: 42,
+              },
+              searchSummary: {
+                queriesGenerated: [
+                  { title: "Software Developer", location: "Pune" },
+                ],
+              },
               zeroResultDiagnosis: {
                 explanation: [
                   "We found 42 jobs, but none passed your filters.",
@@ -75,6 +85,10 @@ describe("JobSearchWorkflow", () => {
     expect(
       screen.getByText(/We found 42 jobs, but none passed/i)
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Exact search: 0.*Related titles: 0.*Recovery search: 42/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText("Software Developer in Pune")).toBeInTheDocument();
     expect(screen.getByText(/BEL: unavailable/i)).toBeInTheDocument();
     expect(screen.getByText(/location mismatch: 40/i)).toBeInTheDocument();
     expect(

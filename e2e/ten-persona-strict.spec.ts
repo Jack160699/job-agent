@@ -586,6 +586,7 @@ async function runSearchAndVerifyEvidence(page: Page) {
     await expect(
       page.getByText(/no jobs passed your current filters/i)
     ).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/Exact search:/i)).toBeVisible();
     await expect(page.getByText(/Queries tested/i)).toBeVisible();
     await expect(page.getByText(/Source results/i)).toBeVisible();
   }

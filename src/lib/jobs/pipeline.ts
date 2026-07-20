@@ -924,6 +924,16 @@ export async function searchJobs(
           },
         })
       : null;
+  const searchSummary = {
+    queriesGenerated: searchPlan.queries,
+    primaryRoles: searchPlan.primaryRoles,
+    relatedRoles: searchPlan.alternativeRoles,
+    titles: filters.titles,
+    locations: filters.locations,
+    remote: filters.remote,
+    experienceYears: filters.experienceYears ?? null,
+    sources: selectedSources,
+  };
   const timings = {
     sourceFetchMs,
     deduplicationMs,
@@ -944,16 +954,7 @@ export async function searchJobs(
     filterImpact,
     searchStageCounts,
     zeroResultDiagnosis,
-    searchSummary: {
-      queriesGenerated: searchPlan.queries,
-      primaryRoles: searchPlan.primaryRoles,
-      relatedRoles: searchPlan.alternativeRoles,
-      titles: filters.titles,
-      locations: filters.locations,
-      remote: filters.remote,
-      experienceYears: filters.experienceYears ?? null,
-      sources: selectedSources,
-    },
+    searchSummary,
     searchPlanId: storedPlan.id,
     timings,
   });
@@ -991,6 +992,7 @@ export async function searchJobs(
     filterImpact,
     searchStageCounts,
     zeroResultDiagnosis,
+    searchSummary,
     searchPlanId: storedPlan.id,
     excludedSample: excluded.slice(0, 5),
     timings,
