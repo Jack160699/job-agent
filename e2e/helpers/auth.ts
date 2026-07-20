@@ -128,10 +128,20 @@ export async function deleteUserByEmail(email: string) {
   // Revoke the identity before deleting the application row. Otherwise an
   // in-flight authenticated layout request can bootstrap the application
   // user again between these two operations.
-  const { error: applicationDeleteError } = applicationUser
-    ? await admin.from("users").delete().eq("id", applicationUser.id)
-    : { error: null };
-  if (applicationDeleteError) throw applicationDeleteError;
+  // A server request that already resolved the auth identity can still finish
+  // bootstrapping the app user after revocation. Re-apply the exact
+  // email-scoped delete over a short bounded grace window until those
+  // in-flight requests have drained.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { error: applicationDeleteError } = await admin
+      .from("users")
+      .delete()
+      .eq("email", email);
+    if (applicationDeleteError) throw applicationDeleteError;
+    if (attempt < 4) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
 }
 
 export async function isSignupRateLimited(): Promise<boolean> {
