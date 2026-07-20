@@ -82,6 +82,9 @@ export async function GET(request: NextRequest) {
       },
     }),
   ]);
+  if (!settings) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return NextResponse.json({ recommendations, settings });
 }
 

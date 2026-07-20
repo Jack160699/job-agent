@@ -12,7 +12,14 @@ import {
   prioritizeRecommendations,
   type RecommendationSnapshot,
 } from "@/lib/proactive/rules";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+
+export function isDeletedRecommendationOwnerError(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code !== "P2003") return false;
+  const constraint = String(error.meta?.constraint ?? "");
+  return constraint.includes("proactive_recommendations_user_id_fkey");
+}
 
 export function inQuietHours(
   start?: string | null,
@@ -260,14 +267,22 @@ export async function generateProactiveRecommendations(userId: string) {
     });
     if (existing) continue;
 
-    const row = await prisma.proactiveRecommendation.create({
-      data: {
-        userId,
-        ...recommendation,
-        evidence: recommendation.evidence as unknown as Prisma.InputJsonValue,
-      },
-    });
-    created.push(row);
+    try {
+      const row = await prisma.proactiveRecommendation.create({
+        data: {
+          userId,
+          ...recommendation,
+          evidence: recommendation.evidence as unknown as Prisma.InputJsonValue,
+        },
+      });
+      created.push(row);
+    } catch (error) {
+      // Account deletion can race a recommendation refresh after the session
+      // and application user were resolved. Treat only that exact owner-FK
+      // race as a completed cleanup, while preserving every other DB failure.
+      if (isDeletedRecommendationOwnerError(error)) return created;
+      throw error;
+    }
   }
 
   return created;
