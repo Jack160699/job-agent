@@ -18,8 +18,24 @@ export async function recordAnswerBankUsage(
   });
   if (answers.length === 0) return 0;
 
+  const existingUsage = await prisma.applicationAnswerUsage.findMany({
+    where: {
+      userId,
+      applicationId,
+      answerBankId: { in: answers.map((answer) => answer.id) },
+    },
+    select: { answerBankId: true },
+  });
+  const usedAnswerIds = new Set(
+    existingUsage.map((usage) => usage.answerBankId)
+  );
+  const unusedAnswers = answers.filter(
+    (answer) => !usedAnswerIds.has(answer.id)
+  );
+  if (unusedAnswers.length === 0) return 0;
+
   await prisma.$transaction([
-    ...answers.map((answer) =>
+    ...unusedAnswers.map((answer) =>
       prisma.applicationAnswerUsage.create({
         data: {
           userId,
@@ -29,7 +45,7 @@ export async function recordAnswerBankUsage(
         },
       })
     ),
-    ...answers.map((answer) =>
+    ...unusedAnswers.map((answer) =>
       prisma.applicationAnswerBank.update({
         where: { id: answer.id },
         data: {
@@ -39,7 +55,7 @@ export async function recordAnswerBankUsage(
       })
     ),
   ]);
-  return answers.length;
+  return unusedAnswers.length;
 }
 
 export function answerToText(answer: Prisma.JsonValue): string | undefined {

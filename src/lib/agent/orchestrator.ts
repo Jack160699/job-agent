@@ -340,6 +340,15 @@ export async function prepareApplicationSubmission(
         applicationId,
       },
     });
+    const queuedAnswerKeys = await prisma.applicationAnswerBank.findMany({
+      where: { userId, confirmationState: "confirmed" },
+      select: { questionKey: true },
+    });
+    await recordAnswerBankUsage(
+      userId,
+      applicationId,
+      queuedAnswerKeys.map((answer) => answer.questionKey)
+    );
     await prisma.application.update({
       where: { id: applicationId },
       data: {

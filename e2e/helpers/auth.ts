@@ -132,13 +132,22 @@ export async function deleteUserByEmail(email: string) {
   // bootstrapping the app user after revocation. Re-apply the exact
   // email-scoped delete over a short bounded grace window until those
   // in-flight requests have drained.
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  let consecutiveMissingChecks = 0;
+  for (let attempt = 0; attempt < 15; attempt += 1) {
     const { error: applicationDeleteError } = await admin
       .from("users")
       .delete()
       .eq("email", email);
     if (applicationDeleteError) throw applicationDeleteError;
-    if (attempt < 4) {
+    const { data: remaining, error: remainingError } = await admin
+      .from("users")
+      .select("id")
+      .eq("email", email);
+    if (remainingError) throw remainingError;
+    consecutiveMissingChecks =
+      (remaining?.length ?? 0) === 0 ? consecutiveMissingChecks + 1 : 0;
+    if (consecutiveMissingChecks >= 2) return;
+    if (attempt < 14) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
