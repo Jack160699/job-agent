@@ -122,7 +122,11 @@ export default async function JobsPage({
               } | null;
               const governmentJob = metadata?.jobType === "government";
               return (
-                <Card key={job.id} className="transition-colors hover:border-[var(--line-strong)]">
+                <Card
+                  key={job.id}
+                  data-testid={`job-card-${job.id}`}
+                  className="transition-colors hover:border-[var(--line-strong)]"
+                >
                   <CardContent className="flex flex-col items-start justify-between gap-4 p-4 lg:flex-row">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
@@ -298,7 +302,12 @@ export default async function JobsPage({
                       {job.applications?.[0] && (
                         <StatusBadge status={job.applications[0].status} />
                       )}
-                      <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={job.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open original posting for ${job.title} at ${job.company}`}
+                      >
                         <Button variant="ghost" size="icon">
                           <ExternalLink className="h-4 w-4" />
                         </Button>

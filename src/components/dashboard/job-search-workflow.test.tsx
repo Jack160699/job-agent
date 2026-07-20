@@ -95,6 +95,83 @@ describe("JobSearchWorkflow", () => {
     );
   });
 
+  it("restores successful search source and stage evidence after refresh", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          progress: {
+            jobId: "search-success",
+            status: "completed",
+            stage: "completed",
+            stageLabel: "Complete",
+            progress: 100,
+            jobsFound: 18,
+            jobsNew: 5,
+            jobsRelevant: 7,
+            jobsExcluded: 11,
+            queuePosition: null,
+            error: null,
+            stalled: false,
+            completedAt: "2026-07-20T00:00:00.000Z",
+            claimedAt: "2026-07-20T00:00:00.000Z",
+            summary: "Found 18 raw roles and retained 7 relevant jobs.",
+            result: {
+              searchStageCounts: {
+                strict: 2,
+                balanced: 3,
+                recovery: 2,
+              },
+              sources: [
+                {
+                  source: "GREENHOUSE",
+                  success: true,
+                  fetched: 12,
+                  invalid: 1,
+                  duplicates: 2,
+                  expired: 0,
+                  relevant: 5,
+                },
+                {
+                  source: "WORKDAY",
+                  success: false,
+                  fetched: 0,
+                  relevant: 0,
+                  error: "temporarily unavailable",
+                },
+              ],
+            },
+          },
+        }),
+      })
+    );
+
+    render(
+      <JobSearchWorkflow
+        preferencesComplete
+        lastSearchAt="just now"
+        lastResultCount={7}
+      />
+    );
+
+    expect(
+      await screen.findByText(/7 relevant jobs found/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Completed search evidence")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Exact search: 2.*Related titles: 3.*Recovery search: 2/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/GREENHOUSE: completed.*fetched 12.*rejected 3.*relevant 5/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/WORKDAY: unavailable.*fetched 0.*relevant 0/i)
+    ).toBeInTheDocument();
+  });
+
   it("pauses and resumes the persisted search through the real control API", async () => {
     let status = "running";
     const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

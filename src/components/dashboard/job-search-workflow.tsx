@@ -55,6 +55,11 @@ interface JobRunProgress {
       queriesGenerated?: Array<{ title: string; location: string | null }>;
       sources?: string[];
     };
+    searchStageCounts?: {
+      strict: number;
+      balanced: number;
+      recovery: number;
+    };
     zeroResultDiagnosis?: {
       explanation?: string[];
       suggestedActions?: string[];
@@ -268,10 +273,13 @@ export function JobSearchWorkflow({
             pollRef.current = setInterval(pollProgress, 1200);
           } else if (
             p?.status === "completed" &&
-            p.jobsRelevant === 0 &&
-            lastResultCount === 0
+            (p.jobsRelevant === 0 || lastResultCount > 0)
           ) {
-            setCompletedBanner({ relevant: 0, new: 0, progress: p });
+            setCompletedBanner({
+              relevant: p.jobsRelevant,
+              new: p.jobsNew,
+              progress: p,
+            });
           }
         })
         .catch(() => {});
@@ -360,6 +368,64 @@ export function JobSearchWorkflow({
               </Button>
             )}
           </div>
+          {completedBanner.relevant > 0 && (
+            <div
+              aria-label="Completed search evidence"
+              className="grid gap-3 border-t border-current/10 pt-3 text-xs text-[var(--ink-secondary)] sm:grid-cols-2"
+            >
+              <div>
+                <p className="font-medium text-[var(--ink)]">
+                  Search stages
+                </p>
+                {completedBanner.progress.result?.searchStageCounts ? (
+                  <p className="mt-1">
+                    Exact search:{" "}
+                    {completedBanner.progress.result.searchStageCounts.strict} ·
+                    Related titles:{" "}
+                    {completedBanner.progress.result.searchStageCounts.balanced} ·
+                    Recovery search:{" "}
+                    {completedBanner.progress.result.searchStageCounts.recovery}
+                  </p>
+                ) : (
+                  <p className="mt-1">
+                    Stage counts were not returned for this run.
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-[var(--ink)]">
+                  Source results
+                </p>
+                {(completedBanner.progress.result?.sources?.length ?? 0) > 0 ? (
+                  <div className="mt-1 space-y-1">
+                    {completedBanner.progress.result?.sources?.map((source) => {
+                      const rejected =
+                        (source.invalid ?? 0) +
+                        (source.duplicates ?? 0) +
+                        (source.expired ?? 0);
+                      return (
+                        <p key={source.source}>
+                          {source.source}:{" "}
+                          {source.success ? "completed" : "unavailable"} · fetched{" "}
+                          {source.fetched} · rejected {rejected} · relevant{" "}
+                          {source.relevant ?? 0}
+                        </p>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-1">
+                    No source result metadata was returned for this run.
+                  </p>
+                )}
+              </div>
+              {completedBanner.progress.summary && (
+                <p className="sm:col-span-2">
+                  {completedBanner.progress.summary}
+                </p>
+              )}
+            </div>
+          )}
           {completedBanner.relevant === 0 && (
             <div className="space-y-2 text-xs text-[var(--ink-secondary)]">
               {(
