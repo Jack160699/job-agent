@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Page } from "@playwright/test";
-import { expect } from "@playwright/test";
 
 /** Shared production fixture account — credentials must come from env, never the repo. */
 export function getSharedE2ECredentials() {
@@ -20,14 +19,34 @@ export async function loginWithSharedAccount(page: Page) {
     await page.goto(process.env.VERCEL_SHARE_URL);
   }
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: /Sign In/i }).click();
-  // The post-login redirect is a client-side RSC transition through
-  // middleware -> dashboard layout -> onboarding gate; on a cold Preview
-  // lambda (no warm instances yet) this measurably takes well past 15s even
-  // though the actual Supabase sign-in call itself returns in under 1s.
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 45000 });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: /Sign In/i }).click();
+
+    const result = await Promise.race([
+      page
+        .waitForURL(/\/dashboard/, { timeout: 45000 })
+        .then(() => "dashboard" as const),
+      page
+        .getByRole("heading", { name: "Sign in failed" })
+        .waitFor({ state: "visible", timeout: 45000 })
+        .then(() => "error" as const),
+    ]);
+    if (result === "dashboard") return;
+
+    const errorAlert = page.getByRole("alert").filter({
+      has: page.getByRole("heading", { name: "Sign in failed" }),
+    });
+    const errorText = await errorAlert.innerText();
+    const isTransientNetworkFailure = /failed to fetch|network/i.test(errorText);
+    if (attempt === 0 && isTransientNetworkFailure) {
+      await errorAlert.getByRole("button", { name: "Try again" }).click();
+      continue;
+    }
+    throw new Error(`Shared E2E sign-in failed: ${errorText}`);
+  }
+  throw new Error("Shared E2E sign-in did not reach the dashboard.");
 }
 
 export function getAdminClient() {
