@@ -120,15 +120,18 @@ export async function deleteUserByEmail(email: string) {
       if (storageDeleteError) throw storageDeleteError;
     }
   }
-  const { error: applicationDeleteError } = applicationUser
-    ? await admin.from("users").delete().eq("id", applicationUser.id)
-    : { error: null };
-  if (applicationDeleteError) throw applicationDeleteError;
-
   if (user) {
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
     if (authDeleteError) throw authDeleteError;
   }
+
+  // Revoke the identity before deleting the application row. Otherwise an
+  // in-flight authenticated layout request can bootstrap the application
+  // user again between these two operations.
+  const { error: applicationDeleteError } = applicationUser
+    ? await admin.from("users").delete().eq("id", applicationUser.id)
+    : { error: null };
+  if (applicationDeleteError) throw applicationDeleteError;
 }
 
 export async function isSignupRateLimited(): Promise<boolean> {
