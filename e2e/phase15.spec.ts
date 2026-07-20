@@ -115,12 +115,13 @@ test.describe("Phase 15: Preferences & Queue", () => {
     }
   });
 
-  test("health reports queue stats", async ({ request }) => {
+  test("public health keeps admin queue stats private", async ({ request }) => {
     const res = await request.get(`${BASE}/api/health`);
     expect(res.ok()).toBeTruthy();
     const data = await res.json();
-    expect(data.queue).toBeTruthy();
-    expect(typeof data.queue.pending).toBe("number");
+    expect(data.status).toBe("ok");
+    expect(data.database).toBe("connected");
+    expect(data.queue).toBeUndefined();
   });
 });
 
