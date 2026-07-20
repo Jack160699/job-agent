@@ -13,10 +13,12 @@ export async function POST(request: NextRequest) {
   const limited = await rateLimit(request, RATE_LIMIT_PRESETS.jobSearch);
   if (limited) return limited;
 
+  let requestedAction = "unknown";
   try {
     const user = await resolveApiUser();
     const body = await request.json();
     const { action, jobId, applicationId, force } = body;
+    requestedAction = typeof action === "string" ? action : "unknown";
 
     switch (action) {
       case "analyze":
@@ -55,6 +57,14 @@ export async function POST(request: NextRequest) {
       );
     }
     const message = error instanceof Error ? error.message : "Processing failed";
+    console.error(
+      JSON.stringify({
+        component: "jobs-process-api",
+        event: "processing_failed",
+        action: requestedAction,
+        error: message,
+      })
+    );
     const status =
       message === "Unauthorized"
         ? 401

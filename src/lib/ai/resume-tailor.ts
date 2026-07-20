@@ -106,12 +106,13 @@ export async function tailorResume(
   const openai = getOpenAIClient();
   if (!openai) return tailorResumeFallback(input);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert resume writer specializing in ATS-optimized resumes.
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert resume writer specializing in ATS-optimized resumes.
 
 CRITICAL RULES - NEVER VIOLATE:
 1. ONLY use information that exists in the master resume
@@ -123,25 +124,35 @@ CRITICAL RULES - NEVER VIOLATE:
 7. Use action verbs and quantify achievements ONLY if numbers exist in source
 
 Return valid JSON matching the required schema.`,
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          masterResume: input.masterResume,
-          targetJob: input.job,
-          emphasis: input.matchAnalysis,
-        }),
-      },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.2,
-  });
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            masterResume: input.masterResume,
+            targetJob: input.job,
+            emphasis: input.matchAnalysis,
+          }),
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+    });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("No response from AI");
 
-  const parsed = tailoredResumeSchema.parse(JSON.parse(content));
-  return groundTailoredResume(parsed, input.masterResume, input.job);
+    const parsed = tailoredResumeSchema.parse(JSON.parse(content));
+    return groundTailoredResume(parsed, input.masterResume, input.job);
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        component: "resume-tailor",
+        event: "ai_generation_fallback",
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+    return tailorResumeFallback(input);
+  }
 }
 
 /**

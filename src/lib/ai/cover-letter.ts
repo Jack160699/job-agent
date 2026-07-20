@@ -30,12 +30,13 @@ export async function generateCoverLetter(
   const openai = getOpenAIClient();
   if (!openai) return generateCoverLetterFallback(input);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert cover letter writer.
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert cover letter writer.
 
 CRITICAL RULES:
 1. ONLY reference qualifications and experience from the provided resume
@@ -46,25 +47,35 @@ CRITICAL RULES:
 6. Include a compelling opening and clear call to action
 
 Return valid JSON with title, content, and tone fields.`,
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          resume: input.resumeText.slice(0, 3000),
-          job: input.job,
-          highlights: input.highlights,
-        }),
-      },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.3,
-  });
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            resume: input.resumeText.slice(0, 3000),
+            job: input.job,
+            highlights: input.highlights,
+          }),
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("No response from AI");
 
-  const parsed = JSON.parse(content);
-  return coverLetterSchema.parse(parsed);
+    const parsed = JSON.parse(content);
+    return coverLetterSchema.parse(parsed);
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        component: "cover-letter",
+        event: "ai_generation_fallback",
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+    return generateCoverLetterFallback(input);
+  }
 }
 
 function generateCoverLetterFallback(input: GenerateCoverLetterInput): CoverLetter {

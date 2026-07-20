@@ -649,9 +649,10 @@ async function verifyJobApplicationFlow(
   );
   await generate.click();
   const generated = await generateResponse;
+  const generatedBody = await generated.text();
   expect(
     generated.ok(),
-    `Tailored document generation failed with ${generated.status()}`
+    `Tailored document generation failed with ${generated.status()}: ${generatedBody}`
   ).toBeTruthy();
 
   await page.goto("/dashboard/applications");
