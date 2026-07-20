@@ -81,8 +81,8 @@ export function AnswerBankManager() {
     [answers]
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const response = await fetch("/api/answer-bank", { cache: "no-store" });
       const data = await response.json();
@@ -91,7 +91,7 @@ export function AnswerBankManager() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load answers");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -99,11 +99,13 @@ export function AnswerBankManager() {
     queueMicrotask(() => void load());
   }, [load]);
 
-  const resetForm = () => {
+  const resetForm = (additionalExistingKey?: string) => {
     setEditingId(null);
+    const reservedKeys = new Set(existingKeys);
+    if (additionalExistingKey) reservedKeys.add(additionalExistingKey);
     const next =
       APPLICATION_ANSWER_DEFINITIONS.find(
-        (item) => !existingKeys.has(item.key)
+        (item) => !reservedKeys.has(item.key)
       ) ?? APPLICATION_ANSWER_DEFINITIONS[0];
     setQuestionKey(next.key);
     setValue("");
@@ -141,13 +143,32 @@ export function AnswerBankManager() {
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save answer");
+      const savedAnswer = data.answer as Omit<
+        AnswerItem,
+        "versions" | "usages"
+      >;
+      setAnswers((current) => {
+        const existing = current.find(
+          (answer) => answer.id === savedAnswer.id
+        );
+        const next: AnswerItem = {
+          ...savedAnswer,
+          versions: existing?.versions ?? [],
+          usages: existing?.usages ?? [],
+        };
+        return existing
+          ? current.map((answer) =>
+              answer.id === savedAnswer.id ? next : answer
+            )
+          : [next, ...current];
+      });
       toast.success(
         confirmed
           ? "Confirmed answer saved for safe reuse"
           : "Draft saved; automation will not reuse it"
       );
-      await load();
-      resetForm();
+      resetForm(savedAnswer.questionKey);
+      void load(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save answer");
     } finally {
@@ -276,7 +297,12 @@ export function AnswerBankManager() {
               {saving ? "Saving…" : "Save answer"}
             </Button>
             {editingId && (
-              <Button type="button" variant="ghost" className="gap-1.5" onClick={resetForm}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-1.5"
+                onClick={() => resetForm()}
+              >
                 <X className="h-4 w-4" />
                 Cancel
               </Button>

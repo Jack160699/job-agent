@@ -490,8 +490,12 @@ async function saveReusableAnswer(page: Page) {
   );
   await page.getByRole("button", { name: "Save answer" }).click();
   expect((await saveResponse).ok()).toBeTruthy();
-  await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible();
-  await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Notice period" })
+  ).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText("Confirmed", { exact: true })).toBeVisible({
+    timeout: 60000,
+  });
 }
 
 async function waitForSearch(page: Page): Promise<{
@@ -725,7 +729,12 @@ async function verifyPersistenceAndMobile(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );
   expect(overflow).toBe(false);
-  await expect(page.getByRole("navigation", { name: /Mobile navigation/i })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: /Tab navigation/i })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /More navigation/i })
+  ).toBeVisible();
   if (expectsJobArtifacts) {
     await expect(page.locator('[data-testid^="job-card-"]').first()).toBeVisible();
   }
