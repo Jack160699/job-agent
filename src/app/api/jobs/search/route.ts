@@ -70,11 +70,10 @@ export async function POST(request: NextRequest) {
     if (asyncMode) {
       const queueStart = Date.now();
       const source = requestedSource as JobSource | undefined;
-      const { job, deduped, dispatch } = await enqueueInteractiveSearch(user.id, {
+      const { job, deduped, workerAccepted } = await enqueueInteractiveSearch(user.id, {
         sources: source ? [source] : undefined,
         ignoreSourceCooldown: Boolean(source),
       });
-      const workerAccepted = await dispatch;
       const queueCreationMs = Date.now() - queueStart;
 
       // The 300-second worker route normally owns execution after its

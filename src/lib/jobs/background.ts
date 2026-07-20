@@ -207,7 +207,7 @@ export async function resumePausedJob(userId: string, type: JobType) {
     },
   });
   logWorker("job_resumed_by_user", { userId, type, jobId: resumed.id });
-  void triggerWorkerRemote(resumed.id);
+  await triggerWorkerRemote(resumed.id);
   return resumed;
 }
 
@@ -242,8 +242,8 @@ export async function enqueueInteractiveSearch(
   });
   if (existing) {
     logWorker("search_deduped", { jobId: existing.id, userId });
-    const dispatch = triggerWorkerRemote(existing.id);
-    return { job: existing, deduped: true, dispatch };
+    const workerAccepted = await triggerWorkerRemote(existing.id);
+    return { job: existing, deduped: true, workerAccepted };
   }
 
   const now = new Date();
@@ -277,8 +277,8 @@ export async function enqueueInteractiveSearch(
     sources: options?.sources,
   });
 
-  const dispatch = triggerWorkerRemote(job.id);
-  return { job, deduped: false, dispatch };
+  const workerAccepted = await triggerWorkerRemote(job.id);
+  return { job, deduped: false, workerAccepted };
 }
 
 export async function enqueueJob(
@@ -307,7 +307,7 @@ export async function enqueueJob(
     priority: opts?.priority ?? SCHEDULED_PRIORITY,
   });
 
-  void triggerWorkerRemote(job.id);
+  await triggerWorkerRemote(job.id);
   return job;
 }
 
