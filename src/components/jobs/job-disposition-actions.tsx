@@ -17,6 +17,8 @@ export function JobDispositionActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(saved);
+  const [isExcluded, setIsExcluded] = useState(excluded);
 
   const update = async (action: "save" | "unsave" | "exclude" | "restore") => {
     setBusy(action);
@@ -28,6 +30,10 @@ export function JobDispositionActions({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Action failed");
+      if (action === "save") setIsSaved(true);
+      if (action === "unsave") setIsSaved(false);
+      if (action === "exclude") setIsExcluded(true);
+      if (action === "restore") setIsExcluded(false);
       toast.success(
         action === "save"
           ? "Job saved"
@@ -52,28 +58,28 @@ export function JobDispositionActions({
         variant="outline"
         className="gap-1"
         disabled={Boolean(busy)}
-        onClick={() => void update(saved ? "unsave" : "save")}
+        onClick={() => void update(isSaved ? "unsave" : "save")}
       >
-        {saved ? (
+        {isSaved ? (
           <BookmarkCheck className="h-3 w-3" />
         ) : (
           <Bookmark className="h-3 w-3" />
         )}
-        {saved ? "Saved" : "Save"}
+        {isSaved ? "Saved" : "Save"}
       </Button>
       <Button
         size="sm"
         variant="ghost"
         className="gap-1"
         disabled={Boolean(busy)}
-        onClick={() => void update(excluded ? "restore" : "exclude")}
+        onClick={() => void update(isExcluded ? "restore" : "exclude")}
       >
-        {excluded ? (
+        {isExcluded ? (
           <RotateCcw className="h-3 w-3" />
         ) : (
           <EyeOff className="h-3 w-3" />
         )}
-        {excluded ? "Restore" : "Exclude"}
+        {isExcluded ? "Restore" : "Exclude"}
       </Button>
     </div>
   );
