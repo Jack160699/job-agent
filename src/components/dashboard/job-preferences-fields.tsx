@@ -3,6 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  parseNumberOrFallback,
+  parseOptionalInteger,
+} from "@/lib/forms/numbers";
 
 export interface PreferenceFormValues {
   jobTitles: string;
@@ -33,7 +37,7 @@ export function parsePreferenceForm(values: PreferenceFormValues) {
     jobTitles: values.jobTitles.split(",").map((s) => s.trim()).filter(Boolean),
     requiredSkills: values.requiredSkills.split(",").map((s) => s.trim()).filter(Boolean),
     preferredSkills: values.preferredSkills.split(",").map((s) => s.trim()).filter(Boolean),
-    experienceYears: parseInt(values.experienceYears, 10) || null,
+    experienceYears: parseOptionalInteger(values.experienceYears),
     locations: values.locations.split(",").map((s) => s.trim()).filter(Boolean),
     workModes: values.workModes,
     salaryMin: values.salaryMin ? parseInt(values.salaryMin, 10) : null,
@@ -44,7 +48,7 @@ export function parsePreferenceForm(values: PreferenceFormValues) {
     willingToRelocate: values.willingToRelocate,
     visaSponsorshipRequired: values.visaSponsorshipRequired,
     noticePeriodDays: values.noticePeriodDays ? parseInt(values.noticePeriodDays, 10) : null,
-    matchThreshold: parseFloat(values.matchThreshold) || 70,
+    matchThreshold: parseNumberOrFallback(values.matchThreshold, 70),
   };
 }
 

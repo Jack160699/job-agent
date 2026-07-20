@@ -12,6 +12,16 @@ const sql = readFileSync(
   "utf8"
 );
 
+const accountDeletionFixSql = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260720163449_prevent_answer_history_on_account_delete.sql"
+  ),
+  "utf8"
+);
+
 describe("application answer bank migration contract", () => {
   it.each(["application_answer_versions", "application_answer_usage"])(
     "creates %s additively",
@@ -46,5 +56,21 @@ describe("application answer bank migration contract", () => {
 
   it("is forward-only", () => {
     expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
+  });
+
+  it("does not create answer history during a user deletion cascade", () => {
+    expect(accountDeletionFixSql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.capture_application_answer_version/i
+    );
+    expect(accountDeletionFixSql).toMatch(/pg_trigger_depth\(\)\s*=\s*1/i);
+    expect(accountDeletionFixSql).toMatch(
+      /EXISTS\s*\(\s*SELECT 1[\s\S]+FROM public\.users\s+WHERE id = OLD\.user_id/i
+    );
+    expect(accountDeletionFixSql).toMatch(/SECURITY INVOKER/i);
+    expect(accountDeletionFixSql).not.toMatch(/SECURITY DEFINER/i);
+  });
+
+  it("keeps the account-deletion fix forward-only", () => {
+    expect(accountDeletionFixSql).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
   });
 });

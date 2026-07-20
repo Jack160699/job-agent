@@ -14,6 +14,10 @@ import { ChipListEditor } from "@/components/onboarding/resume-first/chip-list-e
 import { searchJobTitles } from "@/lib/data/job-titles";
 import { searchLocations, formatLocationLabel } from "@/lib/data/locations";
 import { searchAutocompleteCatalog } from "@/lib/data/autocomplete-catalogs";
+import {
+  parseNumberOrFallback,
+  parseOptionalInteger,
+} from "@/lib/forms/numbers";
 
 interface Settings {
   jobTitles: string[];
@@ -326,10 +330,10 @@ export function SettingsForm({
         body: JSON.stringify({
           jobTitles,
           locations,
-          experienceYears: parseInt(experienceYears) || null,
+          experienceYears: parseOptionalInteger(experienceYears),
           salaryMin: salaryMin ? parseInt(salaryMin) : null,
           salaryMax: salaryMax ? parseInt(salaryMax) : null,
-          matchThreshold: parseFloat(matchThreshold) || 70,
+          matchThreshold: parseNumberOrFallback(matchThreshold, 70),
           requireReview,
           autoSubmitEnabled: autoSubmit,
           targetCompanies,
@@ -345,7 +349,7 @@ export function SettingsForm({
           quietHoursStart: notificationsEnabled ? quietHoursStart : null,
           quietHoursEnd: notificationsEnabled ? quietHoursEnd : null,
           proactiveFrequencyHours:
-            parseInt(proactiveFrequencyHours, 10) || 24,
+            parseNumberOrFallback(proactiveFrequencyHours, 24),
           disabledRecommendationCategories,
           dailyDigestEnabled,
           weeklyReportEnabled,

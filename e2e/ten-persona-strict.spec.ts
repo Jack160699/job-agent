@@ -528,13 +528,44 @@ async function waitForSearch(page: Page): Promise<{
 
 async function runSearchAndVerifyEvidence(page: Page) {
   await page.goto("/dashboard/jobs");
+  const settingsResponse = await page.request.get("/api/settings");
+  const settingsBody = (await settingsResponse.json()) as {
+    jobTitles?: string[];
+    requiredSkills?: string[];
+    locations?: string[];
+    workModes?: string[];
+    experienceYears?: number | null;
+  };
+  expect(
+    settingsResponse.ok(),
+    `Could not read settings before search: ${JSON.stringify(settingsBody)}`
+  ).toBeTruthy();
+  const missing = [
+    ...(settingsBody.jobTitles?.length ? [] : ["job titles"]),
+    ...(settingsBody.requiredSkills?.length ? [] : ["primary skills"]),
+    ...(settingsBody.locations?.length ||
+    settingsBody.workModes?.includes("REMOTE")
+      ? []
+      : ["locations or remote preference"]),
+    ...(settingsBody.experienceYears != null ? [] : ["years of experience"]),
+  ];
+  expect(
+    missing,
+    `Persisted search settings are incomplete: ${JSON.stringify(settingsBody)}`
+  ).toEqual([]);
+
   const startResponse = page.waitForResponse(
     (response) =>
       response.url().includes("/api/jobs/search") &&
       response.request().method() === "POST"
   );
   await page.getByRole("button", { name: /^Run Job Search$/i }).click();
-  expect((await startResponse).ok()).toBeTruthy();
+  const started = await startResponse;
+  const startBody = await started.text();
+  expect(
+    started.ok(),
+    `Job search start failed with ${started.status()}: ${startBody}`
+  ).toBeTruthy();
   await expect(
     page.getByRole("button", { name: /Searching/i })
   ).toBeVisible({ timeout: 15000 });

@@ -9,7 +9,7 @@ import {
   pauseActiveJob,
   resumePausedJob,
 } from "@/lib/jobs/background";
-import { hasMinimumPreferences } from "@/lib/jobs/preferences";
+import { validateSearchPreferences } from "@/lib/jobs/preferences";
 import { EntitlementError } from "@/lib/entitlements";
 import prisma from "@/lib/db";
 import { JobSource } from "@prisma/client";
@@ -35,11 +35,13 @@ export async function POST(request: NextRequest) {
     });
     const databaseQueryMs = Date.now() - dbStart;
 
-    if (!hasMinimumPreferences(settings)) {
+    const preferenceValidation = validateSearchPreferences(settings);
+    if (preferenceValidation.missing.length > 0) {
       return NextResponse.json(
         {
           error: "PREFERENCES_INCOMPLETE",
           message: "Complete job search preferences before running a search",
+          missing: preferenceValidation.missing,
           redirect: "/dashboard/onboarding",
         },
         { status: 422 }
