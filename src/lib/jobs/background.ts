@@ -1,7 +1,7 @@
 import prisma from "@/lib/db";
 import { searchJobs } from "@/lib/jobs/pipeline";
 import { createAuditLog } from "@/lib/audit";
-import { getAppBaseUrl } from "@/lib/brand/urls";
+import { requestWorkerDispatch } from "@/lib/jobs/worker-dispatch";
 import type { JobSource, Prisma } from "@prisma/client";
 
 export type JobType =
@@ -43,45 +43,22 @@ function logWorker(event: string, data: Record<string, unknown> = {}): void {
   );
 }
 
-const WORKER_KICK_TIMEOUT_MS = 4000;
-
 /**
- * Best-effort remote kick — used as a secondary signal alongside the
- * request-scoped after() call in the API routes that create jobs. Bounded to
- * a short timeout so a slow/unreachable self-fetch can never hang the caller,
- * and failures are logged (never silently swallowed) so a broken kick is
- * visible instead of silently degrading every search to the cron fallback.
+ * Starts an acknowledged remote dispatch and retains a local recovery path.
+ * Reliability-sensitive API callers can await the returned acknowledgement.
  */
-export function triggerWorkerRemote(): void {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    triggerBackgroundProcessing().catch((err) =>
+export function triggerWorkerRemote(jobId: string): Promise<boolean> {
+  const dispatch = requestWorkerDispatch(jobId);
+  void dispatch.then((accepted) => {
+    if (accepted) return;
+    claimAndProcessJob(jobId).catch((err) =>
       logWorker("worker_trigger_local_failed", {
+        jobId,
         error: err instanceof Error ? err.message : String(err),
       })
     );
-    return;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), WORKER_KICK_TIMEOUT_MS);
-
-  fetch(`${getAppBaseUrl()}/api/jobs/worker`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ source: "enqueue" }),
-    signal: controller.signal,
-  })
-    .catch((err) => {
-      logWorker("worker_trigger_remote_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return triggerBackgroundProcessing().catch(() => {});
-    })
-    .finally(() => clearTimeout(timeout));
+  });
+  return dispatch;
 }
 
 export async function recoverStaleJobs() {
@@ -230,7 +207,7 @@ export async function resumePausedJob(userId: string, type: JobType) {
     },
   });
   logWorker("job_resumed_by_user", { userId, type, jobId: resumed.id });
-  triggerWorkerRemote();
+  void triggerWorkerRemote(resumed.id);
   return resumed;
 }
 
@@ -265,8 +242,8 @@ export async function enqueueInteractiveSearch(
   });
   if (existing) {
     logWorker("search_deduped", { jobId: existing.id, userId });
-    triggerWorkerRemote();
-    return { job: existing, deduped: true };
+    const dispatch = triggerWorkerRemote(existing.id);
+    return { job: existing, deduped: true, dispatch };
   }
 
   const now = new Date();
@@ -300,8 +277,8 @@ export async function enqueueInteractiveSearch(
     sources: options?.sources,
   });
 
-  triggerWorkerRemote();
-  return { job, deduped: false };
+  const dispatch = triggerWorkerRemote(job.id);
+  return { job, deduped: false, dispatch };
 }
 
 export async function enqueueJob(
@@ -330,7 +307,7 @@ export async function enqueueJob(
     priority: opts?.priority ?? SCHEDULED_PRIORITY,
   });
 
-  triggerWorkerRemote();
+  void triggerWorkerRemote(job.id);
   return job;
 }
 

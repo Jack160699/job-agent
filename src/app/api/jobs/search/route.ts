@@ -70,18 +70,17 @@ export async function POST(request: NextRequest) {
     if (asyncMode) {
       const queueStart = Date.now();
       const source = requestedSource as JobSource | undefined;
-      const { job, deduped } = await enqueueInteractiveSearch(user.id, {
+      const { job, deduped, dispatch } = await enqueueInteractiveSearch(user.id, {
         sources: source ? [source] : undefined,
         ignoreSourceCooldown: Boolean(source),
       });
+      const workerAccepted = await dispatch;
       const queueCreationMs = Date.now() - queueStart;
 
-      // Targeted kick: claim and run this specific job only, rather than
-      // draining the whole queue behind it. The remote fetch inside
-      // enqueueInteractiveSearch() is a secondary best-effort signal; this
-      // after() call is the primary, reliable one since it runs in the same
-      // request-scoped execution context.
-      if (!deduped) {
+      // The 300-second worker route normally owns execution after its
+      // acknowledged 202 response. Retain an idempotent request-scoped
+      // targeted claim only as the handshake failure recovery path.
+      if (!deduped && !workerAccepted) {
         after(() => {
           claimAndProcessJob(job.id).catch((err) =>
             console.error("[jobs/search] after() claim failed:", err)
@@ -94,6 +93,7 @@ export async function POST(request: NextRequest) {
         status: job.status,
         jobId: job.id,
         deduped,
+        workerAccepted,
         retrySource: source ?? null,
         queuedAt: job.queuedAt.toISOString(),
       });
