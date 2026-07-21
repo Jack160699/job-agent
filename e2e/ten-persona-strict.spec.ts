@@ -676,15 +676,47 @@ async function verifyJobApplicationFlow(
     `Dry-run application preparation failed with ${prepared.status()}`
   ).toBeTruthy();
 
+  const answerBankLoad = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/answer-bank") &&
+      response.request().method() === "GET" &&
+      !/\/api\/answer-bank\/[^/]+/.test(new URL(response.url()).pathname),
+    { timeout: 60000 }
+  );
   await page.goto("/dashboard/answers");
+  const answerBankResponse = await answerBankLoad;
+  expect(
+    answerBankResponse.ok(),
+    `Answer bank reload failed with ${answerBankResponse.status()}`
+  ).toBeTruthy();
+  await expect(page.getByText("Loading answer bank…")).toBeHidden({
+    timeout: 60000,
+  });
   const answerCard = page
     .getByRole("heading", { name: "Notice period" })
     .locator("xpath=ancestor::*[contains(@class,'rounded')][1]");
-  await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible({
+    timeout: 60000,
+  });
   const usageText = await answerCard.innerText().catch(() => "");
   if (!/Applications\s+[1-9]\d*/i.test(usageText)) {
     gateFailures.push(
       "Answer-bank reuse was not recorded after dry-run preparation."
+    );
+  }
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible({
+    timeout: 60000,
+  });
+  const refreshedUsage = await page
+    .getByRole("heading", { name: "Notice period" })
+    .locator("xpath=ancestor::*[contains(@class,'rounded')][1]")
+    .innerText()
+    .catch(() => "");
+  if (!/Applications\s+[1-9]\d*/i.test(refreshedUsage)) {
+    gateFailures.push(
+      "Answer-bank usage count did not persist after refresh."
     );
   }
 
