@@ -390,6 +390,20 @@ export async function prepareApplicationSubmission(
 
   const automator = getAutomatorForUrl(application.job.sourceUrl);
   if (!automator) {
+    const answerUsage =
+      options?.autoSubmit
+        ? {
+            provisioned: provisionedKeys,
+            inserted: [],
+            alreadyPresent: [],
+            currentUsageCounts: {},
+          }
+        : await creditProvisionedAnswerUsage(
+            userId,
+            applicationId,
+            provisionedKeys,
+            "unsupported_platform_dry_run"
+          );
     await prisma.application.update({
       where: { id: applicationId },
       data: {
@@ -397,6 +411,8 @@ export async function prepareApplicationSubmission(
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
+          answerUsage,
+          noRealSubmissionPerformed: !options?.autoSubmit,
         } as Prisma.InputJsonValue,
         failureReason: "UNSUPPORTED_PLATFORM",
       },
@@ -405,6 +421,10 @@ export async function prepareApplicationSubmission(
       success: false,
       status: "requires_manual" as const,
       message: "Documents generated — manual submission required for this platform",
+      applicationId,
+      preparationStatus: "unsupported",
+      answerUsage,
+      noRealSubmissionPerformed: !options?.autoSubmit,
     };
   }
 
@@ -537,10 +557,20 @@ export async function prepareApplicationSubmission(
           (field): field is string => typeof field === "string"
         )
       : [];
-    const preparationSucceeded = SUCCESSFUL_PREP_STATUSES.has(mapped.status);
-    // Credit every confirmed answer provisioned into this preparation so direct
-    // and queued paths converge even when the live form never asked for a field.
-    const answerUsage = preparationSucceeded
+    const cancelled = Boolean(
+      submission.formData &&
+        typeof submission.formData === "object" &&
+        "cancelled" in submission.formData &&
+        (submission.formData as { cancelled?: boolean }).cancelled
+    );
+    // Dry-run credits provisioned confirmed answers whenever preparation ran
+    // without cancel/hard-failure (including NEEDS_INFORMATION / blocked states),
+    // matching the queued path that credits at enqueue time. Authorized submit
+    // still credits only on successful terminal statuses.
+    const shouldCreditUsage = options?.autoSubmit
+      ? SUCCESSFUL_PREP_STATUSES.has(mapped.status)
+      : !cancelled && mapped.status !== "FAILED";
+    const answerUsage = shouldCreditUsage
       ? await creditProvisionedAnswerUsage(
           userId,
           applicationId,

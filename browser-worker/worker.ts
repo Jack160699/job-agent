@@ -170,12 +170,20 @@ async function processTask(taskId: string) {
           [...new Set([...provisionedFromPayload, ...answeredFields])],
           "browser_worker"
         );
+      } else if (!payload.autoSubmit && mapped.status !== "FAILED") {
+        // Dry-run worker outcomes such as NEEDS_INFORMATION still used
+        // provisioned confirmed answers; keep queue/direct semantics aligned.
+        answerUsage = await creditProvisionedAnswerUsage(
+          task.userId,
+          applicationId,
+          [...new Set([...provisionedFromPayload, ...answeredFields])],
+          "browser_worker_dry_run"
+        );
       } else if (payload.autoSubmit) {
         // Authorized submission failed after a speculative credit — roll back.
         await revokeApplicationAnswerUsage(task.userId, applicationId);
       }
-      // Dry-run queue credits remain authoritative even when the worker later
-      // cannot finish browser fill; cancel is the only dry-run revoke path.
+      // Cancel is the only dry-run revoke path (handled above).
 
       const existingDocuments =
         application.documents && typeof application.documents === "object"
