@@ -67,6 +67,7 @@ function displayValue(value: unknown): string {
 export function AnswerBankManager() {
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formReady, setFormReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [questionKey, setQuestionKey] = useState(
@@ -87,12 +88,28 @@ export function AnswerBankManager() {
       const response = await fetch("/api/answer-bank", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load answers");
-      setAnswers(data.answers ?? []);
+      const nextAnswers = (data.answers ?? []) as AnswerItem[];
+      setAnswers(nextAnswers);
+      setQuestionKey((currentKey) => {
+        const reserved = new Set(
+          nextAnswers.map((answer) => answer.questionKey)
+        );
+        if (!reserved.has(currentKey)) return currentKey;
+        return (
+          APPLICATION_ANSWER_DEFINITIONS.find(
+            (item) => !reserved.has(item.key)
+          )?.key ?? currentKey
+        );
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load answers");
     } finally {
       if (showLoading) setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => setFormReady(true));
   }, []);
 
   useEffect(() => {
@@ -192,7 +209,7 @@ export function AnswerBankManager() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-answer-bank-ready={formReady ? "true" : "false"}>
       <Card id="answer-bank-form">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -206,9 +223,10 @@ export function AnswerBankManager() {
               <Label htmlFor="answer-field">Application field</Label>
               <select
                 id="answer-field"
+                aria-label="Application field"
                 className="h-10 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
                 value={questionKey}
-                disabled={editingId != null}
+                disabled={!formReady || editingId != null}
                 onChange={(event) => {
                   setQuestionKey(event.target.value);
                   setValue("");
@@ -290,7 +308,7 @@ export function AnswerBankManager() {
             <Button
               type="button"
               className="gap-1.5"
-              disabled={saving || !value.trim()}
+              disabled={!formReady || saving || !value.trim()}
               onClick={() => void save()}
             >
               <Save className="h-4 w-4" />

@@ -190,7 +190,7 @@ export function SettingsForm({
   }, []);
 
   useEffect(() => {
-    setFormReady(true);
+    queueMicrotask(() => setFormReady(true));
   }, []);
 
   useEffect(() => {

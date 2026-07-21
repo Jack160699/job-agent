@@ -515,7 +515,13 @@ async function saveReusableAnswer(page: Page) {
   await expect(
     page.getByRole("heading", { name: "Application answer bank" })
   ).toBeVisible({ timeout: 60000 });
-  await page.getByLabel("Application field").selectOption("notice_period");
+  await expect(page.locator('[data-answer-bank-ready="true"]')).toBeVisible({
+    timeout: 60000,
+  });
+  const field = page.getByLabel("Application field");
+  await expect(field).toBeEnabled({ timeout: 60000 });
+  await field.selectOption("notice_period");
+  await expect(field).toHaveValue("notice_period");
   await page.getByLabel("Confirmed value").fill("30 days");
   await page.getByLabel("I confirm this value is accurate").check();
   const saveResponse = page.waitForResponse(
@@ -524,7 +530,15 @@ async function saveReusableAnswer(page: Page) {
       response.request().method() === "POST"
   );
   await page.getByRole("button", { name: "Save answer" }).click();
-  expect((await saveResponse).ok()).toBeTruthy();
+  const saved = await saveResponse;
+  expect(saved.ok()).toBeTruthy();
+  const savedBody = (await saved.json()) as {
+    answer?: { questionKey?: string; questionLabel?: string };
+  };
+  expect(
+    savedBody.answer?.questionKey,
+    `Answer bank saved the wrong field: ${JSON.stringify(savedBody)}`
+  ).toBe("notice_period");
   await expect(
     page.getByRole("heading", { name: "Notice period" })
   ).toBeVisible({ timeout: 60000 });
