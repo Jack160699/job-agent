@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import prisma from "@/lib/db";
 import { getDbUser } from "@/lib/auth/server";
 
@@ -358,6 +359,7 @@ export async function getAuditLogs(limit = 100) {
 }
 
 export async function getUserSettings() {
+  noStore();
   return safe(async () => {
     const user = await getDbUser();
     if (!user) return null;

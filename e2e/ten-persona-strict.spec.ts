@@ -458,25 +458,60 @@ async function finishOnboarding(page: Page, persona: Persona) {
   await expect(page).toHaveURL(/\/dashboard\/jobs/, { timeout: 60000 });
 }
 
+async function gotoDashboard(page: Page, path: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/ERR_ABORTED|ERR_NETWORK_CHANGED|ERR_CONNECTION_RESET|Timeout/i.test(message)) {
+        throw error;
+      }
+      await page.waitForTimeout(1500 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 async function saveSectorAndVerifyPreferences(page: Page, persona: Persona) {
-  await page.goto("/dashboard/settings");
+  await gotoDashboard(page, "/dashboard/settings");
+  await expect(page.locator('[data-settings-ready="true"]')).toBeVisible({
+    timeout: 60000,
+  });
+  const sector = page.getByLabel("Job sector");
+  await expect(sector).toBeEnabled({ timeout: 60000 });
+  await sector.selectOption(persona.sector);
+  await expect(sector).toHaveValue(persona.sector);
   const saveResponse = page.waitForResponse(
     (response) =>
       response.url().includes("/api/settings") &&
       response.request().method() === "PUT"
   );
-  await page.getByLabel("Job sector").selectOption(persona.sector);
   await page.getByRole("button", { name: /Save Settings/i }).click();
-  expect((await saveResponse).ok()).toBeTruthy();
+  const saved = await saveResponse;
+  expect(saved.ok()).toBeTruthy();
+  const savedBody = (await saved.json()) as { sectorPreference?: string };
+  expect(
+    savedBody.sectorPreference,
+    `Settings save did not persist sector preference: ${JSON.stringify(savedBody)}`
+  ).toBe(persona.sector);
   await page.reload();
-  await expect(page.getByLabel("Job sector")).toHaveValue(persona.sector);
+  await expect(page.locator('[data-settings-ready="true"]')).toBeVisible({
+    timeout: 60000,
+  });
+  await expect(page.getByLabel("Job sector")).toHaveValue(persona.sector, {
+    timeout: 60000,
+  });
   await expect(
     page.getByRole("list", { name: "Locations" }).getByText(persona.locations[0])
   ).toBeVisible();
 }
 
 async function saveReusableAnswer(page: Page) {
-  await page.goto("/dashboard/answers");
+  await gotoDashboard(page, "/dashboard/answers");
   await expect(
     page.getByRole("heading", { name: "Application answer bank" })
   ).toBeVisible({ timeout: 60000 });

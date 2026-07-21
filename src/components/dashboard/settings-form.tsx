@@ -79,6 +79,7 @@ export function SettingsForm({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [formReady, setFormReady] = useState(false);
   const [jobTitles, setJobTitles] = useState<string[]>(
     initialSettings?.jobTitles ?? []
   );
@@ -186,6 +187,10 @@ export function SettingsForm({
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
     return data.options ?? [];
+  }, []);
+
+  useEffect(() => {
+    setFormReady(true);
   }, []);
 
   useEffect(() => {
@@ -357,7 +362,18 @@ export function SettingsForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      if (
+        data.sectorPreference === "PRIVATE" ||
+        data.sectorPreference === "GOVERNMENT" ||
+        data.sectorPreference === "BOTH"
+      ) {
+        setSectorPreference(data.sectorPreference);
+      }
+      if (Array.isArray(data.governmentCategories)) {
+        setGovernmentCategories(data.governmentCategories);
+      }
       toast.success("Settings saved");
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed");
     } finally {
@@ -366,7 +382,11 @@ export function SettingsForm({
   };
 
   return (
-    <Tabs defaultValue="filters" className="space-y-6">
+    <Tabs
+      defaultValue="filters"
+      className="space-y-6"
+      data-settings-ready={formReady ? "true" : "false"}
+    >
       <TabsList>
         <TabsTrigger value="filters">Job Filters</TabsTrigger>
         <TabsTrigger value="automation">Automation</TabsTrigger>
@@ -386,7 +406,9 @@ export function SettingsForm({
                 <Label htmlFor="sector-preference">Job sector</Label>
                 <select
                   id="sector-preference"
+                  aria-label="Job sector"
                   value={sectorPreference}
+                  disabled={!formReady}
                   onChange={(event) =>
                     setSectorPreference(
                       event.target.value as "PRIVATE" | "GOVERNMENT" | "BOTH"

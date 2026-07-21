@@ -101,8 +101,12 @@ export async function PUT(request: NextRequest) {
         excludedCompanies: body.excludedCompanies,
         noticePeriodDays: body.noticePeriodDays,
         matchThreshold: body.matchThreshold,
-        sectorPreference: body.sectorPreference,
-        governmentCategories: body.governmentCategories,
+        ...(body.sectorPreference != null
+          ? { sectorPreference: body.sectorPreference }
+          : {}),
+        ...(body.governmentCategories != null
+          ? { governmentCategories: body.governmentCategories }
+          : {}),
         preferencesComplete: complete,
         onboardingCompletedAt: complete ? new Date() : undefined,
         enabledSources: body.enabledSources,
