@@ -41,6 +41,7 @@ interface JobRunProgress {
   jobsFound: number;
   jobsNew: number;
   jobsRelevant: number;
+  jobsPotential?: number;
   jobsExcluded: number;
   failedSources: Array<{ source: string; error?: string }>;
   summary: string | null;
@@ -197,7 +198,8 @@ export function JobRunPanel({
           progress: 100,
           jobsFound: data.total,
           jobsNew: data.new ?? 0,
-          jobsRelevant: data.relevant ?? data.total,
+          jobsRelevant: data.confirmedRelevant ?? data.relevant ?? data.total,
+          jobsPotential: data.potentialMatches ?? 0,
           jobsExcluded: data.excluded ?? 0,
           failedSources: (data.sources ?? [])
             .filter((source: { success?: boolean }) => !source.success)
@@ -474,8 +476,13 @@ export function JobRunPanel({
               />
               <StatPill
                 icon={CheckCircle2}
-                label="Matched"
+                label="Confirmed"
                 value={String(progress.jobsRelevant)}
+              />
+              <StatPill
+                icon={FileText}
+                label="Potential"
+                value={String(progress.jobsPotential ?? 0)}
               />
               <StatPill
                 icon={FileText}
@@ -559,7 +566,11 @@ export function JobRunPanel({
       {progress?.status === "completed" && !running && progress.jobsRelevant > 0 && (
         <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--success)]/20 bg-[var(--success-muted)] px-4 py-3 text-sm text-[var(--success)]">
           <CheckCircle2 className="h-4 w-4" />
-          Complete — {progress.jobsRelevant} relevant jobs, {progress.jobsNew} new
+          Complete — {progress.jobsRelevant} confirmed relevant
+          {(progress.jobsPotential ?? 0) > 0
+            ? `, ${progress.jobsPotential} potential`
+            : ""}
+          , {progress.jobsNew} new
         </div>
       )}
 

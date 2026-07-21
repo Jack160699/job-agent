@@ -82,6 +82,9 @@ export function AnswerBankManager() {
     [answers]
   );
 
+  const [usageUpdating, setUsageUpdating] = useState(false);
+  const [usageError, setUsageError] = useState<string | null>(null);
+
   const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
@@ -90,6 +93,7 @@ export function AnswerBankManager() {
       if (!response.ok) throw new Error(data.error || "Could not load answers");
       const nextAnswers = (data.answers ?? []) as AnswerItem[];
       setAnswers(nextAnswers);
+      setUsageError(null);
       setQuestionKey((currentKey) => {
         const reserved = new Set(
           nextAnswers.map((answer) => answer.questionKey)
@@ -102,9 +106,13 @@ export function AnswerBankManager() {
         );
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load answers");
+      const message =
+        error instanceof Error ? error.message : "Could not load answers";
+      toast.error(message);
+      setUsageError(message);
     } finally {
       if (showLoading) setLoading(false);
+      setUsageUpdating(false);
     }
   }, []);
 
@@ -114,6 +122,52 @@ export function AnswerBankManager() {
 
   useEffect(() => {
     queueMicrotask(() => void load());
+  }, [load]);
+
+  useEffect(() => {
+    const onUsage = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        answerUsage?: {
+          currentUsageCounts?: Record<string, number>;
+          inserted?: Array<{ fieldKey: string; currentUsageCount: number }>;
+          alreadyPresent?: Array<{
+            fieldKey: string;
+            currentUsageCount: number;
+          }>;
+        };
+      }>).detail;
+      const counts = {
+        ...(detail?.answerUsage?.currentUsageCounts ?? {}),
+      };
+      for (const row of [
+        ...(detail?.answerUsage?.inserted ?? []),
+        ...(detail?.answerUsage?.alreadyPresent ?? []),
+      ]) {
+        counts[row.fieldKey] = row.currentUsageCount;
+      }
+      if (Object.keys(counts).length > 0) {
+        setAnswers((current) =>
+          current.map((answer) =>
+            counts[answer.questionKey] != null
+              ? {
+                  ...answer,
+                  usageCount: counts[answer.questionKey],
+                  lastUsedAt: new Date().toISOString(),
+                }
+              : answer
+          )
+        );
+        setUsageUpdating(true);
+        void load(false).catch(() => {
+          setUsageError(
+            "Usage was credited, but history refresh failed. Reload to sync."
+          );
+          setUsageUpdating(false);
+        });
+      }
+    };
+    window.addEventListener("kairela:answer-usage", onUsage);
+    return () => window.removeEventListener("kairela:answer-usage", onUsage);
   }, [load]);
 
   const resetForm = (additionalExistingKey?: string) => {
@@ -392,9 +446,19 @@ export function AnswerBankManager() {
                   </div>
                   <div>
                     <dt className="text-[var(--ink-tertiary)]">Applications</dt>
-                    <dd className="mt-1 text-[var(--ink)]">{answer.usageCount}</dd>
+                    <dd
+                      className="mt-1 text-[var(--ink)]"
+                      data-testid={`answer-usage-${answer.questionKey}`}
+                    >
+                      {usageUpdating && answer.usageCount === 0
+                        ? "Updating usage…"
+                        : answer.usageCount}
+                    </dd>
                   </div>
                 </dl>
+                {usageError && (
+                  <p className="text-xs text-[var(--warning)]">{usageError}</p>
+                )}
 
                 {answer.usages[0]?.application && (
                   <p className="text-xs text-[var(--ink-tertiary)]">

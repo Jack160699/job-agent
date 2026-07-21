@@ -105,6 +105,7 @@ export default async function JobsPage({
                 concerns?: string[];
                 uncertain?: string[];
                 requiresVerification?: boolean;
+                eligibilityVerified?: boolean;
                 matchedSignals?: string[];
                 unknownSignals?: string[];
               } | null;
@@ -124,10 +125,17 @@ export default async function JobsPage({
                 applicationUrl?: string;
               } | null;
               const governmentJob = metadata?.jobType === "government";
+              const needsVerification =
+                analysis?.classification ===
+                  "POTENTIAL_MATCH_REQUIRES_VERIFICATION" &&
+                analysis?.eligibilityVerified !== true;
               return (
                 <Card
                   key={job.id}
                   data-testid={`job-card-${job.id}`}
+                  data-match-confidence={
+                    needsVerification ? "potential" : "confirmed"
+                  }
                   className="transition-colors hover:border-[var(--line-strong)]"
                 >
                   <CardContent className="flex flex-col items-start justify-between gap-4 p-4 lg:flex-row">
@@ -136,21 +144,15 @@ export default async function JobsPage({
                         <h3 className="text-base font-semibold text-[var(--ink)]">
                           {job.title}
                         </h3>
-                        {analysis?.classification && (
+                        {needsVerification ? (
+                          <span className="rounded-full border border-[var(--warning)]/40 bg-[var(--warning-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+                            Potential match — verify on source
+                          </span>
+                        ) : analysis?.classification ? (
                           <span className="rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                            {analysis.classification ===
-                            "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
-                              ? "Needs verification"
-                              : analysis.classification}
+                            {analysis.classification}
                           </span>
-                        )}
-                        {(analysis?.requiresVerification ||
-                          analysis?.classification ===
-                            "POTENTIAL_MATCH_REQUIRES_VERIFICATION") && (
-                          <span className="rounded-full border border-[var(--warning)]/30 bg-[var(--warning-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
-                            Open source to verify
-                          </span>
-                        )}
+                        ) : null}
                         {metadata?.searchStage && (
                           <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ink-secondary)]">
                             {metadata.searchStage === "strict"
@@ -204,19 +206,30 @@ export default async function JobsPage({
                           </span>
                         )}
                       </div>
-                      {(analysis?.requiresVerification ||
-                        analysis?.classification ===
-                          "POTENTIAL_MATCH_REQUIRES_VERIFICATION") && (
-                        <p className="mt-2 text-xs text-[var(--warning)]">
-                          Potential match — open the original source to verify
-                          unknown requirements
-                          {analysis?.unknownSignals?.length
-                            ? ` (${analysis.unknownSignals
-                                .slice(0, 4)
-                                .join(", ")})`
-                            : ""}
-                          .
-                        </p>
+                      {needsVerification && (
+                        <div className="mt-2 space-y-1 rounded-[var(--radius-sm)] border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-xs text-[var(--warning)]">
+                          <p className="font-semibold">
+                            Potential match — verify on source
+                          </p>
+                          {analysis?.matchedSignals?.length ? (
+                            <p>
+                              Confirmed evidence:{" "}
+                              {analysis.matchedSignals.slice(0, 4).join(", ")}
+                            </p>
+                          ) : null}
+                          {analysis?.unknownSignals?.length ? (
+                            <p>
+                              Unknown requirements:{" "}
+                              {analysis.unknownSignals.slice(0, 4).join(", ")}
+                            </p>
+                          ) : null}
+                          <p>
+                            Verification checklist: location eligibility, work
+                            authorization, experience, qualification,
+                            registration, salary, and remote-country
+                            availability.
+                          </p>
+                        </div>
                       )}
                       {governmentJob && (
                         <div className="mt-2 space-y-1 text-xs text-[var(--ink-secondary)]">
@@ -355,6 +368,10 @@ export default async function JobsPage({
                         jobId={job.id}
                         saved={Boolean(job.savedAt)}
                         excluded={job.status === "ARCHIVED"}
+                        requiresVerification={needsVerification}
+                        eligibilityVerified={
+                          analysis?.eligibilityVerified === true
+                        }
                       />
                       <JobResultActions
                         job={{
@@ -363,6 +380,7 @@ export default async function JobsPage({
                           company: job.company,
                           status: job.status,
                         }}
+                        requiresVerification={needsVerification}
                         application={
                           application
                             ? {

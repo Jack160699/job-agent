@@ -736,6 +736,29 @@ export async function searchJobs(
 
   let newCount = 0;
   let relevantCount = 0;
+  let confirmedRelevantCount = 0;
+  let potentialMatchCount = 0;
+
+  const classificationOf = (analysis: Prisma.InputJsonValue | undefined) => {
+    if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) {
+      return null;
+    }
+    const classification = (analysis as { classification?: unknown }).classification;
+    return typeof classification === "string" ? classification : null;
+  };
+  const countMatchBuckets = (
+    analysis: Prisma.InputJsonValue | undefined,
+    origin: "filtered" | "excluded"
+  ) => {
+    if (origin !== "filtered") return;
+    relevantCount += 1;
+    const classification = classificationOf(analysis);
+    if (classification === "POTENTIAL_MATCH_REQUIRES_VERIFICATION") {
+      potentialMatchCount += 1;
+    } else {
+      confirmedRelevantCount += 1;
+    }
+  };
 
   if (toUpdate.length > 0) {
     await prisma.$transaction(
@@ -769,7 +792,9 @@ export async function searchJobs(
     );
     if (provenanceOps.length > 0) await prisma.$transaction(provenanceOps);
 
-    relevantCount += toUpdate.filter(({ candidate }) => candidate.origin === "filtered").length;
+    for (const { candidate } of toUpdate) {
+      countMatchBuckets(candidate.matchAnalysis, candidate.origin);
+    }
   }
 
   if (toCreate.length > 0) {
@@ -827,7 +852,9 @@ export async function searchJobs(
     ]);
 
     newCount = toCreate.filter((c) => c.origin === "filtered").length;
-    relevantCount += newCount;
+    for (const candidate of toCreate) {
+      countMatchBuckets(candidate.matchAnalysis, candidate.origin);
+    }
   }
 
   const expiryCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -926,7 +953,7 @@ export async function searchJobs(
     { strict: 0, balanced: 0, recovery: 0 }
   );
   const zeroResultDiagnosis =
-    relevantCount === 0
+    confirmedRelevantCount === 0 && potentialMatchCount === 0
       ? buildZeroResultDiagnosis({
           discovered: discovered.length,
           excludedCount: excluded.length,
@@ -960,7 +987,11 @@ export async function searchJobs(
   await progress("completed", {
     label: "Complete",
     discovered: discovered.length,
-    relevant: relevantCount,
+    relevant: confirmedRelevantCount,
+    confirmedRelevant: confirmedRelevantCount,
+    potentialMatches: potentialMatchCount,
+    // Keep legacy totalMatches for diagnostics; UI must not treat this as confirmed.
+    totalMatches: relevantCount,
     new: newCount,
     excluded: excluded.length,
     duplicates: deduplicated.duplicateCount,
@@ -978,12 +1009,14 @@ export async function searchJobs(
   await createAuditLog({
     userId,
     action: "JOB_SEARCH_COMPLETE",
-    message: `Found ${discovered.length} raw, ${relevantCount} relevant, ${newCount} new (${excluded.length} excluded) in ${totalSearchMs}ms`,
+    message: `Found ${discovered.length} raw, ${confirmedRelevantCount} confirmed relevant, ${potentialMatchCount} potential, ${newCount} new (${excluded.length} excluded) in ${totalSearchMs}ms`,
     level: "INFO",
     metadata: {
       searchPlanId: storedPlan.id,
       duplicates: deduplicated.duplicateCount,
       expired: expiredExisting.count,
+      confirmedRelevant: confirmedRelevantCount,
+      potentialMatches: potentialMatchCount,
       sources: sourceResults,
       excluded: excluded.slice(0, 10),
       timings,
@@ -999,7 +1032,10 @@ export async function searchJobs(
 
   return {
     total: discovered.length,
-    relevant: relevantCount,
+    relevant: confirmedRelevantCount,
+    confirmedRelevant: confirmedRelevantCount,
+    potentialMatches: potentialMatchCount,
+    totalMatches: relevantCount,
     new: newCount,
     excluded: excluded.length,
     duplicates: deduplicated.duplicateCount,
@@ -1119,6 +1155,10 @@ export async function processApplication(
   if (["EXPIRED", "CLOSED"].includes(application.job.status)) {
     throw new Error("JOB_NOT_ACTIVE");
   }
+  const { assertApplicationReadyForDocuments } = await import(
+    "@/lib/applications/eligibility-gate"
+  );
+  assertApplicationReadyForDocuments(application.job.matchAnalysis);
 
   if (
     !options?.force &&

@@ -30,6 +30,7 @@ interface SearchProgress {
   jobsFound: number;
   jobsNew: number;
   jobsRelevant: number;
+  jobsPotential?: number;
   jobsExcluded: number;
   failedSources?: Array<{ source: string; error?: string }>;
   result?: {
@@ -47,6 +48,10 @@ interface SearchProgress {
       strict: number;
       balanced: number;
       recovery: number;
+    };
+    rejectionDiagnostics?: {
+      acceptedRelevant?: number;
+      potentialMatches?: number;
     };
     zeroResultDiagnosis?: {
       explanation?: string[];
@@ -646,20 +651,49 @@ async function runSearchAndVerifyEvidence(page: Page) {
   return result;
 }
 
-async function firstJobCard(page: Page) {
-  let card = page.locator('[data-testid^="job-card-"]').first();
+async function firstConfirmedJobCard(page: Page) {
+  let card = page.locator('[data-testid^="job-card-"][data-match-confidence="confirmed"]').first();
   if (!(await card.isVisible().catch(() => false))) {
     await page.goto("/dashboard/jobs?view=possible");
-    card = page.locator('[data-testid^="job-card-"]').first();
+    card = page.locator('[data-testid^="job-card-"][data-match-confidence="confirmed"]').first();
   }
   return card;
+}
+
+async function firstPotentialJobCard(page: Page) {
+  return page
+    .locator('[data-testid^="job-card-"][data-match-confidence="potential"]')
+    .first();
 }
 
 async function verifyJobApplicationFlow(
   page: Page,
   gateFailures: string[]
 ) {
-  const card = await firstJobCard(page);
+  const card = await firstConfirmedJobCard(page);
+  if (!(await card.isVisible().catch(() => false))) {
+    const potential = await firstPotentialJobCard(page);
+    if (await potential.isVisible().catch(() => false)) {
+      await expect(
+        potential.getByText(/Potential match — verify on source/i).first()
+      ).toBeVisible();
+      const original = potential.getByRole("link", {
+        name: /Open original posting/i,
+      });
+      const href = await original.getAttribute("href");
+      expect(href).toBeTruthy();
+      const popupPromise = page.waitForEvent("popup");
+      await original.click();
+      const popup = await popupPromise;
+      await expect
+        .poll(() => popup.url(), { timeout: 15000 })
+        .not.toBe("about:blank");
+      await popup.close();
+      // Potential-only supply is an external outcome, not a product-flow failure.
+      return null;
+    }
+    throw new Error("No confirmed or potential job cards were available");
+  }
   await expect(card).toBeVisible({ timeout: 60000 });
   const title = (await card.locator("h3").first().innerText()).trim();
   const original = card.getByRole("link", {
@@ -724,6 +758,25 @@ async function verifyJobApplicationFlow(
     prepared.ok(),
     `Dry-run application preparation failed with ${prepared.status()}`
   ).toBeTruthy();
+  const preparedBody = (await prepared.json()) as {
+    applicationId?: string;
+    answerUsage?: {
+      inserted?: unknown[];
+      alreadyPresent?: unknown[];
+      currentUsageCounts?: Record<string, number>;
+    };
+    noRealSubmissionPerformed?: boolean;
+  };
+  expect(preparedBody.noRealSubmissionPerformed !== false).toBeTruthy();
+  const credited =
+    (preparedBody.answerUsage?.currentUsageCounts?.notice_period ?? 0) >= 1 ||
+    (preparedBody.answerUsage?.inserted?.length ?? 0) > 0 ||
+    (preparedBody.answerUsage?.alreadyPresent?.length ?? 0) > 0;
+  if (!credited) {
+    gateFailures.push(
+      "Authoritative prepare response did not credit answer-bank usage."
+    );
+  }
 
   const answerBankLoad = page.waitForResponse(
     (response) =>
@@ -741,33 +794,32 @@ async function verifyJobApplicationFlow(
   await expect(page.getByText("Loading answer bank…")).toBeHidden({
     timeout: 60000,
   });
-  const answerCard = page
-    .getByRole("heading", { name: "Notice period" })
-    .locator("xpath=ancestor::*[contains(@class,'rounded')][1]");
   await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible({
     timeout: 60000,
   });
-  const usageText = await answerCard.innerText().catch(() => "");
-  if (!/Applications\s+[1-9]\d*/i.test(usageText)) {
-    gateFailures.push(
-      "Answer-bank reuse was not recorded after dry-run preparation."
-    );
-  }
+  const usage = page.getByTestId("answer-usage-notice_period");
+  await expect
+    .poll(async () => ((await usage.innerText().catch(() => "")) || "").trim(), {
+      timeout: 60000,
+    })
+    .toMatch(/^[1-9]\d*$/);
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Notice period" })).toBeVisible({
     timeout: 60000,
   });
-  const refreshedUsage = await page
-    .getByRole("heading", { name: "Notice period" })
-    .locator("xpath=ancestor::*[contains(@class,'rounded')][1]")
-    .innerText()
-    .catch(() => "");
-  if (!/Applications\s+[1-9]\d*/i.test(refreshedUsage)) {
-    gateFailures.push(
-      "Answer-bank usage count did not persist after refresh."
-    );
-  }
+  await expect
+    .poll(
+      async () =>
+        (
+          (await page
+            .getByTestId("answer-usage-notice_period")
+            .innerText()
+            .catch(() => "")) || ""
+        ).trim(),
+      { timeout: 60000 }
+    )
+    .toMatch(/^[1-9]\d*$/);
 
   return { title, canonicalUrl: href! };
 }
@@ -889,14 +941,30 @@ for (const [personaIndex, persona] of selectedPersonas.entries()) {
 
       let jobEvidence: { title: string; canonicalUrl: string } | null = null;
       await test.step("17-23. Open and save a real job, tailor, ATS-score, and prepare a dry run", async () => {
-        if (search.final.jobsRelevant === 0) {
+        const confirmed =
+          search.final.jobsRelevant ??
+          search.final.result?.rejectionDiagnostics?.acceptedRelevant ??
+          0;
+        const potential =
+          search.final.jobsPotential ??
+          search.final.result?.rejectionDiagnostics?.potentialMatches ??
+          0;
+        evidence.search = {
+          ...(evidence.search as object),
+          confirmedRelevant: confirmed,
+          potential,
+          rejected: search.final.jobsExcluded,
+        };
+        if (confirmed === 0 && potential === 0) {
           evidence.jobSupply = "NONE";
-          // Zero relevant jobs is an external supply outcome, not a product-flow failure.
-          // Search diagnostics were already asserted in the previous step.
           return;
         }
-        evidence.jobSupply =
-          search.final.jobsRelevant >= 3 ? "SUFFICIENT" : "LIMITED";
+        if (confirmed === 0 && potential > 0) {
+          evidence.jobSupply = "POTENTIAL_ONLY";
+          jobEvidence = await verifyJobApplicationFlow(page, gateFailures);
+          return;
+        }
+        evidence.jobSupply = confirmed >= 3 ? "SUFFICIENT" : "LIMITED";
         jobEvidence = await verifyJobApplicationFlow(page, gateFailures);
         evidence.job = jobEvidence;
       });
@@ -906,7 +974,7 @@ for (const [personaIndex, persona] of selectedPersonas.entries()) {
           page,
           account,
           persona,
-          search.final.jobsRelevant > 0 && Boolean(jobEvidence)
+          Boolean(jobEvidence)
         );
       });
 

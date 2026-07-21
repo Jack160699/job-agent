@@ -25,12 +25,78 @@ import { mapSubmissionToApplicationStatus } from "@/lib/applications/automation-
 import { preparationReuseDecision } from "@/lib/applications/preparation-state";
 import {
   answerToText,
-  recordAnswerBankUsage,
+  creditProvisionedAnswerUsage,
+  type AnswerUsageCreditSummary,
 } from "@/lib/applications/answer-bank-service";
+import {
+  assertApplicationReadyForDocuments,
+  assertApplicationReadyForPreparation,
+} from "@/lib/applications/eligibility-gate";
 import { assertCanUseFeature, recordUsage } from "@/lib/entitlements";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+
+const SUCCESSFUL_PREP_STATUSES = new Set([
+  "PENDING_REVIEW",
+  "AWAITING_APPROVAL",
+  "SUBMITTING",
+  "SUBMITTED",
+]);
+
+async function loadConfirmedAnswerKeys(userId: string): Promise<string[]> {
+  const rows = await prisma.applicationAnswerBank.findMany({
+    where: { userId, confirmationState: "confirmed" },
+    select: { questionKey: true },
+  });
+  return rows.map((row) => row.questionKey);
+}
+
+async function loadAnswerUsageSummary(
+  userId: string,
+  applicationId: string,
+  provisioned: string[]
+): Promise<AnswerUsageCreditSummary> {
+  const answers = await prisma.applicationAnswerBank.findMany({
+    where: {
+      userId,
+      questionKey: { in: provisioned },
+      confirmationState: "confirmed",
+    },
+    select: { id: true, questionKey: true, usageCount: true },
+  });
+  const usages = answers.length
+    ? await prisma.applicationAnswerUsage.findMany({
+        where: {
+          userId,
+          applicationId,
+          answerBankId: { in: answers.map((answer) => answer.id) },
+        },
+        select: { id: true, answerBankId: true },
+      })
+    : [];
+  const usageByAnswer = new Map(
+    usages.map((usage) => [usage.answerBankId, usage.id])
+  );
+  const alreadyPresent = answers
+    .filter((answer) => usageByAnswer.has(answer.id))
+    .map((answer) => ({
+      answerBankId: answer.id,
+      fieldKey: answer.questionKey,
+      inserted: false,
+      alreadyRecorded: true,
+      currentUsageCount: answer.usageCount,
+      usageRecordId: usageByAnswer.get(answer.id) ?? null,
+    }));
+  return {
+    provisioned,
+    inserted: [],
+    alreadyPresent,
+    currentUsageCounts: Object.fromEntries(
+      answers.map((answer) => [answer.questionKey, answer.usageCount])
+    ),
+  };
+}
 
 export interface AgentRunResult {
   searched: { total: number; new: number };
@@ -187,6 +253,7 @@ export async function prepareApplicationSubmission(
   });
 
   if (!application) throw new Error("Application not found");
+  assertApplicationReadyForPreparation(application.job.matchAnalysis);
   if (!application.tailoredResume || !application.coverLetter) {
     throw new Error(
       "Generate tailored resume and cover letter before preparing this application"
@@ -211,15 +278,30 @@ export async function prepareApplicationSubmission(
     hasPersistedFormData: Boolean(application.formData),
     activeTaskId: activeTask?.id,
   });
+  const provisionedKeys = await loadConfirmedAnswerKeys(userId);
   if (reuseDecision === "already_submitted") {
+    const answerUsage = await loadAnswerUsageSummary(
+      userId,
+      applicationId,
+      provisionedKeys
+    );
     return {
       success: true,
       status: "submitted" as const,
       message: "Application was already submitted. Duplicate delivery was ignored.",
       reused: true,
+      applicationId,
+      preparationStatus: "submitted" as const,
+      answerUsage,
+      noRealSubmissionPerformed: true,
     };
   }
   if (reuseDecision === "active_delivery") {
+    const answerUsage = await loadAnswerUsageSummary(
+      userId,
+      applicationId,
+      provisionedKeys
+    );
     return {
       success: true,
       status:
@@ -229,15 +311,31 @@ export async function prepareApplicationSubmission(
       message: "Application preparation is already active.",
       formData: activeTask ? { browserTaskId: activeTask.id } : undefined,
       reused: true,
+      applicationId,
+      preparationStatus:
+        application.status === "SUBMITTING"
+          ? ("submitting" as const)
+          : ("pending_review" as const),
+      answerUsage,
+      noRealSubmissionPerformed: !options?.autoSubmit,
     };
   }
   if (reuseDecision === "already_prepared") {
+    const answerUsage = await loadAnswerUsageSummary(
+      userId,
+      applicationId,
+      provisionedKeys
+    );
     return {
       success: true,
       status: "pending_review" as const,
       message: "Prepared application is already waiting for your review.",
       formData: application.formData as Record<string, unknown>,
       reused: true,
+      applicationId,
+      preparationStatus: "pending_review" as const,
+      answerUsage,
+      noRealSubmissionPerformed: true,
     };
   }
 
@@ -338,16 +436,18 @@ export async function prepareApplicationSubmission(
       payload: {
         autoSubmit: options?.autoSubmit ?? false,
         applicationId,
+        provisionedAnswerKeys: provisionedKeys,
       },
     });
-    const queuedAnswerKeys = await prisma.applicationAnswerBank.findMany({
-      where: { userId, confirmationState: "confirmed" },
-      select: { questionKey: true },
-    });
-    await recordAnswerBankUsage(
+    // Dry-run queue path sets PENDING_REVIEW immediately; credit provisioned
+    // confirmed answers here so the prepare response is authoritative without
+    // waiting on the browser worker. Worker callbacks remain idempotent; cancel
+    // and hard failure revoke usage.
+    const answerUsage = await creditProvisionedAnswerUsage(
       userId,
       applicationId,
-      queuedAnswerKeys.map((answer) => answer.questionKey)
+      provisionedKeys,
+      "queued_preparation"
     );
     await prisma.application.update({
       where: { id: applicationId },
@@ -358,6 +458,8 @@ export async function prepareApplicationSubmission(
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
           browserTaskId: task.id,
+          answerUsage,
+          noRealSubmissionPerformed: !options?.autoSubmit,
         } as Prisma.InputJsonValue,
       },
     });
@@ -370,6 +472,12 @@ export async function prepareApplicationSubmission(
         ? "Authorized submission queued. You can leave this page and track progress here."
         : "Application preparation queued. Kairela will stop for your review.",
       formData: { browserTaskId: task.id },
+      applicationId,
+      preparationStatus: options?.autoSubmit
+        ? ("submitting" as const)
+        : ("pending_review" as const),
+      answerUsage,
+      noRealSubmissionPerformed: !options?.autoSubmit,
     };
   }
 
@@ -429,7 +537,22 @@ export async function prepareApplicationSubmission(
           (field): field is string => typeof field === "string"
         )
       : [];
-    await recordAnswerBankUsage(userId, applicationId, answeredFields);
+    const preparationSucceeded = SUCCESSFUL_PREP_STATUSES.has(mapped.status);
+    // Credit every confirmed answer provisioned into this preparation so direct
+    // and queued paths converge even when the live form never asked for a field.
+    const answerUsage = preparationSucceeded
+      ? await creditProvisionedAnswerUsage(
+          userId,
+          applicationId,
+          [...new Set([...provisionedKeys, ...answeredFields])],
+          "direct_preparation"
+        )
+      : {
+          provisioned: provisionedKeys,
+          inserted: [],
+          alreadyPresent: [],
+          currentUsageCounts: {},
+        };
 
     await prisma.application.update({
       where: { id: applicationId },
@@ -440,6 +563,8 @@ export async function prepareApplicationSubmission(
         documents: {
           resumePdfPath: pdfPath,
           coverLetter: application.coverLetter?.content,
+          answerUsage,
+          noRealSubmissionPerformed: !options?.autoSubmit,
         } as Prisma.InputJsonValue,
         failureReason: mapped.failureReason,
         lastAttemptAt: new Date(),
@@ -470,6 +595,10 @@ export async function prepareApplicationSubmission(
         mapped.status === "SUBMITTED" ||
         mapped.status === "PENDING_REVIEW" ||
         mapped.status === "AWAITING_APPROVAL",
+      applicationId,
+      preparationStatus: mapped.status.toLowerCase(),
+      answerUsage,
+      noRealSubmissionPerformed: !options?.autoSubmit,
     };
   } finally {
     await browser.close();

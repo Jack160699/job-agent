@@ -30,6 +30,7 @@ interface JobRunProgress {
   jobsFound: number;
   jobsNew: number;
   jobsRelevant: number;
+  jobsPotential?: number;
   jobsExcluded: number;
   queuePosition: number | null;
   error: string | null;
@@ -118,9 +119,12 @@ export function JobSearchWorkflow({
           progress: p,
         });
         setExpanded(false);
-        if (p.jobsRelevant > 0) {
+        if (p.jobsRelevant > 0 || (p.jobsPotential ?? 0) > 0) {
           toast.success(
-            `Search complete — ${p.jobsRelevant} relevant jobs found`
+            `Search complete — ${p.jobsRelevant} confirmed relevant` +
+              ((p.jobsPotential ?? 0) > 0
+                ? `, ${p.jobsPotential} potential`
+                : "")
           );
         } else {
           toast.warning("Search complete — review why no jobs matched");
@@ -683,7 +687,8 @@ export function JobSearchWorkflow({
           {expanded && progress && (
             <div className="border-t border-[var(--line)] px-4 py-3 text-xs text-[var(--ink-tertiary)]">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <span>Relevant: {progress.jobsRelevant}</span>
+                <span>Confirmed: {progress.jobsRelevant}</span>
+                <span>Potential: {progress.jobsPotential ?? 0}</span>
                 <span>New: {progress.jobsNew}</span>
                 <span>Excluded: {progress.jobsExcluded}</span>
                 {progress.queuePosition != null && progress.queuePosition > 0 && (

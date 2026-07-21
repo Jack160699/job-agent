@@ -27,6 +27,7 @@ export interface JobRunProgress {
   jobsFound: number;
   jobsNew: number;
   jobsRelevant: number;
+  jobsPotential: number;
   jobsExcluded: number;
   failedSources: Array<{ source: string; error?: string }>;
   summary: string | null;
@@ -140,20 +141,40 @@ function buildProgress(
 
   const discoverMatch = auditLogs
     .find((l) => l.action === "JOB_SEARCH_COMPLETE")
+    ?.message.match(
+      /Found (\d+) raw, (\d+) confirmed relevant, (\d+) potential, (\d+) new \((\d+) excluded\)/
+    );
+  const legacyDiscoverMatch = auditLogs
+    .find((l) => l.action === "JOB_SEARCH_COMPLETE")
     ?.message.match(/Found (\d+) raw, (\d+) relevant, (\d+) new \((\d+) excluded\)/);
 
   const jobsFound = discoverMatch
     ? parseInt(discoverMatch[1], 10)
-    : (meta.rawCount as number) || 0;
+    : legacyDiscoverMatch
+      ? parseInt(legacyDiscoverMatch[1], 10)
+      : (meta.rawCount as number) || (meta.discovered as number) || 0;
   const jobsRelevant = discoverMatch
     ? parseInt(discoverMatch[2], 10)
-    : (meta.relevant as number) || 0;
-  const jobsNew = discoverMatch
+    : typeof meta.confirmedRelevant === "number"
+      ? meta.confirmedRelevant
+      : legacyDiscoverMatch
+        ? parseInt(legacyDiscoverMatch[2], 10)
+        : (meta.relevant as number) || 0;
+  const jobsPotential = discoverMatch
     ? parseInt(discoverMatch[3], 10)
-    : (meta.new as number) || 0;
-  const jobsExcluded = discoverMatch
+    : typeof meta.potentialMatches === "number"
+      ? meta.potentialMatches
+      : 0;
+  const jobsNew = discoverMatch
     ? parseInt(discoverMatch[4], 10)
-    : (meta.excluded as number) || 0;
+    : legacyDiscoverMatch
+      ? parseInt(legacyDiscoverMatch[3], 10)
+      : (meta.new as number) || 0;
+  const jobsExcluded = discoverMatch
+    ? parseInt(discoverMatch[5], 10)
+    : legacyDiscoverMatch
+      ? parseInt(legacyDiscoverMatch[4], 10)
+      : (meta.excluded as number) || 0;
   const sources = Array.isArray(meta.sources)
     ? (meta.sources as Array<{
         source?: string;
@@ -169,7 +190,7 @@ function buildProgress(
     }));
   const summary =
     job.status === "completed"
-      ? `Found ${jobsFound} raw roles, ${jobsRelevant} relevant, ${jobsNew} new, ${jobsExcluded} excluded${
+      ? `Found ${jobsFound} raw roles, ${jobsRelevant} confirmed relevant, ${jobsPotential} potential, ${jobsNew} new, ${jobsExcluded} excluded${
           typeof meta.duplicates === "number"
             ? `, removed ${meta.duplicates} duplicates`
             : ""
@@ -198,6 +219,7 @@ function buildProgress(
     jobsFound,
     jobsNew,
     jobsRelevant,
+    jobsPotential,
     jobsExcluded,
     failedSources,
     summary,

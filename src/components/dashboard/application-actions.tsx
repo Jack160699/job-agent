@@ -172,6 +172,17 @@ export function ApplicationActions({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
+      if (data.answerUsage) {
+        window.dispatchEvent(
+          new CustomEvent("kairela:answer-usage", {
+            detail: {
+              applicationId,
+              answerUsage: data.answerUsage,
+              preparationStatus: data.preparationStatus ?? data.status,
+            },
+          })
+        );
+      }
       toast.success(data.message || "Application prepared");
       router.refresh();
     } catch (error) {

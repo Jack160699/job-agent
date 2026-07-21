@@ -70,9 +70,23 @@ export async function POST(request: NextRequest) {
         ? 401
         : message === "JOB_NOT_ACTIVE"
           ? 409
+        : message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+          ? 409
         : message === "Application not found" || message === "Master resume required"
           ? 404
           : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      {
+        error:
+          message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            ? "Potential match — verify eligibility on the source before generating documents."
+            : message,
+        code:
+          message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            ? "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            : undefined,
+      },
+      { status }
+    );
   }
 }

@@ -8,6 +8,7 @@ import { ApplicationActions } from "@/components/dashboard/application-actions";
 export function JobResultActions({
   job,
   application,
+  requiresVerification = false,
 }: {
   job: { id: string; title: string; company: string; status?: string };
   application?: {
@@ -17,6 +18,7 @@ export function JobResultActions({
     hasDocuments: boolean;
     browserTaskId?: string | null;
   };
+  requiresVerification?: boolean;
 }) {
   const [selectedToCompare, setSelectedToCompare] = useState(false);
 
@@ -53,7 +55,12 @@ export function JobResultActions({
         <GitCompareArrows className="h-3 w-3" />
         {selectedToCompare ? "Selected" : "Compare"}
       </Button>
-      {application && (
+      {requiresVerification && (
+        <p className="w-full text-right text-[10px] text-[var(--warning)]">
+          Potential match — verify on source before generating documents or preparing an application.
+        </p>
+      )}
+      {application && !requiresVerification && (
         <ApplicationActions
           applicationId={application.id}
           status={application.status}

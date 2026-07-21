@@ -22,6 +22,16 @@ const accountDeletionFixSql = readFileSync(
   "utf8"
 );
 
+const usageCreditSql = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260721183000_answer_usage_credit_rpc.sql"
+  ),
+  "utf8"
+);
+
 describe("application answer bank migration contract", () => {
   it.each(["application_answer_versions", "application_answer_usage"])(
     "creates %s additively",
@@ -72,5 +82,21 @@ describe("application answer bank migration contract", () => {
 
   it("keeps the account-deletion fix forward-only", () => {
     expect(accountDeletionFixSql).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
+  });
+
+  it("adds idempotent usage credit uniqueness and RPC", () => {
+    expect(usageCreditSql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS application_answer_usage_app_answer_unique/i
+    );
+    expect(usageCreditSql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.credit_application_answer_usage/i
+    );
+    expect(usageCreditSql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.revoke_application_answer_usage/i
+    );
+    expect(usageCreditSql).toMatch(/ON CONFLICT \(application_id, answer_bank_id\)/i);
+    expect(usageCreditSql).toMatch(/SECURITY INVOKER/i);
+    expect(usageCreditSql).not.toMatch(/SECURITY DEFINER/i);
+    expect(usageCreditSql).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
   });
 });

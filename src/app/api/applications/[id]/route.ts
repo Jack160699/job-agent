@@ -102,13 +102,24 @@ export async function POST(
     }
     const message = error instanceof Error ? error.message : "Submit failed";
     return NextResponse.json(
-      { error: message },
+      {
+        error:
+          message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            ? "Potential match — verify eligibility on the source before preparing an application."
+            : message,
+        code:
+          message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            ? "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+            : undefined,
+      },
       {
         status:
           message === "Unauthorized"
             ? 401
             : message === "Application not found"
               ? 404
+              : message === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+                ? 409
               : message.includes("Generate tailored")
                 ? 422
                 : 500,

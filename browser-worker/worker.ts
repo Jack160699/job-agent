@@ -5,12 +5,20 @@ import { runPrepareApplicationTask } from "./automation/runner";
 import { mapSubmissionToApplicationStatus } from "../../src/lib/applications/automation-policy";
 import {
   answerToText,
-  recordAnswerBankUsage,
+  creditProvisionedAnswerUsage,
+  revokeApplicationAnswerUsage,
 } from "../../src/lib/applications/answer-bank-service";
 
 const prisma = new PrismaClient();
 const POLL_MS = Number(process.env.BROWSER_WORKER_POLL_MS || 3000);
 const CONCURRENCY = Number(process.env.BROWSER_WORKER_CONCURRENCY || 1);
+const SUCCESSFUL_PREP_STATUSES = new Set([
+  "PENDING_REVIEW",
+  "AWAITING_APPROVAL",
+  "SUBMITTING",
+  "SUBMITTED",
+]);
+
 
 async function processTask(taskId: string) {
   const task = await prisma.browserTask.findUniqueOrThrow({
@@ -111,6 +119,7 @@ async function processTask(taskId: string) {
         "cancelled" in result.formData &&
         (result.formData as { cancelled?: boolean }).cancelled
       ) {
+        await revokeApplicationAnswerUsage(task.userId, applicationId);
         await prisma.application.update({
           where: { id: applicationId },
           data: {
@@ -139,12 +148,39 @@ async function processTask(taskId: string) {
               (field): field is string => typeof field === "string"
             )
           : [];
-      await recordAnswerBankUsage(
-        task.userId,
-        applicationId,
-        answeredFields
-      );
+      const provisionedFromPayload = Array.isArray(payload.provisionedAnswerKeys)
+        ? payload.provisionedAnswerKeys.filter(
+            (field): field is string => typeof field === "string"
+          )
+        : [];
+      let answerUsage = {
+        provisioned: provisionedFromPayload,
+        inserted: [] as Awaited<
+          ReturnType<typeof creditProvisionedAnswerUsage>
+        >["inserted"],
+        alreadyPresent: [] as Awaited<
+          ReturnType<typeof creditProvisionedAnswerUsage>
+        >["alreadyPresent"],
+        currentUsageCounts: {} as Record<string, number>,
+      };
+      if (SUCCESSFUL_PREP_STATUSES.has(mapped.status)) {
+        answerUsage = await creditProvisionedAnswerUsage(
+          task.userId,
+          applicationId,
+          [...new Set([...provisionedFromPayload, ...answeredFields])],
+          "browser_worker"
+        );
+      } else if (payload.autoSubmit) {
+        // Authorized submission failed after a speculative credit — roll back.
+        await revokeApplicationAnswerUsage(task.userId, applicationId);
+      }
+      // Dry-run queue credits remain authoritative even when the worker later
+      // cannot finish browser fill; cancel is the only dry-run revoke path.
 
+      const existingDocuments =
+        application.documents && typeof application.documents === "object"
+          ? (application.documents as Record<string, unknown>)
+          : {};
       await prisma.application.update({
         where: { id: applicationId },
         data: {
@@ -152,6 +188,11 @@ async function processTask(taskId: string) {
           submittedAt:
             mapped.status === "SUBMITTED" ? new Date() : undefined,
           formData: result.formData as Prisma.InputJsonValue,
+          documents: {
+            ...existingDocuments,
+            answerUsage,
+            noRealSubmissionPerformed: !payload.autoSubmit,
+          } as Prisma.InputJsonValue,
           failureReason: mapped.failureReason,
           requiresReview:
             !payload.autoSubmit || mapped.status !== "SUBMITTED",
@@ -160,6 +201,7 @@ async function processTask(taskId: string) {
 
       await browserQueue.complete(taskId, {
         ...result,
+        answerUsage,
         screenshotPaths: result.screenshotPaths,
       });
       return;
@@ -182,6 +224,18 @@ async function processTask(taskId: string) {
 
     const message = error instanceof Error ? error.message : String(error);
     if (task.applicationId) {
+      const autoSubmit = Boolean(
+        task.payload &&
+          typeof task.payload === "object" &&
+          "autoSubmit" in task.payload &&
+          (task.payload as { autoSubmit?: boolean }).autoSubmit
+      );
+      if (autoSubmit) {
+        await revokeApplicationAnswerUsage(
+          task.userId,
+          task.applicationId
+        ).catch(() => 0);
+      }
       await prisma.application.updateMany({
         where: {
           id: task.applicationId,

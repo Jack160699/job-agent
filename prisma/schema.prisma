@@ -899,6 +899,9 @@ model ApplicationAnswerUsage {
 
   @@index([userId, answerBankId, usedAt])
   @@index([userId, applicationId])
+  // Partial unique index application_answer_usage_app_answer_unique
+  // (application_id, answer_bank_id) WHERE application_id IS NOT NULL
+  // is enforced in SQL migration for idempotent credits.
   @@map("application_answer_usage")
 }
 
