@@ -107,7 +107,7 @@ describe("public job discovery", () => {
         SERPAPI_KEY: "serpapi",
         BRAVE_SEARCH_API_KEY: "brave",
       })
-    ).toEqual(["serper", "brave", "serpapi"]);
+    ).toEqual(["serper", "brave"]);
     expect(configuredPublicSearchProviders({ SERPAPI_KEY: "configured" })).toEqual([
       "serpapi",
     ]);

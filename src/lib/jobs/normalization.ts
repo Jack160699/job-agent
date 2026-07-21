@@ -16,10 +16,19 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "associate software engineer",
     "graduate engineer trainee",
     "junior software developer",
+    "junior software engineer",
     "junior backend developer",
     "junior frontend developer",
+    "junior full stack developer",
+    "entry level developer",
+    "trainee software engineer",
     "full stack developer",
+    "web developer",
     "application developer",
+    "qa engineer",
+    "junior qa engineer",
+    "technical support engineer",
+    "implementation engineer",
     "programmer",
   ],
   frontend: [
@@ -29,6 +38,7 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "react developer",
     "react engineer",
     "ui developer",
+    "junior frontend developer",
   ],
   backend: [
     "backend developer",
@@ -36,6 +46,9 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "backend engineer",
     "server side engineer",
     "api developer",
+    "node.js developer",
+    "nodejs developer",
+    "junior backend developer",
   ],
   operations_analysis: [
     "operations analyst",
@@ -50,13 +63,17 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "process operations associate",
     "operations associate",
     "support operations analyst",
+    "customer operations associate",
     "customer onboarding associate",
+    "client onboarding specialist",
     "client success associate",
     "payment operations analyst",
     "payment operations associate",
+    "logistics operations analyst",
     "logistics operations associate",
     "back office executive",
     "mis executive",
+    "service delivery analyst",
     "service delivery associate",
     "business ops analyst",
     "operations specialist",
@@ -120,17 +137,24 @@ const TITLE_FAMILIES: Record<string, string[]> = {
     "clinical associate",
     "healthcare associate",
     "healthcare coordinator",
+    "healthcare support executive",
+    "hospital operations executive",
     "medical officer",
     "medical representative",
     "patient care coordinator",
     "medical operations associate",
-    "hospital operations executive",
     "clinical data coordinator",
+    "medical data associate",
     "medical support specialist",
     "healthcare customer support",
     "medical claims associate",
+    "health insurance operations",
     "health insurance operations associate",
+    "claims processor",
+    "claims analyst",
+    "medical billing associate",
     "clinical research coordinator",
+    "pharmacovigilance associate",
     "pharmacy assistant",
     "lab coordinator",
   ],
@@ -390,7 +414,18 @@ export function isSeniorityCompatible(
 export function titlesAreRelated(target: string, candidate: string): boolean {
   const left = normalizeTitle(target);
   const right = normalizeTitle(candidate);
-  if (left.family && right.family) return left.family === right.family;
+  if (left.family && right.family) {
+    if (left.family === right.family) return true;
+    const softwareCluster = new Set([
+      "software_engineering",
+      "frontend",
+      "backend",
+      "technical_support",
+    ]);
+    if (softwareCluster.has(left.family) && softwareCluster.has(right.family)) {
+      return true;
+    }
+  }
   return (
     left.normalized.includes(right.normalized) ||
     right.normalized.includes(left.normalized)
@@ -407,6 +442,42 @@ export function expandRoleTitles(titles: string[]): string[] {
     }
   }
   return [...expanded].filter(Boolean);
+}
+
+/** Best-effort city/country hint from public index text; never fabricates a preference city. */
+export function extractLocationHint(
+  text: string,
+  preferredLocations: string[] = []
+): string | undefined {
+  const normalized = normalizeText(text);
+  if (!normalized) return undefined;
+  for (const preferred of preferredLocations) {
+    const marker = normalizeText(preferred);
+    if (
+      marker &&
+      marker !== "remote" &&
+      marker !== "india" &&
+      normalized.includes(marker)
+    ) {
+      return preferred;
+    }
+  }
+  for (const [, aliases] of Object.entries(LOCATION_GROUPS)) {
+    const hit = aliases.find((alias) => normalized.includes(alias));
+    if (hit) return hit;
+  }
+  if (normalized.includes("india") || normalized.includes("bharat")) {
+    return "India";
+  }
+  return undefined;
+}
+
+export function inferTitleFamily(titles: string[]): string | null {
+  for (const title of titles) {
+    const family = normalizeTitle(title).family;
+    if (family) return family;
+  }
+  return null;
 }
 
 export function normalizeLocation(value: string): {

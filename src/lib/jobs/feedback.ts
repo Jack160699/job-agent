@@ -111,13 +111,18 @@ export function applyFeedbackProfile(
 
   const score = Math.max(0, Math.min(100, result.score + delta));
   const accepted = score >= threshold;
+  const keepPotential =
+    result.classification === "POTENTIAL_MATCH_REQUIRES_VERIFICATION" &&
+    accepted;
   return {
     ...result,
     score,
     accepted,
-    classification: accepted
-      ? classification(score)
-      : "REJECTED",
+    classification: !accepted
+      ? "REJECTED"
+      : keepPotential
+        ? "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+        : classification(score),
     reasons:
       delta > 0
         ? [...result.reasons, "Adjusted using your prior match feedback"]

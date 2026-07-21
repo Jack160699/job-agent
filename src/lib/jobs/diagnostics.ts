@@ -1,5 +1,6 @@
 export type FilterImpactCategory =
   | "title_mismatch"
+  | "profession_mismatch"
   | "location_mismatch"
   | "salary_below_minimum"
   | "experience_mismatch"
@@ -16,10 +17,13 @@ export type FilterImpactCategory =
   | "sponsorship_unavailable"
   | "below_match_threshold"
   | "insufficient_information"
+  | "insufficient_metadata"
+  | "low_confidence_public_snippet"
   | "other";
 
 export const FILTER_IMPACT_LABELS: Record<FilterImpactCategory, string> = {
   title_mismatch: "Job title did not match your target roles",
+  profession_mismatch: "Profession did not match your target field",
   location_mismatch: "Outside your preferred locations",
   salary_below_minimum: "Salary below your minimum",
   experience_mismatch: "Experience requirement did not fit",
@@ -36,12 +40,15 @@ export const FILTER_IMPACT_LABELS: Record<FilterImpactCategory, string> = {
   sponsorship_unavailable: "Visa sponsorship was unavailable",
   below_match_threshold: "Overall match score was below your threshold",
   insufficient_information: "Posting had too little information to evaluate",
+  insufficient_metadata: "Public listing metadata was incomplete",
+  low_confidence_public_snippet: "Public snippet was too thin to confirm eligibility",
   other: "Other reasons",
 };
 
 export function categorizeExclusionReason(reason: string): FilterImpactCategory {
   const normalized = reason.toLowerCase();
   if (normalized.includes("does not match desired roles")) return "title_mismatch";
+  if (normalized.includes("profession")) return "profession_mismatch";
   if (normalized.includes("location")) return "location_mismatch";
   if (normalized.includes("below minimum")) return "salary_below_minimum";
   if (normalized.includes("years; profile has")) return "experience_mismatch";
@@ -74,6 +81,12 @@ export function categorizeExclusionReason(reason: string): FilterImpactCategory 
   if (normalized.includes("below threshold")) return "below_match_threshold";
   if (normalized.includes("insufficient job information")) {
     return "insufficient_information";
+  }
+  if (normalized.includes("incomplete metadata")) {
+    return "insufficient_metadata";
+  }
+  if (normalized.includes("public snippet")) {
+    return "low_confidence_public_snippet";
   }
   return "other";
 }
@@ -306,4 +319,117 @@ export function buildZeroResultDiagnosis(
   }
 
   return { explanation, suggestedActions: [...new Set(actions)] };
+}
+
+export interface SearchRejectionDiagnostics {
+  discovered: number;
+  acceptedRelevant: number;
+  potentialMatches: number;
+  rejectedByTitle: number;
+  rejectedByLocation: number;
+  rejectedByExperience: number;
+  rejectedBySkills: number;
+  rejectedByQualification: number;
+  rejectedBySector: number;
+  rejectedBySeniority: number;
+  rejectedByWorkMode: number;
+  rejectedMissingMetadata: number;
+  rejectedExpired: number;
+  rejectedBelowThreshold: number;
+  otherRejections: number;
+}
+
+export function buildSearchRejectionDiagnostics(input: {
+  discovered: number;
+  filtered: Array<{ analysis?: { classification?: string } }>;
+  excluded: Array<{
+    analysis?: {
+      classification?: string;
+      rejectionCode?: string;
+      exclusions?: string[];
+    };
+  }>;
+}): SearchRejectionDiagnostics {
+  const potentialMatches = input.filtered.filter(
+    (job) =>
+      job.analysis?.classification === "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+  ).length;
+  const acceptedRelevant = input.filtered.length - potentialMatches;
+  const counts: SearchRejectionDiagnostics = {
+    discovered: input.discovered,
+    acceptedRelevant,
+    potentialMatches,
+    rejectedByTitle: 0,
+    rejectedByLocation: 0,
+    rejectedByExperience: 0,
+    rejectedBySkills: 0,
+    rejectedByQualification: 0,
+    rejectedBySector: 0,
+    rejectedBySeniority: 0,
+    rejectedByWorkMode: 0,
+    rejectedMissingMetadata: 0,
+    rejectedExpired: 0,
+    rejectedBelowThreshold: 0,
+    otherRejections: 0,
+  };
+
+  for (const entry of input.excluded) {
+    const code = entry.analysis?.rejectionCode;
+    const category = code
+      ? code === "title_mismatch" || code === "profession_mismatch"
+        ? "rejectedByTitle"
+        : code === "location_mismatch"
+          ? "rejectedByLocation"
+          : code === "experience_too_high" || code === "experience_too_low"
+            ? "rejectedByExperience"
+            : code === "qualification_mismatch"
+              ? "rejectedByQualification"
+              : code === "sector_mismatch"
+                ? "rejectedBySector"
+                : code === "seniority_mismatch"
+                  ? "rejectedBySeniority"
+                  : code === "work_mode_mismatch"
+                    ? "rejectedByWorkMode"
+                    : code === "insufficient_metadata" ||
+                        code === "insufficient_information"
+                      ? "rejectedMissingMetadata"
+                      : code === "expired"
+                        ? "rejectedExpired"
+                        : code === "below_match_threshold"
+                          ? "rejectedBelowThreshold"
+                          : "otherRejections"
+      : (() => {
+          const impact = categorizeExclusionReason(
+            entry.analysis?.exclusions?.[0] ?? ""
+          );
+          if (impact === "title_mismatch" || impact === "profession_mismatch") {
+            return "rejectedByTitle";
+          }
+          if (impact === "location_mismatch") return "rejectedByLocation";
+          if (impact === "experience_mismatch") return "rejectedByExperience";
+          if (impact === "missing_skills") return "rejectedBySkills";
+          if (impact === "qualification_mismatch") {
+            return "rejectedByQualification";
+          }
+          if (impact === "industry_mismatch") return "rejectedBySector";
+          if (impact === "seniority_mismatch") return "rejectedBySeniority";
+          if (impact === "work_mode_mismatch") return "rejectedByWorkMode";
+          if (
+            impact === "insufficient_information" ||
+            impact === "insufficient_metadata"
+          ) {
+            return "rejectedMissingMetadata";
+          }
+          if (impact === "expired_or_removed" || impact === "stale_posting") {
+            return "rejectedExpired";
+          }
+          if (impact === "below_match_threshold") {
+            return "rejectedBelowThreshold";
+          }
+          return "otherRejections";
+        })();
+    counts[category] += 1;
+  }
+
+  return counts;
 }

@@ -104,6 +104,9 @@ export default async function JobsPage({
                 recommendation?: string;
                 concerns?: string[];
                 uncertain?: string[];
+                requiresVerification?: boolean;
+                matchedSignals?: string[];
+                unknownSignals?: string[];
               } | null;
               const application = job.applications?.[0];
               const metadata = job.metadata as {
@@ -135,7 +138,17 @@ export default async function JobsPage({
                         </h3>
                         {analysis?.classification && (
                           <span className="rounded-full bg-[var(--accent-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                            {analysis.classification}
+                            {analysis.classification ===
+                            "POTENTIAL_MATCH_REQUIRES_VERIFICATION"
+                              ? "Needs verification"
+                              : analysis.classification}
+                          </span>
+                        )}
+                        {(analysis?.requiresVerification ||
+                          analysis?.classification ===
+                            "POTENTIAL_MATCH_REQUIRES_VERIFICATION") && (
+                          <span className="rounded-full border border-[var(--warning)]/30 bg-[var(--warning-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+                            Open source to verify
                           </span>
                         )}
                         {metadata?.searchStage && (
@@ -191,6 +204,20 @@ export default async function JobsPage({
                           </span>
                         )}
                       </div>
+                      {(analysis?.requiresVerification ||
+                        analysis?.classification ===
+                          "POTENTIAL_MATCH_REQUIRES_VERIFICATION") && (
+                        <p className="mt-2 text-xs text-[var(--warning)]">
+                          Potential match — open the original source to verify
+                          unknown requirements
+                          {analysis?.unknownSignals?.length
+                            ? ` (${analysis.unknownSignals
+                                .slice(0, 4)
+                                .join(", ")})`
+                            : ""}
+                          .
+                        </p>
+                      )}
                       {governmentJob && (
                         <div className="mt-2 space-y-1 text-xs text-[var(--ink-secondary)]">
                           <p>

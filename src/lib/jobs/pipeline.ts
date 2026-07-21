@@ -30,6 +30,7 @@ import { parseResumeStructure } from "@/lib/resumes/parser";
 import type { AtsReadinessScore } from "@/lib/resumes/ats-score";
 import {
   buildFilterImpact,
+  buildSearchRejectionDiagnostics,
   buildZeroResultDiagnosis,
 } from "@/lib/jobs/diagnostics";
 import { unavailableEnabledSources } from "@/lib/jobs/source-capabilities";
@@ -38,6 +39,7 @@ import {
   PUBLIC_DISCOVERY_SOURCES,
   PublicDiscoveryAdapter,
   beginPublicDiscoveryRun,
+  orderedPublicDiscoverySources,
   publicDiscoveryCapability,
 } from "@/lib/jobs/public-discovery";
 import {
@@ -266,9 +268,10 @@ export async function searchJobs(
   };
 
   const adapters = [
-    ...PUBLIC_DISCOVERY_SOURCES.map(
-      (source) => new PublicDiscoveryAdapter(source)
-    ),
+    ...orderedPublicDiscoverySources([
+      ...searchPlan.primaryRoles,
+      ...searchPlan.alternativeRoles,
+    ]).map((source) => new PublicDiscoveryAdapter(source)),
     new GreenhouseAdapter(),
     new LeverAdapter(),
     new AshbyAdapter(),
@@ -657,6 +660,9 @@ export async function searchJobs(
           classificationVersion: job.analysis.classificationVersion,
           breakdown: job.analysis.breakdown,
           recommendation: job.analysis.recommendation,
+          requiresVerification: job.analysis.requiresVerification ?? false,
+          matchedSignals: job.analysis.matchedSignals ?? [],
+          unknownSignals: job.analysis.unknownSignals ?? [],
           preferenceMatched: true,
           searchStage:
             typeof job.metadata?.searchStage === "string"
@@ -682,6 +688,7 @@ export async function searchJobs(
           uncertain: ex.analysis.uncertain,
           breakdown: ex.analysis.breakdown,
           recommendation: ex.analysis.recommendation,
+          rejectionCode: ex.analysis.rejectionCode,
           excludedByPreferences: true,
           searchPlanId: storedPlan.id,
         } as unknown as Prisma.InputJsonValue,
@@ -901,6 +908,11 @@ export async function searchJobs(
   const filterImpact = buildFilterImpact(
     excluded.flatMap((entry) => entry.analysis.exclusions)
   );
+  const rejectionDiagnostics = buildSearchRejectionDiagnostics({
+    discovered: discovered.length,
+    filtered,
+    excluded,
+  });
   const searchStageCounts = filtered.reduce(
     (counts, job) => {
       const stage =
@@ -955,6 +967,7 @@ export async function searchJobs(
     expired: expiredExisting.count,
     sources: sourceResults,
     filterImpact,
+    rejectionDiagnostics,
     searchStageCounts,
     zeroResultDiagnosis,
     searchSummary,
@@ -993,6 +1006,7 @@ export async function searchJobs(
     expired: expiredExisting.count,
     sources: sourceResults,
     filterImpact,
+    rejectionDiagnostics,
     searchStageCounts,
     zeroResultDiagnosis,
     searchSummary,

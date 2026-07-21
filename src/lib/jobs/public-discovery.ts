@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { JobSource } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { extractLocationHint, inferTitleFamily } from "./normalization";
 import type {
   DiscoveredJob,
   JobSearchFilters,
@@ -145,6 +146,111 @@ export const PUBLIC_DISCOVERY_SOURCES = Object.freeze(
   Object.keys(PUBLIC_SOURCES) as PublicDiscoverySource[]
 );
 
+const PROFESSION_SOURCE_ORDER: Record<string, PublicDiscoverySource[]> = {
+  software_engineering: [
+    "LINKEDIN",
+    "NAUKRI",
+    "CUTSHORT",
+    "INSTAHYRE",
+    "HIRIST",
+    "WELLFOUND",
+    "INDEED",
+    "FOUNDIT",
+  ],
+  frontend: [
+    "LINKEDIN",
+    "NAUKRI",
+    "CUTSHORT",
+    "INSTAHYRE",
+    "HIRIST",
+    "WELLFOUND",
+    "INDEED",
+    "FOUNDIT",
+  ],
+  backend: [
+    "LINKEDIN",
+    "NAUKRI",
+    "CUTSHORT",
+    "INSTAHYRE",
+    "HIRIST",
+    "WELLFOUND",
+    "INDEED",
+    "FOUNDIT",
+  ],
+  operations_analysis: [
+    "NAUKRI",
+    "LINKEDIN",
+    "INDEED",
+    "FOUNDIT",
+    "SHINE",
+    "TIMESJOBS",
+    "IIMJOBS",
+    "APNA",
+  ],
+  nursing_healthcare: [
+    "INDEED",
+    "NAUKRI",
+    "LINKEDIN",
+    "APNA",
+    "FRESHERSWORLD",
+    "FOUNDIT",
+    "SHINE",
+    "INTERNSHALA",
+  ],
+  banking: [
+    "NAUKRI",
+    "LINKEDIN",
+    "INDEED",
+    "IIMJOBS",
+    "FOUNDIT",
+    "SHINE",
+    "TIMESJOBS",
+    "APNA",
+  ],
+  teaching_education: [
+    "INDEED",
+    "NAUKRI",
+    "LINKEDIN",
+    "APNA",
+    "FRESHERSWORLD",
+    "INTERNSHALA",
+    "SHINE",
+    "FOUNDIT",
+  ],
+  technician_apprentice: [
+    "NAUKRI",
+    "INDEED",
+    "APNA",
+    "FRESHERSWORLD",
+    "LINKEDIN",
+    "FOUNDIT",
+    "SHINE",
+    "TIMESJOBS",
+  ],
+};
+
+export function orderedPublicDiscoverySources(
+  titles: string[] = []
+): PublicDiscoverySource[] {
+  const family = inferTitleFamily(titles);
+  const preferred = family ? PROFESSION_SOURCE_ORDER[family] : null;
+  const ordered: PublicDiscoverySource[] = [];
+  const seen = new Set<PublicDiscoverySource>();
+  for (const source of preferred ?? []) {
+    if (!seen.has(source)) {
+      ordered.push(source);
+      seen.add(source);
+    }
+  }
+  for (const source of PUBLIC_DISCOVERY_SOURCES) {
+    if (!seen.has(source)) {
+      ordered.push(source);
+      seen.add(source);
+    }
+  }
+  return ordered;
+}
+
 const DEFAULT_CACHE_TTL_MS = 6 * 60 * 60_000;
 const SEARCH_CACHE_MAX_ENTRIES = 500;
 const DEFAULT_MAX_QUERIES_PER_RUN = 8;
@@ -187,7 +293,8 @@ export type ProviderHealthStatus =
   | "authentication_failed"
   | "rate_limited"
   | "quota_exhausted"
-  | "temporarily_unavailable";
+  | "temporarily_unavailable"
+  | "disabled";
 
 export interface ProviderHealthSnapshot {
   name: ProviderName;
@@ -235,6 +342,7 @@ let runBudget: RunBudgetState = {
   userId: null,
   startedAt: 0,
 };
+let publicResultsAccumulated = 0;
 
 export type PublicDiscoveryErrorCode =
   | "NOT_CONFIGURED"
@@ -354,7 +462,13 @@ export function configuredPublicSearchProviders(
   ) {
     providers.push("google_cse");
   }
-  if (serpApiKey(env) && !authFailedProviders.has("serpapi")) {
+  // Invalid historical SerpApi keys must not delay Serper. Only use SerpApi when
+  // Serper is absent and the key has not already failed authentication.
+  if (
+    serpApiKey(env) &&
+    !env.SERPER_API_KEY &&
+    !authFailedProviders.has("serpapi")
+  ) {
     providers.push("serpapi");
   }
   return providers;
@@ -379,6 +493,18 @@ export function beginPublicDiscoveryRun(
     userId,
     startedAt: Date.now(),
   };
+  publicResultsAccumulated = 0;
+}
+
+function notePublicDiscoveryYield(
+  count: number,
+  env: PublicDiscoveryEnv
+): void {
+  publicResultsAccumulated += count;
+  const enough = envNumber(env, "PUBLIC_SEARCH_ENOUGH_RESULTS", 24);
+  if (publicResultsAccumulated >= enough) {
+    runBudget.remaining = 0;
+  }
 }
 
 function claimRunBudget(): boolean {
@@ -1091,13 +1217,17 @@ export async function discoverPublicJobs(
       const identity = createHash("sha256").update(canonical).digest("hex");
       if (jobs.has(identity)) continue;
       const parsed = splitIndexedTitle(source, indexed.title);
+      const locationHint = extractLocationHint(
+        `${indexed.title} ${indexed.snippet}`,
+        filters.locations
+      );
       jobs.set(identity, {
         externalId: `public:${identity}`,
         source: source as JobSource,
         sourceUrl: canonical,
         title: parsed.title,
         company: parsed.company,
-        location: filters.locations[0],
+        location: locationHint,
         description: indexed.snippet.slice(0, 1_500),
         metadata: {
           provenance: "public_discovery",
@@ -1111,10 +1241,12 @@ export async function discoverPublicJobs(
           query,
           publicSource: PUBLIC_SOURCES[source].displayName,
           fromCache: response.fromCache,
+          locationSource: locationHint ? "indexed_text" : "unknown",
         },
       });
     }
   }
+  notePublicDiscoveryYield(jobs.size, env);
   return [...jobs.values()];
 }
 
@@ -1160,12 +1292,16 @@ export function getPublicSearchProviderHealth(
     const isConfigured = keyPresent[name];
     let status: ProviderHealthStatus = "not_configured";
     if (isConfigured) {
-      if (authFailedProviders.has(name) || state.authFailed) {
+      if (name === "serpapi" && env.SERPER_API_KEY) {
+        status = authFailedProviders.has(name)
+          ? "authentication_failed"
+          : "disabled";
+      } else if (authFailedProviders.has(name) || state.authFailed) {
         status = "authentication_failed";
       } else if (state.status !== "not_configured") {
         status = state.status;
       } else {
-        status = configured.has(name) ? "configured" : "configured";
+        status = "configured";
       }
     }
     return {

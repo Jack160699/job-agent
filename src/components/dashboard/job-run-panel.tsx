@@ -84,6 +84,16 @@ interface JobRunProgress {
       >;
     } | null;
     filterImpact?: Record<string, number>;
+    rejectionDiagnostics?: {
+      discovered?: number;
+      acceptedRelevant?: number;
+      potentialMatches?: number;
+      rejectedByTitle?: number;
+      rejectedByLocation?: number;
+      rejectedByExperience?: number;
+      rejectedByWorkMode?: number;
+      rejectedMissingMetadata?: number;
+    };
   } | null;
 }
 
@@ -202,6 +212,7 @@ export function JobRunPanel({
           result: {
             zeroResultDiagnosis: data.zeroResultDiagnosis ?? null,
             filterImpact: data.filterImpact ?? {},
+            rejectionDiagnostics: data.rejectionDiagnostics ?? null,
             sources: data.sources ?? [],
           },
         });
@@ -649,6 +660,32 @@ export function JobRunPanel({
               ))}
             </div>
           )}
+          {progress.result?.rejectionDiagnostics && (
+              <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-xs font-medium text-[var(--ink)]">
+                  Rejection diagnostics
+                </p>
+                <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                  Discovered {progress.result.rejectionDiagnostics.discovered ?? 0}
+                  {" · "}Confirmed{" "}
+                  {progress.result.rejectionDiagnostics.acceptedRelevant ?? 0}
+                  {" · "}Needs verification{" "}
+                  {progress.result.rejectionDiagnostics.potentialMatches ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-[var(--ink-tertiary)]">
+                  Title{" "}
+                  {progress.result.rejectionDiagnostics.rejectedByTitle ?? 0}
+                  {" · "}Location{" "}
+                  {progress.result.rejectionDiagnostics.rejectedByLocation ?? 0}
+                  {" · "}Experience{" "}
+                  {progress.result.rejectionDiagnostics.rejectedByExperience ?? 0}
+                  {" · "}Work mode{" "}
+                  {progress.result.rejectionDiagnostics.rejectedByWorkMode ?? 0}
+                  {" · "}Missing metadata{" "}
+                  {progress.result.rejectionDiagnostics.rejectedMissingMetadata ?? 0}
+                </p>
+              </div>
+            )}
           {progress.result?.filterImpact &&
             Object.keys(progress.result.filterImpact).length > 0 && (
               <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">

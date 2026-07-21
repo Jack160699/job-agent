@@ -142,11 +142,19 @@ export async function getJobsForView(view: JobResultsView) {
         matchAnalysis: { path: ["classification"], equals: "STRONG" },
       };
     } else {
-      // "possible" browse view — keep LOW out of this tab.
+      // "possible" browse view — include potential public matches that need verification.
       where = {
         userId: user.id,
         status: "ACTIVE" as const,
-        matchAnalysis: { path: ["classification"], equals: "POSSIBLE" },
+        OR: [
+          { matchAnalysis: { path: ["classification"], equals: "POSSIBLE" } },
+          {
+            matchAnalysis: {
+              path: ["classification"],
+              equals: "POTENTIAL_MATCH_REQUIRES_VERIFICATION",
+            },
+          },
+        ],
       };
     }
 
