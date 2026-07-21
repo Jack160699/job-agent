@@ -47,6 +47,31 @@ const SKILLS = [
   "SAP",
   "Jira",
   "Selenium",
+  "Patient care",
+  "Nursing",
+  "GNM",
+  "BSc Nursing",
+  "Ward care",
+  "ICU",
+  "Clinical documentation",
+  "Teaching",
+  "Curriculum",
+  "BEd",
+  "Classroom management",
+  "Banking",
+  "Finance",
+  "KYC",
+  "AML",
+  "Customer service",
+  "Sales",
+  "CRM",
+  "Digital marketing",
+  "Lead generation",
+  "Electrical",
+  "Mechanical",
+  "Electronics",
+  "Maintenance",
+  "Apprenticeship",
 ];
 
 const SECTION_HEADINGS = new Set([
@@ -131,9 +156,42 @@ function normalizeText(value: string): string {
     .slice(0, MAX_TEXT_CHARS);
 }
 
-export function extractSkills(text: string): string[] {
+export function extractSkillsFromSectionText(sectionText: string): string[] {
+  return sectionText
+    .split(/\n|,|;|\|/)
+    .map((item) => item.replace(/^[-•*]\s*/, "").trim())
+    .filter((item) => item.length >= 2 && item.length <= 60);
+}
+
+export function extractSkills(
+  text: string,
+  sections: Array<{ heading: string; text: string }> = []
+): string[] {
   const lower = text.toLowerCase();
-  return SKILLS.filter((skill) => lower.includes(skill.toLowerCase()));
+  const fromCatalog = SKILLS.filter((skill) =>
+    lower.includes(skill.toLowerCase())
+  );
+  const skillsSection = sections.find((section) => {
+    const heading = section.heading.toLowerCase().replace(/:$/, "");
+    return (
+      heading === "skills" ||
+      heading === "technical skills" ||
+      heading === "core skills" ||
+      heading === "key skills"
+    );
+  });
+  const fromSection = skillsSection
+    ? extractSkillsFromSectionText(skillsSection.text)
+    : [];
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const skill of [...fromSection, ...fromCatalog]) {
+    const key = skill.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(skill);
+  }
+  return merged;
 }
 
 export function parseResumeStructure(
@@ -172,7 +230,7 @@ export function parseResumeStructure(
 
   return {
     rawText: normalized,
-    skills: extractSkills(normalized),
+    skills: extractSkills(normalized, sections),
     content: { sections, source },
   };
 }

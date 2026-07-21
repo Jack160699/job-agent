@@ -124,4 +124,35 @@ describe("resume parsing", () => {
       })
     ).rejects.toThrow("valid PDF, DOCX, or plain-text");
   });
+
+  it("extracts healthcare and education skills from the skills section", () => {
+    const nursing = parseResumeStructure(
+      `Priya Thomas
+Staff Nurse | Hyderabad, India
+
+SKILLS
+Patient care, GNM, Nursing, Ward care`,
+      { mediaType: "text/plain", parser: "test" }
+    );
+    expect(nursing.skills).toEqual(
+      expect.arrayContaining(["Patient care", "GNM", "Nursing", "Ward care"])
+    );
+
+    const teacher = parseResumeStructure(
+      `Neha Verma
+Secondary School Teacher
+
+SKILLS
+Teaching, Curriculum, BEd, Classroom management`,
+      { mediaType: "text/plain", parser: "test" }
+    );
+    expect(teacher.skills).toEqual(
+      expect.arrayContaining([
+        "Teaching",
+        "Curriculum",
+        "BEd",
+        "Classroom management",
+      ])
+    );
+  });
 });
