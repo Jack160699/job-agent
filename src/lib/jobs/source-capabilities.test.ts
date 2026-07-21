@@ -19,6 +19,15 @@ describe("job source capabilities", () => {
 
   it("separates public discovery from authenticated connection state", () => {
     expect(
+      getSourceCapabilities({ SERPER_API_KEY: "configured" }).LINKEDIN
+    ).toMatchObject({
+      searchable: true,
+      publicDiscoveryStatus: "available",
+      publicDiscoveryProvider: "serper",
+      authenticatedConnectionStatus: "connection_required",
+      noEasyApplyClaim: true,
+    });
+    expect(
       getSourceCapabilities({ BRAVE_SEARCH_API_KEY: "configured" }).LINKEDIN
     ).toMatchObject({
       searchable: true,

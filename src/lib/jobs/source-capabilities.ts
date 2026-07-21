@@ -2,6 +2,7 @@ import type { JobSource } from "@prisma/client";
 import {
   PUBLIC_DISCOVERY_SOURCES,
   publicDiscoveryCapability,
+  type ProviderHealthSnapshot,
 } from "./public-discovery";
 
 export type SourceCapabilityStatus =
@@ -22,10 +23,12 @@ export interface SourceCapability {
   status: SourceCapabilityStatus;
   searchable: boolean;
   explanation: string;
-  publicDiscoveryStatus?: "available" | "setup_required";
+  publicDiscoveryStatus?: "available" | "setup_required" | "unavailable";
   authenticatedConnectionStatus?: "connected" | "connection_required";
   publicDiscoveryProvider?: string | null;
+  publicDiscoveryProviderStatus?: string | null;
   importSupported?: boolean;
+  noEasyApplyClaim?: boolean;
 }
 
 function publicSource(
@@ -204,34 +207,71 @@ export const SOURCE_CAPABILITIES: Record<JobSource, SourceCapability> = {
   },
 };
 
+function providerStatusLabel(health: ProviderHealthSnapshot | null | undefined) {
+  if (!health?.configured) return "not configured";
+  switch (health.status) {
+    case "healthy":
+      return "healthy";
+    case "authentication_failed":
+      return "authentication failed";
+    case "rate_limited":
+      return "rate limited";
+    case "quota_exhausted":
+      return "quota exhausted";
+    case "temporarily_unavailable":
+      return "temporarily unavailable";
+    default:
+      return "configured";
+  }
+}
+
 export function getSourceCapabilities(
   env: Record<string, string | undefined> = process.env
 ): Record<JobSource, SourceCapability> {
   const discovery = publicDiscoveryCapability(env);
   const capabilities = { ...SOURCE_CAPABILITIES };
+  const primaryHealth = discovery.primaryHealth;
+  const publicAvailable = discovery.available;
+  const publicStatusLabel = providerStatusLabel(primaryHealth);
+
   for (const source of PUBLIC_DISCOVERY_SOURCES) {
     const current = capabilities[source];
     const connectionRequired = source === "LINKEDIN" || source === "NAUKRI";
     capabilities[source] = {
       ...current,
-      status: discovery.available
-        ? "healthy"
+      status: publicAvailable
+        ? primaryHealth?.status === "quota_exhausted" ||
+          primaryHealth?.status === "rate_limited"
+          ? "rate_limited"
+          : "healthy"
         : connectionRequired
           ? "authentication_required"
           : "misconfigured",
-      searchable: discovery.available,
-      publicDiscoveryStatus: discovery.status,
+      searchable: publicAvailable,
+      publicDiscoveryStatus: publicAvailable
+        ? "available"
+        : discovery.serper?.status === "authentication_failed"
+          ? "unavailable"
+          : "setup_required",
       publicDiscoveryProvider: discovery.provider,
-      explanation: discovery.available
-        ? `Domain-restricted public discovery is available through ${discovery.providers.join(
+      publicDiscoveryProviderStatus: publicStatusLabel,
+      noEasyApplyClaim: true,
+      explanation: publicAvailable
+        ? `Public discovery available via ${discovery.providers.join(
             ", "
-          )}. Only public index metadata and validated individual job URLs are stored.`
+          )} (${publicStatusLabel}). Only public index metadata and validated individual job URLs are stored. Authenticated platform features and Easy Apply are not claimed.`
         : connectionRequired
-          ? "No approved public-search provider is configured. Job-link import remains available; authenticated platform features require an approved connection."
-          : "No approved public-search provider is configured. Individual job-link import remains available where supported.",
+          ? "Public discovery unavailable. Job-link import remains available; authenticated platform features require an approved connection. Easy Apply is not claimed."
+          : "Public discovery unavailable. Individual job-link import remains available where supported.",
     };
   }
   return capabilities;
+}
+
+export function getPublicProviderDiagnostics(
+  env: Record<string, string | undefined> = process.env
+) {
+  return publicDiscoveryCapability(env);
 }
 
 export function unavailableEnabledSources(

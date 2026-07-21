@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __publicDiscoveryTest,
+  beginPublicDiscoveryRun,
   configuredPublicSearchProviders,
   discoverPublicJobs,
+  getPublicSearchProviderHealth,
 } from "./public-discovery";
 
 const filters = {
-  titles: ["Staff Nurse"],
+  titles: ["Staff Nurse", "Registered Nurse"],
   queries: [
     {
       title: "Staff Nurse",
@@ -37,6 +39,12 @@ describe("public job discovery", () => {
         "https://example.com/jobs/view/fake"
       )
     ).toBeNull();
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "LINKEDIN",
+        "https://www.linkedin.com/jobs/search/?keywords=nurse"
+      )
+    ).toBeNull();
   });
 
   it("accepts canonical Naukri listing URLs", () => {
@@ -59,6 +67,12 @@ describe("public job discovery", () => {
     ).toBe("https://in.indeed.com/viewjob?jk=abc123");
     expect(
       __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "FOUNDIT",
+        "https://www.foundit.in/job/banking-operations-123"
+      )
+    ).toBe("https://www.foundit.in/job/banking-operations-123");
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
         "INTERNSHALA",
         "https://internshala.com/job/detail/graduate-trainee-123"
       )
@@ -69,9 +83,31 @@ describe("public job discovery", () => {
         "https://wellfound.com/jobs"
       )
     ).toBeNull();
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "INDEED",
+        "https://in.indeed.com/jobs?q=nurse&l=India"
+      )
+    ).toBeNull();
+    expect(
+      __publicDiscoveryTest.canonicalIndexedJobUrl(
+        "LINKEDIN",
+        "not-a-url"
+      )
+    ).toBeNull();
   });
 
-  it("supports the documented SerpAPI variable and legacy alias", () => {
+  it("prefers Serper when SERPER_API_KEY is present and keeps SerpAPI aliases", () => {
+    expect(
+      configuredPublicSearchProviders({ SERPER_API_KEY: "configured" })
+    ).toEqual(["serper"]);
+    expect(
+      configuredPublicSearchProviders({
+        SERPER_API_KEY: "serper",
+        SERPAPI_KEY: "serpapi",
+        BRAVE_SEARCH_API_KEY: "brave",
+      })
+    ).toEqual(["serper", "brave", "serpapi"]);
     expect(configuredPublicSearchProviders({ SERPAPI_KEY: "configured" })).toEqual([
       "serpapi",
     ]);
@@ -80,29 +116,36 @@ describe("public job discovery", () => {
     ).toEqual(["serpapi"]);
   });
 
+  it("combines related titles into one domain-restricted query", () => {
+    const queries = __publicDiscoveryTest.publicDiscoveryQueries("LINKEDIN", filters);
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain('site:linkedin.com/jobs/view');
+    expect(queries[0]).toContain('"Staff Nurse"');
+    expect(queries[0]).toContain('"Registered Nurse"');
+    expect(queries[0]).toContain('"Bengaluru"');
+  });
+
   it("deduplicates, labels, and rejects expired indexed results", async () => {
     const fetcher = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          web: {
-            results: [
-              {
-                title: "Staff Nurse - Apollo Hospitals | LinkedIn",
-                url: "https://in.linkedin.com/jobs/view/staff-nurse-at-apollo-123",
-                description: "Registered nurse role in Bengaluru.",
-              },
-              {
-                title: "Staff Nurse - Apollo Hospitals | LinkedIn",
-                url: "https://in.linkedin.com/jobs/view/staff-nurse-at-apollo-123?trk=dup",
-                description: "Duplicate indexed result.",
-              },
-              {
-                title: "Nurse - Old Hospital | LinkedIn",
-                url: "https://in.linkedin.com/jobs/view/nurse-at-old-456",
-                description: "This job has expired.",
-              },
-            ],
-          },
+          organic: [
+            {
+              title: "Staff Nurse - Apollo Hospitals | LinkedIn",
+              link: "https://in.linkedin.com/jobs/view/staff-nurse-at-apollo-123",
+              snippet: "Registered nurse role in Bengaluru.",
+            },
+            {
+              title: "Staff Nurse - Apollo Hospitals | LinkedIn",
+              link: "https://in.linkedin.com/jobs/view/staff-nurse-at-apollo-123?trk=dup",
+              snippet: "Duplicate indexed result.",
+            },
+            {
+              title: "Nurse - Old Hospital | LinkedIn",
+              link: "https://in.linkedin.com/jobs/view/nurse-at-old-456",
+              snippet: "This job has expired.",
+            },
+          ],
         }),
         { status: 200 }
       )
@@ -110,7 +153,7 @@ describe("public job discovery", () => {
 
     const jobs = await discoverPublicJobs("LINKEDIN", filters, {
       fetcher,
-      env: { BRAVE_SEARCH_API_KEY: "test-key" },
+      env: { SERPER_API_KEY: "test-key" },
     });
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
@@ -119,8 +162,11 @@ describe("public job discovery", () => {
       company: "Apollo Hospitals",
       metadata: {
         provenance: "public_discovery",
-        discoveryLabel: "Public discovery available",
-        authenticatedConnection: "Authenticated connection required",
+        discoveryLabel: "Public discovery",
+        authenticatedConnection:
+          "Authentication still required for protected functions",
+        easyApplyClaim: false,
+        provider: "serper",
       },
     });
   });
@@ -136,23 +182,51 @@ describe("public job discovery", () => {
     await expect(
       discoverPublicJobs("LINKEDIN", filters, {
         fetcher,
-        env: { BRAVE_SEARCH_API_KEY: "test-key" },
+        env: { SERPER_API_KEY: "test-key" },
       })
     ).rejects.toMatchObject({
       code: "QUOTA_EXHAUSTED",
     });
   });
 
+  it("reports authentication failure and skips further calls for that provider", async () => {
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify({ message: "Invalid API key" }), { status: 401 })
+    );
+
+    await expect(
+      discoverPublicJobs("LINKEDIN", filters, {
+        fetcher: fetcher as unknown as typeof fetch,
+        env: { SERPER_API_KEY: "bad-key", SERPAPI_KEY: "also-bad" },
+      })
+    ).rejects.toMatchObject({
+      code: "AUTHENTICATION_FAILED",
+    });
+
+    expect(fetcher).toHaveBeenCalled();
+    const firstCalls = fetcher.mock.calls.length;
+
+    await expect(
+      discoverPublicJobs("NAUKRI", filters, {
+        fetcher: fetcher as unknown as typeof fetch,
+        env: { SERPER_API_KEY: "bad-key", SERPAPI_KEY: "also-bad" },
+      })
+    ).rejects.toMatchObject({
+      code: "NOT_CONFIGURED",
+    });
+    expect(fetcher.mock.calls.length).toBe(firstCalls);
+  });
+
   it("returns an empty, truthful discovery when the provider has no indexed jobs", async () => {
     const fetcher = vi.fn(
       async () =>
-        new Response(JSON.stringify({ web: { results: [] } }), { status: 200 })
+        new Response(JSON.stringify({ organic: [] }), { status: 200 })
     ) as unknown as typeof fetch;
 
     await expect(
       discoverPublicJobs("LINKEDIN", filters, {
         fetcher,
-        env: { BRAVE_SEARCH_API_KEY: "test-key" },
+        env: { SERPER_API_KEY: "test-key" },
       })
     ).resolves.toEqual([]);
   });
@@ -162,15 +236,13 @@ describe("public job discovery", () => {
       async () =>
         new Response(
           JSON.stringify({
-            web: {
-              results: [
-                {
-                  title: "Staff Nurse job in Apollo Hospitals at Bengaluru | Naukri",
-                  url: "https://www.naukri.com/job-listings-staff-nurse-apollo-bengaluru-123?src=search",
-                  description: "GNM or BSc Nursing. Patient care role.",
-                },
-              ],
-            },
+            organic: [
+              {
+                title: "Staff Nurse job in Apollo Hospitals at Bengaluru | Naukri",
+                link: "https://www.naukri.com/job-listings-staff-nurse-apollo-bengaluru-123?src=search",
+                snippet: "GNM or BSc Nursing. Patient care role.",
+              },
+            ],
           }),
           { status: 200 }
         )
@@ -178,7 +250,7 @@ describe("public job discovery", () => {
 
     const jobs = await discoverPublicJobs("NAUKRI", filters, {
       fetcher,
-      env: { BRAVE_SEARCH_API_KEY: "test-key" },
+      env: { SERPER_API_KEY: "test-key" },
     });
     expect(jobs[0]).toMatchObject({
       source: "NAUKRI",
@@ -194,15 +266,16 @@ describe("public job discovery", () => {
       async () => new Response(null, { status: 503 })
     ) as unknown as typeof fetch;
 
-    await expect(
-      discoverPublicJobs("LINKEDIN", filters, {
-        fetcher,
-        env: { BRAVE_SEARCH_API_KEY: "never-return-this-key" },
-      })
-    ).rejects.toMatchObject({
+    const error = await discoverPublicJobs("LINKEDIN", filters, {
+      fetcher,
+      env: { SERPER_API_KEY: "never-return-this-key" },
+    }).catch((err: Error) => err);
+
+    expect(error).toMatchObject({
       code: "PROVIDER_ERROR",
       message: "Public-discovery provider returned HTTP 503.",
     });
+    expect(String(error)).not.toContain("never-return-this-key");
   });
 
   it("fails over to the next configured provider", async () => {
@@ -212,12 +285,12 @@ describe("public job discovery", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            webPages: {
-              value: [
+            web: {
+              results: [
                 {
-                  name: "Staff Nurse - Apollo Hospitals | LinkedIn",
+                  title: "Staff Nurse - Apollo Hospitals | LinkedIn",
                   url: "https://in.linkedin.com/jobs/view/staff-nurse-987",
-                  snippet: "Current nursing role.",
+                  description: "Current nursing role.",
                 },
               ],
             },
@@ -229,26 +302,87 @@ describe("public job discovery", () => {
     const jobs = await discoverPublicJobs("LINKEDIN", filters, {
       fetcher,
       env: {
+        SERPER_API_KEY: "serper",
         BRAVE_SEARCH_API_KEY: "brave",
-        BING_SEARCH_API_KEY: "bing",
       },
     });
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(jobs[0]?.metadata?.provider).toBe("bing");
+    expect(jobs[0]?.metadata?.provider).toBe("brave");
   });
 
   it("caches identical searches to protect provider quota", async () => {
     const fetcher = vi.fn(
       async () =>
-        new Response(JSON.stringify({ web: { results: [] } }), { status: 200 })
+        new Response(JSON.stringify({ organic: [] }), { status: 200 })
     ) as unknown as typeof fetch;
     const options = {
       fetcher,
-      env: { BRAVE_SEARCH_API_KEY: "test-key" },
+      env: { SERPER_API_KEY: "test-key" },
     };
     await discoverPublicJobs("LINKEDIN", filters, options);
     await discoverPublicJobs("LINKEDIN", filters, options);
-    expect(fetcher).toHaveBeenCalledTimes(filters.queries.length);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("respects per-run search budget without failing the whole discovery soft-path", async () => {
+    beginPublicDiscoveryRun(null, { PUBLIC_SEARCH_MAX_QUERIES_PER_RUN: "1" });
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            organic: [
+              {
+                title: "Staff Nurse - Apollo | LinkedIn",
+                link: "https://in.linkedin.com/jobs/view/staff-nurse-1",
+                snippet: "Open role",
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+    ) as unknown as typeof fetch;
+
+    const first = await discoverPublicJobs("LINKEDIN", filters, {
+      fetcher,
+      env: { SERPER_API_KEY: "test-key" },
+    });
+    expect(first).toHaveLength(1);
+
+    const second = await discoverPublicJobs("NAUKRI", filters, {
+      fetcher,
+      env: { SERPER_API_KEY: "test-key" },
+    });
+    expect(second).toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats timeout as temporarily unavailable", async () => {
+    const fetcher = vi.fn(async () => {
+      throw new DOMException("The operation was aborted.", "TimeoutError");
+    }) as unknown as typeof fetch;
+
+    await expect(
+      discoverPublicJobs("LINKEDIN", filters, {
+        fetcher,
+        env: { SERPER_API_KEY: "test-key" },
+      })
+    ).rejects.toMatchObject({
+      code: "TEMPORARILY_UNAVAILABLE",
+    });
+  });
+
+  it("rejects invalid Serper JSON payloads", async () => {
+    const fetcher = vi.fn(
+      async () => new Response("not-json", { status: 200 })
+    ) as unknown as typeof fetch;
+
+    await expect(
+      discoverPublicJobs("LINKEDIN", filters, {
+        fetcher,
+        env: { SERPER_API_KEY: "test-key" },
+      })
+    ).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+    });
   });
 
   it("reports missing provider configuration without claiming connection", async () => {
@@ -257,5 +391,15 @@ describe("public job discovery", () => {
     ).rejects.toMatchObject({
       code: "NOT_CONFIGURED",
     });
+  });
+
+  it("exposes privacy-safe provider health without secrets", () => {
+    const health = getPublicSearchProviderHealth({
+      SERPER_API_KEY: "secret-value-must-not-appear",
+    });
+    const serper = health.find((item) => item.name === "serper");
+    expect(serper?.configured).toBe(true);
+    expect(serper?.status).toBe("configured");
+    expect(JSON.stringify(health)).not.toContain("secret-value-must-not-appear");
   });
 });

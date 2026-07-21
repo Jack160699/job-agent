@@ -37,6 +37,7 @@ import { getOfficialGovernmentAdapters } from "@/lib/jobs/government-adapters";
 import {
   PUBLIC_DISCOVERY_SOURCES,
   PublicDiscoveryAdapter,
+  beginPublicDiscoveryRun,
   publicDiscoveryCapability,
 } from "@/lib/jobs/public-discovery";
 import {
@@ -250,6 +251,8 @@ export async function searchJobs(
       ? `job_search:${backgroundJobId}`
       : undefined,
   });
+
+  beginPublicDiscoveryRun(userId);
 
   const boards = buildDiscoveryBoards(settings);
   const filters = {

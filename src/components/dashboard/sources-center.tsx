@@ -29,10 +29,12 @@ export interface SourceCenterItem {
   requests: number;
   lastSuccessfulFetch: string | null;
   lastError: string | null;
-  publicDiscoveryStatus?: "available" | "setup_required";
+  publicDiscoveryStatus?: "available" | "setup_required" | "unavailable";
   authenticatedConnectionStatus?: "connected" | "connection_required";
   publicDiscoveryProvider?: string | null;
+  publicDiscoveryProviderStatus?: string | null;
   importSupported?: boolean;
+  noEasyApplyClaim?: boolean;
 }
 
 const statusLabels: Record<string, string> = {
@@ -151,8 +153,14 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                     <p>
                       <strong>Public discovery:</strong>{" "}
                       {item.publicDiscoveryStatus === "available"
-                        ? `Available via ${item.publicDiscoveryProvider}`
-                        : "Setup required"}
+                        ? `Available via ${item.publicDiscoveryProvider}${
+                            item.publicDiscoveryProviderStatus
+                              ? ` (${item.publicDiscoveryProviderStatus})`
+                              : ""
+                          }`
+                        : item.publicDiscoveryStatus === "unavailable"
+                          ? "Unavailable"
+                          : "Setup required"}
                     </p>
                   )}
                   <p>
@@ -160,12 +168,35 @@ export function SourcesCenter({ items }: { items: SourceCenterItem[] }) {
                     required. A normal Kairela sign-in does not grant platform
                     Jobs API access.
                   </p>
+                  <p>
+                    <strong>Easy Apply:</strong> Not claimed. Open the original
+                    canonical source to apply.
+                  </p>
                   {item.importSupported && (
                     <p>
                       <strong>Imported links:</strong> Available for permitted
                       public metadata and canonical-source preservation.
                     </p>
                   )}
+                </div>
+              )}
+
+              {item.publicDiscoveryStatus && !requiresAuth && (
+                <div className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-xs text-[var(--ink-secondary)]">
+                  <p>
+                    <strong>Public discovery:</strong>{" "}
+                    {item.publicDiscoveryStatus === "available"
+                      ? `Available via ${item.publicDiscoveryProvider}${
+                          item.publicDiscoveryProviderStatus
+                            ? ` (${item.publicDiscoveryProviderStatus})`
+                            : ""
+                        }`
+                      : "Unavailable"}
+                  </p>
+                  <p className="mt-1">
+                    No authenticated connection or Easy Apply is claimed. Open
+                    the canonical source link to continue.
+                  </p>
                 </div>
               )}
 

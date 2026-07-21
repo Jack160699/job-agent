@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { JobSource } from "@prisma/client";
+import { z } from "zod";
 import prisma from "@/lib/db";
 import type {
   DiscoveredJob,
@@ -10,8 +11,8 @@ import type {
 export type PublicDiscoverySource =
   | "LINKEDIN"
   | "NAUKRI"
-  | "FOUNDIT"
   | "INDEED"
+  | "FOUNDIT"
   | "SHINE"
   | "TIMESJOBS"
   | "CUTSHORT"
@@ -23,16 +24,14 @@ export type PublicDiscoverySource =
   | "HIRIST"
   | "IIMJOBS";
 
-type ProviderName = "brave" | "bing" | "google_cse" | "serpapi";
-type PublicDiscoveryEnv = Record<string, string | undefined>;
+export type ProviderName =
+  | "serper"
+  | "brave"
+  | "bing"
+  | "google_cse"
+  | "serpapi";
 
-interface SearchProviderConfig {
-  name: ProviderName;
-  endpoint: string;
-  headers: Record<string, string>;
-  queryParam: string;
-  extraParams: Record<string, string>;
-}
+type PublicDiscoveryEnv = Record<string, string | undefined>;
 
 interface IndexedResult {
   title: string;
@@ -48,6 +47,7 @@ interface PublicSourceConfig {
   isIndividualJob: (url: URL) => boolean;
 }
 
+/** LinkedIn / Naukri / Indeed first so shared run budget prefers primary boards. */
 const PUBLIC_SOURCES: Record<PublicDiscoverySource, PublicSourceConfig> = {
   LINKEDIN: {
     displayName: "LinkedIn",
@@ -62,13 +62,6 @@ const PUBLIC_SOURCES: Record<PublicDiscoverySource, PublicSourceConfig> = {
     isIndividualJob: (url) =>
       /\/(?:job-listings|job-listing)[-/][^/]+/i.test(url.pathname),
   },
-  FOUNDIT: {
-    displayName: "Foundit",
-    domains: ["foundit.in"],
-    querySite: "foundit.in/job",
-    isIndividualJob: (url) =>
-      /^\/(?:job|job-vacancy)\/[^/]+/i.test(url.pathname),
-  },
   INDEED: {
     displayName: "Indeed India",
     domains: ["indeed.com"],
@@ -76,6 +69,13 @@ const PUBLIC_SOURCES: Record<PublicDiscoverySource, PublicSourceConfig> = {
     isIndividualJob: (url) =>
       /^\/(?:viewjob|rc\/clkjob)/i.test(url.pathname) &&
       Boolean(url.searchParams.get("jk")),
+  },
+  FOUNDIT: {
+    displayName: "Foundit",
+    domains: ["foundit.in"],
+    querySite: "foundit.in/job",
+    isIndividualJob: (url) =>
+      /^\/(?:job|job-vacancy)\/[^/]+/i.test(url.pathname),
   },
   SHINE: {
     displayName: "Shine",
@@ -145,20 +145,107 @@ export const PUBLIC_DISCOVERY_SOURCES = Object.freeze(
   Object.keys(PUBLIC_SOURCES) as PublicDiscoverySource[]
 );
 
-const SEARCH_CACHE_TTL_MS = 15 * 60_000;
+const DEFAULT_CACHE_TTL_MS = 6 * 60 * 60_000;
 const SEARCH_CACHE_MAX_ENTRIES = 500;
+const DEFAULT_MAX_QUERIES_PER_RUN = 8;
+const DEFAULT_MAX_QUERIES_PER_USER_DAY = 20;
+const DEFAULT_MAX_QUERIES_PER_MONTH = 2_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_SAFE_RETRIES = 2;
+
+const serperOrganicSchema = z.object({
+  organic: z
+    .array(
+      z
+        .object({
+          title: z.string().optional(),
+          link: z.string().optional(),
+          snippet: z.string().optional(),
+        })
+        .passthrough()
+    )
+    .optional()
+    .default([]),
+});
+
+type ErrorCategory =
+  | "none"
+  | "authentication_failed"
+  | "quota_exhausted"
+  | "rate_limited"
+  | "timeout"
+  | "invalid_response"
+  | "provider_error"
+  | "empty_results"
+  | "not_configured"
+  | "budget_exhausted";
+
+export type ProviderHealthStatus =
+  | "not_configured"
+  | "configured"
+  | "healthy"
+  | "authentication_failed"
+  | "rate_limited"
+  | "quota_exhausted"
+  | "temporarily_unavailable";
+
+export interface ProviderHealthSnapshot {
+  name: ProviderName;
+  configured: boolean;
+  status: ProviderHealthStatus;
+  lastSuccessfulRequestAt: string | null;
+  lastDurationMs: number | null;
+  lastResultCount: number | null;
+  lastErrorCategory: ErrorCategory;
+  searchesUsed: number;
+  cacheHits: number;
+}
+
+interface ProviderRuntimeState {
+  status: ProviderHealthStatus;
+  lastSuccessfulRequestAt: Date | null;
+  lastDurationMs: number | null;
+  lastResultCount: number | null;
+  lastErrorCategory: ErrorCategory;
+  searchesUsed: number;
+  cacheHits: number;
+  authFailed: boolean;
+}
+
+const providerState = new Map<ProviderName, ProviderRuntimeState>();
+const authFailedProviders = new Set<ProviderName>();
+
 const searchCache = new Map<
   string,
-  { expiresAt: number; value: { provider: ProviderName; results: IndexedResult[] } }
+  {
+    expiresAt: number;
+    value: { provider: ProviderName; results: IndexedResult[] };
+  }
 >();
 const globalRequestTimes: number[] = [];
 
+interface RunBudgetState {
+  remaining: number;
+  userId: string | null;
+  startedAt: number;
+}
+
+let runBudget: RunBudgetState = {
+  remaining: DEFAULT_MAX_QUERIES_PER_RUN,
+  userId: null,
+  startedAt: 0,
+};
+
 export type PublicDiscoveryErrorCode =
   | "NOT_CONFIGURED"
+  | "AUTHENTICATION_FAILED"
   | "RATE_LIMITED"
   | "QUOTA_EXHAUSTED"
   | "TEMPORARILY_UNAVAILABLE"
-  | "PROVIDER_ERROR";
+  | "INVALID_RESPONSE"
+  | "PROVIDER_ERROR"
+  | "RUN_BUDGET_EXCEEDED"
+  | "USER_DAILY_LIMIT";
 
 export class PublicDiscoveryError extends Error {
   constructor(
@@ -170,6 +257,79 @@ export class PublicDiscoveryError extends Error {
   }
 }
 
+function envNumber(
+  env: PublicDiscoveryEnv,
+  key: string,
+  fallback: number
+): number {
+  const raw = Number(env[key]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+function cacheTtlMs(env: PublicDiscoveryEnv): number {
+  return envNumber(env, "PUBLIC_SEARCH_CACHE_TTL_MS", DEFAULT_CACHE_TTL_MS);
+}
+
+function ensureProviderState(name: ProviderName): ProviderRuntimeState {
+  const existing = providerState.get(name);
+  if (existing) return existing;
+  const created: ProviderRuntimeState = {
+    status: "not_configured",
+    lastSuccessfulRequestAt: null,
+    lastDurationMs: null,
+    lastResultCount: null,
+    lastErrorCategory: "none",
+    searchesUsed: 0,
+    cacheHits: 0,
+    authFailed: false,
+  };
+  providerState.set(name, created);
+  return created;
+}
+
+function recordProviderOutcome(
+  name: ProviderName,
+  outcome: {
+    ok: boolean;
+    durationMs: number;
+    resultCount?: number;
+    category?: ErrorCategory;
+    fromCache?: boolean;
+  }
+): void {
+  const state = ensureProviderState(name);
+  state.lastDurationMs = outcome.durationMs;
+  if (outcome.fromCache) {
+    state.cacheHits += 1;
+    return;
+  }
+  if (outcome.ok) {
+    state.status = "healthy";
+    state.lastSuccessfulRequestAt = new Date();
+    state.lastResultCount = outcome.resultCount ?? 0;
+    state.lastErrorCategory =
+      (outcome.resultCount ?? 0) === 0 ? "empty_results" : "none";
+    state.searchesUsed += 1;
+    state.authFailed = false;
+    authFailedProviders.delete(name);
+    return;
+  }
+  const category = outcome.category ?? "provider_error";
+  state.lastErrorCategory = category;
+  state.searchesUsed += 1;
+  if (category === "authentication_failed") {
+    state.status = "authentication_failed";
+    state.authFailed = true;
+    authFailedProviders.add(name);
+  } else if (category === "quota_exhausted") {
+    state.status = "quota_exhausted";
+  } else if (category === "rate_limited") {
+    state.status = "rate_limited";
+  } else {
+    state.status = "temporarily_unavailable";
+  }
+}
+
 function serpApiKey(env: PublicDiscoveryEnv): string | undefined {
   return env.SERPAPI_KEY ?? env.SERPAPI_API_KEY;
 }
@@ -178,10 +338,25 @@ export function configuredPublicSearchProviders(
   env: PublicDiscoveryEnv = process.env
 ): ProviderName[] {
   const providers: ProviderName[] = [];
-  if (env.BRAVE_SEARCH_API_KEY) providers.push("brave");
-  if (env.BING_SEARCH_API_KEY) providers.push("bing");
-  if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID) providers.push("google_cse");
-  if (serpApiKey(env)) providers.push("serpapi");
+  if (env.SERPER_API_KEY && !authFailedProviders.has("serper")) {
+    providers.push("serper");
+  }
+  if (env.BRAVE_SEARCH_API_KEY && !authFailedProviders.has("brave")) {
+    providers.push("brave");
+  }
+  if (env.BING_SEARCH_API_KEY && !authFailedProviders.has("bing")) {
+    providers.push("bing");
+  }
+  if (
+    env.GOOGLE_CSE_API_KEY &&
+    env.GOOGLE_CSE_ID &&
+    !authFailedProviders.has("google_cse")
+  ) {
+    providers.push("google_cse");
+  }
+  if (serpApiKey(env) && !authFailedProviders.has("serpapi")) {
+    providers.push("serpapi");
+  }
   return providers;
 }
 
@@ -191,63 +366,128 @@ export function configuredPublicSearchProvider(
   return configuredPublicSearchProviders(env)[0] ?? null;
 }
 
-function providerConfigs(env: PublicDiscoveryEnv): SearchProviderConfig[] {
-  return configuredPublicSearchProviders(env).map<SearchProviderConfig>((name) => {
-    if (name === "brave") {
-      return {
-        name,
-        endpoint: "https://api.search.brave.com/res/v1/web/search",
-        headers: {
-          Accept: "application/json",
-          "X-Subscription-Token": env.BRAVE_SEARCH_API_KEY!,
-        },
-        queryParam: "q",
-        extraParams: { count: "20", freshness: "pm" },
-      } as SearchProviderConfig;
-    }
-    if (name === "bing") {
-      return {
-        name,
-        endpoint: "https://api.bing.microsoft.com/v7.0/search",
-        headers: {
-          Accept: "application/json",
-          "Ocp-Apim-Subscription-Key": env.BING_SEARCH_API_KEY!,
-        },
-        queryParam: "q",
-        extraParams: {
-          count: "20",
-          freshness: "Month",
-          responseFilter: "Webpages",
-        },
-      } as SearchProviderConfig;
-    }
-    if (name === "google_cse") {
-      return {
-        name,
-        endpoint: "https://customsearch.googleapis.com/customsearch/v1",
-        headers: { Accept: "application/json" },
-        queryParam: "q",
-        extraParams: {
-          key: env.GOOGLE_CSE_API_KEY!,
-          cx: env.GOOGLE_CSE_ID!,
-          num: "10",
-          dateRestrict: "m1",
-        },
-      } as SearchProviderConfig;
-    }
-    return {
-      name,
-      endpoint: "https://serpapi.com/search.json",
-      headers: { Accept: "application/json" },
-      queryParam: "q",
-      extraParams: {
-        api_key: serpApiKey(env)!,
-        engine: "google",
-        num: "20",
-        tbs: "qdr:m",
-      },
-    } as SearchProviderConfig;
-  });
+export function beginPublicDiscoveryRun(
+  userId: string | null = null,
+  env: PublicDiscoveryEnv = process.env
+): void {
+  runBudget = {
+    remaining: envNumber(
+      env,
+      "PUBLIC_SEARCH_MAX_QUERIES_PER_RUN",
+      DEFAULT_MAX_QUERIES_PER_RUN
+    ),
+    userId,
+    startedAt: Date.now(),
+  };
+}
+
+function claimRunBudget(): boolean {
+  if (runBudget.remaining <= 0) return false;
+  runBudget.remaining -= 1;
+  return true;
+}
+
+function releaseRunBudget(): void {
+  runBudget.remaining += 1;
+}
+
+async function claimUserDailyBudget(
+  env: PublicDiscoveryEnv,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return true;
+  const limit = envNumber(
+    env,
+    "PUBLIC_SEARCH_MAX_QUERIES_PER_USER_DAY",
+    DEFAULT_MAX_QUERIES_PER_USER_DAY
+  );
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60_000;
+  const windowStartMs = now - dayMs;
+  const bucketKey = `public-search:user:${userId}:day`;
+
+  if (
+    process.env.NODE_ENV === "test" ||
+    !env.DATABASE_URL ||
+    env.RATE_LIMIT_DURABLE === "false"
+  ) {
+    return true;
+  }
+
+  try {
+    const rows = await prisma.$queryRaw<Array<{ request_count: number }>>`
+      INSERT INTO rate_limit_buckets (
+        bucket_key, request_count, window_start, window_ms
+      )
+      VALUES (
+        ${bucketKey}, 1, ${new Date(now)}, ${dayMs}
+      )
+      ON CONFLICT (bucket_key)
+      DO UPDATE SET
+        request_count = CASE
+          WHEN rate_limit_buckets.window_start < ${new Date(windowStartMs)}
+            THEN 1
+          ELSE rate_limit_buckets.request_count + 1
+        END,
+        window_start = CASE
+          WHEN rate_limit_buckets.window_start < ${new Date(windowStartMs)}
+            THEN ${new Date(now)}
+          ELSE rate_limit_buckets.window_start
+        END,
+        window_ms = ${dayMs}
+      RETURNING request_count
+    `;
+    return (rows[0]?.request_count ?? 1) <= limit;
+  } catch {
+    return true;
+  }
+}
+
+async function claimMonthlyBudget(env: PublicDiscoveryEnv): Promise<boolean> {
+  const limit = envNumber(
+    env,
+    "PUBLIC_SEARCH_MAX_QUERIES_PER_MONTH",
+    DEFAULT_MAX_QUERIES_PER_MONTH
+  );
+  const now = Date.now();
+  const monthMs = 31 * 24 * 60 * 60_000;
+  const windowStartMs = now - monthMs;
+
+  if (
+    process.env.NODE_ENV === "test" ||
+    !env.DATABASE_URL ||
+    env.RATE_LIMIT_DURABLE === "false"
+  ) {
+    return true;
+  }
+
+  try {
+    const rows = await prisma.$queryRaw<Array<{ request_count: number }>>`
+      INSERT INTO rate_limit_buckets (
+        bucket_key, request_count, window_start, window_ms
+      )
+      VALUES (
+        'public-search:global:month', 1, ${new Date(now)}, ${monthMs}
+      )
+      ON CONFLICT (bucket_key)
+      DO UPDATE SET
+        request_count = CASE
+          WHEN rate_limit_buckets.window_start < ${new Date(windowStartMs)}
+            THEN 1
+          ELSE rate_limit_buckets.request_count + 1
+        END,
+        window_start = CASE
+          WHEN rate_limit_buckets.window_start < ${new Date(windowStartMs)}
+            THEN ${new Date(now)}
+          ELSE rate_limit_buckets.window_start
+        END,
+        window_ms = ${monthMs}
+      RETURNING request_count
+    `;
+    return (rows[0]?.request_count ?? 1) <= limit;
+  } catch {
+    return true;
+  }
 }
 
 function parseProviderResults(
@@ -256,6 +496,21 @@ function parseProviderResults(
 ): IndexedResult[] {
   const root = (payload ?? {}) as Record<string, unknown>;
   const now = new Date();
+  if (provider === "serper") {
+    const parsed = serperOrganicSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new PublicDiscoveryError(
+        "INVALID_RESPONSE",
+        "Public-discovery provider returned an invalid response shape."
+      );
+    }
+    return parsed.data.organic.map((item) => ({
+      title: String(item.title ?? ""),
+      url: String(item.link ?? ""),
+      snippet: String(item.snippet ?? ""),
+      discoveredAt: now,
+    }));
+  }
   if (provider === "brave") {
     const web = root.web as { results?: Array<Record<string, unknown>> } | undefined;
     return (web?.results ?? []).map((item) => ({
@@ -297,7 +552,29 @@ function parseProviderResults(
 }
 
 function hostAllowed(host: string, domains: string[]): boolean {
-  return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  return domains.some(
+    (domain) => host === domain || host.endsWith(`.${domain}`)
+  );
+}
+
+function looksLikeSearchResultsPage(url: URL): boolean {
+  const path = url.pathname.toLowerCase();
+  if (
+    /\/(?:jobs?|search|jobsearch|jobs-search|find-jobs?)\/?$/i.test(path) ||
+    /\/(?:jobs?|search)\/(?:results|listing|listings)?\/?$/i.test(path)
+  ) {
+    return true;
+  }
+  const q = url.searchParams;
+  if (
+    q.has("q") &&
+    !q.has("jk") &&
+    /indeed\.com$/i.test(url.hostname) &&
+    !/^\/(?:viewjob|rc\/clkjob)/i.test(path)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function canonicalIndexedJobUrl(
@@ -313,6 +590,7 @@ function canonicalIndexedJobUrl(
   if (url.protocol !== "https:") return null;
   const config = PUBLIC_SOURCES[source];
   if (!hostAllowed(url.hostname.toLowerCase(), config.domains)) return null;
+  if (looksLikeSearchResultsPage(url)) return null;
   if (!config.isIndividualJob(url)) return null;
 
   url.hash = "";
@@ -358,7 +636,10 @@ function splitIndexedTitle(
   );
   const match = naukriMatch ?? atMatch;
   return {
-    title: match?.[1]?.trim() || cleaned || `${PUBLIC_SOURCES[source].displayName} job`,
+    title:
+      match?.[1]?.trim() ||
+      cleaned ||
+      `${PUBLIC_SOURCES[source].displayName} job`,
     company:
       match?.[2]?.trim() ||
       `Employer shown on ${PUBLIC_SOURCES[source].displayName}`,
@@ -369,31 +650,36 @@ function publicDiscoveryQueries(
   source: PublicDiscoverySource,
   filters: JobSearchFilters
 ): string[] {
-  const queries =
-    filters.queries?.slice(0, 3).map((query) => ({
-      title: query.title,
-      location: query.location,
-    })) ??
-    filters.titles.slice(0, 3).map((title) => ({
-      title,
-      location: filters.locations[0] ?? null,
-    }));
-  return queries.map(
-    ({ title, location }) =>
-      `site:${PUBLIC_SOURCES[source].querySite} "${title}" ${
-        location ? `"${location}"` : ""
-      } India jobs`
-  );
+  const titleCandidates = [
+    ...(filters.queries?.map((query) => query.title) ?? []),
+    ...filters.titles,
+  ]
+    .map((title) => title.trim())
+    .filter(Boolean);
+  const uniqueTitles = [...new Set(titleCandidates)].slice(0, 3);
+  if (uniqueTitles.length === 0) return [];
+
+  const location =
+    filters.queries?.[0]?.location ?? filters.locations[0] ?? null;
+  const titleClause =
+    uniqueTitles.length === 1
+      ? `"${uniqueTitles[0]}"`
+      : `(${uniqueTitles.map((title) => `"${title}"`).join(" OR ")})`;
+
+  return [
+    `site:${PUBLIC_SOURCES[source].querySite} ${titleClause}${
+      location ? ` "${location}"` : ""
+    } India`,
+  ];
 }
 
 async function enforceGlobalRateLimit(env: PublicDiscoveryEnv): Promise<void> {
   const now = Date.now();
   const windowStartMs = now - 60_000;
-  const configuredLimit = Number(env.PUBLIC_SEARCH_GLOBAL_REQUESTS_PER_MINUTE);
-  const limit =
-    Number.isFinite(configuredLimit) && configuredLimit > 0
-      ? Math.min(configuredLimit, 300)
-      : 60;
+  const limit = Math.min(
+    envNumber(env, "PUBLIC_SEARCH_GLOBAL_REQUESTS_PER_MINUTE", 60),
+    300
+  );
 
   let count: number;
   if (
@@ -450,9 +736,9 @@ async function enforceGlobalRateLimit(env: PublicDiscoveryEnv): Promise<void> {
   }
 }
 
-function cacheKey(query: string, providers: SearchProviderConfig[]): string {
+function cacheKey(query: string, providers: ProviderName[]): string {
   return createHash("sha256")
-    .update(`${providers.map((provider) => provider.name).join(",")}:${query}`)
+    .update(`${providers.join(",")}:${query}`)
     .digest("hex");
 }
 
@@ -470,19 +756,26 @@ function getCached(
 
 function setCached(
   key: string,
-  value: { provider: ProviderName; results: IndexedResult[] }
+  value: { provider: ProviderName; results: IndexedResult[] },
+  ttlMs: number
 ): void {
   if (searchCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
     const oldest = searchCache.keys().next().value as string | undefined;
     if (oldest) searchCache.delete(oldest);
   }
   searchCache.set(key, {
-    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+    expiresAt: Date.now() + ttlMs,
     value,
   });
 }
 
 function errorForResponse(response: Response): PublicDiscoveryError {
+  if (response.status === 401 || response.status === 403) {
+    return new PublicDiscoveryError(
+      "AUTHENTICATION_FAILED",
+      "Public-discovery provider authentication failed."
+    );
+  }
   if (response.status === 429) {
     const remaining =
       response.headers.get("x-ratelimit-remaining") ??
@@ -500,12 +793,180 @@ function errorForResponse(response: Response): PublicDiscoveryError {
   );
 }
 
+function categoryForError(error: PublicDiscoveryError): ErrorCategory {
+  switch (error.code) {
+    case "AUTHENTICATION_FAILED":
+      return "authentication_failed";
+    case "QUOTA_EXHAUSTED":
+      return "quota_exhausted";
+    case "RATE_LIMITED":
+      return "rate_limited";
+    case "TEMPORARILY_UNAVAILABLE":
+      return "timeout";
+    case "INVALID_RESPONSE":
+      return "invalid_response";
+    case "NOT_CONFIGURED":
+      return "not_configured";
+    case "RUN_BUDGET_EXCEEDED":
+    case "USER_DAILY_LIMIT":
+      return "budget_exhausted";
+    default:
+      return "provider_error";
+  }
+}
+
+function isTransientError(error: PublicDiscoveryError): boolean {
+  return (
+    error.code === "RATE_LIMITED" ||
+    error.code === "TEMPORARILY_UNAVAILABLE"
+  );
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function executeProviderSearch(
+  provider: ProviderName,
+  query: string,
+  fetcher: typeof fetch,
+  env: PublicDiscoveryEnv
+): Promise<IndexedResult[]> {
+  const timeoutMs = envNumber(
+    env,
+    "PUBLIC_SEARCH_REQUEST_TIMEOUT_MS",
+    DEFAULT_REQUEST_TIMEOUT_MS
+  );
+  const started = Date.now();
+
+  const attempt = async (): Promise<IndexedResult[]> => {
+    if (provider === "serper") {
+      const response = await fetcher("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": env.SERPER_API_KEY!,
+        },
+        body: JSON.stringify({
+          q: query,
+          num: 10,
+          gl: "in",
+          hl: "en",
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) throw errorForResponse(response);
+      let json: unknown;
+      try {
+        json = await response.json();
+      } catch {
+        throw new PublicDiscoveryError(
+          "INVALID_RESPONSE",
+          "Public-discovery provider returned invalid JSON."
+        );
+      }
+      return parseProviderResults("serper", json);
+    }
+
+    const url = new URL(
+      provider === "brave"
+        ? "https://api.search.brave.com/res/v1/web/search"
+        : provider === "bing"
+          ? "https://api.bing.microsoft.com/v7.0/search"
+          : provider === "google_cse"
+            ? "https://customsearch.googleapis.com/customsearch/v1"
+            : "https://serpapi.com/search.json"
+    );
+    url.searchParams.set("q", query);
+    const headers: Record<string, string> = { Accept: "application/json" };
+
+    if (provider === "brave") {
+      headers["X-Subscription-Token"] = env.BRAVE_SEARCH_API_KEY!;
+      url.searchParams.set("count", "20");
+      url.searchParams.set("freshness", "pm");
+    } else if (provider === "bing") {
+      headers["Ocp-Apim-Subscription-Key"] = env.BING_SEARCH_API_KEY!;
+      url.searchParams.set("count", "20");
+      url.searchParams.set("freshness", "Month");
+      url.searchParams.set("responseFilter", "Webpages");
+    } else if (provider === "google_cse") {
+      url.searchParams.set("key", env.GOOGLE_CSE_API_KEY!);
+      url.searchParams.set("cx", env.GOOGLE_CSE_ID!);
+      url.searchParams.set("num", "10");
+      url.searchParams.set("dateRestrict", "m1");
+    } else {
+      url.searchParams.set("api_key", serpApiKey(env)!);
+      url.searchParams.set("engine", "google");
+      url.searchParams.set("num", "20");
+      url.searchParams.set("tbs", "qdr:m");
+    }
+
+    const response = await fetcher(url, {
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) throw errorForResponse(response);
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch {
+      throw new PublicDiscoveryError(
+        "INVALID_RESPONSE",
+        "Public-discovery provider returned invalid JSON."
+      );
+    }
+    return parseProviderResults(provider, json);
+  };
+
+  let lastError: PublicDiscoveryError | null = null;
+  for (let retry = 0; retry <= MAX_SAFE_RETRIES; retry += 1) {
+    try {
+      const results = await attempt();
+      recordProviderOutcome(provider, {
+        ok: true,
+        durationMs: Date.now() - started,
+        resultCount: results.length,
+      });
+      return results;
+    } catch (error) {
+      const mapped =
+        error instanceof PublicDiscoveryError
+          ? error
+          : new PublicDiscoveryError(
+              "TEMPORARILY_UNAVAILABLE",
+              "Public-discovery provider did not respond before the safe timeout."
+            );
+      lastError = mapped;
+      if (
+        mapped.code === "AUTHENTICATION_FAILED" ||
+        !isTransientError(mapped) ||
+        retry === MAX_SAFE_RETRIES
+      ) {
+        recordProviderOutcome(provider, {
+          ok: false,
+          durationMs: Date.now() - started,
+          category: categoryForError(mapped),
+        });
+        throw mapped;
+      }
+      await sleep(250 * 2 ** retry);
+    }
+  }
+  throw (
+    lastError ??
+    new PublicDiscoveryError(
+      "PROVIDER_ERROR",
+      "Public-discovery provider failed."
+    )
+  );
+}
+
 async function searchIndex(
   query: string,
   fetcher: typeof fetch,
   env: PublicDiscoveryEnv
-): Promise<{ provider: ProviderName; results: IndexedResult[] }> {
-  const providers = providerConfigs(env);
+): Promise<{ provider: ProviderName; results: IndexedResult[]; fromCache: boolean }> {
+  const providers = configuredPublicSearchProviders(env);
   if (providers.length === 0) {
     throw new PublicDiscoveryError(
       "NOT_CONFIGURED",
@@ -514,34 +975,56 @@ async function searchIndex(
   }
   const key = cacheKey(query, providers);
   const cached = getCached(key);
-  if (cached) return cached;
+  if (cached) {
+    recordProviderOutcome(cached.provider, {
+      ok: true,
+      durationMs: 0,
+      resultCount: cached.results.length,
+      fromCache: true,
+    });
+    return { ...cached, fromCache: true };
+  }
+
+  if (!claimRunBudget()) {
+    throw new PublicDiscoveryError(
+      "RUN_BUDGET_EXCEEDED",
+      "Public-discovery search budget for this agent run is exhausted."
+    );
+  }
+
+  const userOk = await claimUserDailyBudget(env, runBudget.userId);
+  if (!userOk) {
+    releaseRunBudget();
+    throw new PublicDiscoveryError(
+      "USER_DAILY_LIMIT",
+      "Daily public-discovery search limit reached for this account."
+    );
+  }
+
+  const monthOk = await claimMonthlyBudget(env);
+  if (!monthOk) {
+    releaseRunBudget();
+    throw new PublicDiscoveryError(
+      "QUOTA_EXHAUSTED",
+      "Public-discovery monthly safety limit is exhausted."
+    );
+  }
 
   const errors: PublicDiscoveryError[] = [];
   for (const provider of providers) {
+    if (authFailedProviders.has(provider)) continue;
     await enforceGlobalRateLimit(env);
-    const url = new URL(provider.endpoint);
-    url.searchParams.set(provider.queryParam, query);
-    for (const [param, value] of Object.entries(provider.extraParams)) {
-      url.searchParams.set(param, value);
-    }
     try {
-      const response = await fetcher(url, {
-        headers: provider.headers,
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) {
-        errors.push(errorForResponse(response));
-        continue;
-      }
-      const result = {
-        provider: provider.name,
-        results: parseProviderResults(provider.name, await response.json()),
-      };
-      setCached(key, result);
-      return result;
+      const results = await executeProviderSearch(provider, query, fetcher, env);
+      const result = { provider, results };
+      setCached(key, result, cacheTtlMs(env));
+      return { ...result, fromCache: false };
     } catch (error) {
       if (error instanceof PublicDiscoveryError) {
         errors.push(error);
+        if (error.code === "AUTHENTICATION_FAILED") {
+          continue;
+        }
       } else {
         errors.push(
           new PublicDiscoveryError(
@@ -555,6 +1038,7 @@ async function searchIndex(
 
   const preferred =
     errors.find((error) => error.code === "QUOTA_EXHAUSTED") ??
+    errors.find((error) => error.code === "AUTHENTICATION_FAILED") ??
     errors.find((error) => error.code === "RATE_LIMITED") ??
     errors.find((error) => error.code === "TEMPORARILY_UNAVAILABLE") ??
     errors[0];
@@ -580,13 +1064,25 @@ export async function discoverPublicJobs(
   const queries = publicDiscoveryQueries(source, filters);
   const jobs = new Map<string, DiscoveredJob>();
 
-  const responses = await Promise.all(
-    queries.map(async (query) => ({
-      query,
-      response: await searchIndex(query, fetcher, env),
-    }))
-  );
-  for (const { query, response } of responses) {
+  for (const query of queries) {
+    let response: {
+      provider: ProviderName;
+      results: IndexedResult[];
+      fromCache: boolean;
+    };
+    try {
+      response = await searchIndex(query, fetcher, env);
+    } catch (error) {
+      if (
+        error instanceof PublicDiscoveryError &&
+        (error.code === "RUN_BUDGET_EXCEEDED" ||
+          error.code === "USER_DAILY_LIMIT")
+      ) {
+        return [...jobs.values()];
+      }
+      throw error;
+    }
+
     for (const indexed of response.results) {
       const canonical = canonicalIndexedJobUrl(source, indexed.url);
       if (!canonical || isKnownExpired(`${indexed.title} ${indexed.snippet}`)) {
@@ -605,13 +1101,16 @@ export async function discoverPublicJobs(
         description: indexed.snippet.slice(0, 1_500),
         metadata: {
           provenance: "public_discovery",
-          discoveryLabel: "Public discovery available",
+          discoveryLabel: "Public discovery",
+          discoveryMethod: "public_index",
           verificationState: "indexed_public_metadata",
-          authenticatedConnection: "Authenticated connection required",
+          authenticatedConnection: "Authentication still required for protected functions",
+          easyApplyClaim: false,
           provider: response.provider,
           discoveredAt: indexed.discoveredAt.toISOString(),
           query,
           publicSource: PUBLIC_SOURCES[source].displayName,
+          fromCache: response.fromCache,
         },
       });
     }
@@ -636,21 +1135,133 @@ export class PublicDiscoveryAdapter implements JobSourceAdapter {
   }
 }
 
-export function publicDiscoveryCapability(env: PublicDiscoveryEnv = process.env) {
+export function getPublicSearchProviderHealth(
+  env: PublicDiscoveryEnv = process.env
+): ProviderHealthSnapshot[] {
+  const names: ProviderName[] = [
+    "serper",
+    "brave",
+    "bing",
+    "google_cse",
+    "serpapi",
+  ];
+  const configured = new Set(configuredPublicSearchProviders(env));
+  // Include auth-failed configured keys so UI can show authentication_failed.
+  const keyPresent: Record<ProviderName, boolean> = {
+    serper: Boolean(env.SERPER_API_KEY),
+    brave: Boolean(env.BRAVE_SEARCH_API_KEY),
+    bing: Boolean(env.BING_SEARCH_API_KEY),
+    google_cse: Boolean(env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID),
+    serpapi: Boolean(serpApiKey(env)),
+  };
+
+  return names.map((name) => {
+    const state = ensureProviderState(name);
+    const isConfigured = keyPresent[name];
+    let status: ProviderHealthStatus = "not_configured";
+    if (isConfigured) {
+      if (authFailedProviders.has(name) || state.authFailed) {
+        status = "authentication_failed";
+      } else if (state.status !== "not_configured") {
+        status = state.status;
+      } else {
+        status = configured.has(name) ? "configured" : "configured";
+      }
+    }
+    return {
+      name,
+      configured: isConfigured,
+      status,
+      lastSuccessfulRequestAt:
+        state.lastSuccessfulRequestAt?.toISOString() ?? null,
+      lastDurationMs: state.lastDurationMs,
+      lastResultCount: state.lastResultCount,
+      lastErrorCategory: state.lastErrorCategory,
+      searchesUsed: state.searchesUsed,
+      cacheHits: state.cacheHits,
+    };
+  });
+}
+
+export function publicDiscoveryCapability(
+  env: PublicDiscoveryEnv = process.env
+) {
   const providers = configuredPublicSearchProviders(env);
+  const health = getPublicSearchProviderHealth(env);
+  const primary = health.find((item) => item.name === providers[0]) ?? null;
+  const serper = health.find((item) => item.name === "serper") ?? null;
   return {
     available: providers.length > 0,
     provider: providers[0] ?? null,
     providers,
     status: providers.length > 0 ? ("available" as const) : ("setup_required" as const),
+    primaryHealth: primary,
+    serper,
+    providerHealth: health,
+    creditLimits: {
+      maxQueriesPerRun: envNumber(
+        env,
+        "PUBLIC_SEARCH_MAX_QUERIES_PER_RUN",
+        DEFAULT_MAX_QUERIES_PER_RUN
+      ),
+      maxQueriesPerUserDay: envNumber(
+        env,
+        "PUBLIC_SEARCH_MAX_QUERIES_PER_USER_DAY",
+        DEFAULT_MAX_QUERIES_PER_USER_DAY
+      ),
+      cacheTtlMs: cacheTtlMs(env),
+      runBudgetRemaining: runBudget.remaining,
+    },
   };
 }
 
 export const __publicDiscoveryTest = {
   canonicalIndexedJobUrl,
+  isIndividualJobUrl: (
+    source: PublicDiscoverySource,
+    value: string
+  ): boolean => Boolean(canonicalIndexedJobUrl(source, value)),
   isKnownExpired,
+  publicDiscoveryQueries,
+  looksLikeSearchResultsPage: (value: string) => {
+    try {
+      return looksLikeSearchResultsPage(new URL(value));
+    } catch {
+      return true;
+    }
+  },
   resetProtectionState() {
     searchCache.clear();
     globalRequestTimes.splice(0);
+    authFailedProviders.clear();
+    providerState.clear();
+    beginPublicDiscoveryRun(null, {
+      PUBLIC_SEARCH_MAX_QUERIES_PER_RUN: String(DEFAULT_MAX_QUERIES_PER_RUN),
+    });
+  },
+  markAuthFailed(provider: ProviderName) {
+    authFailedProviders.add(provider);
+    const state = ensureProviderState(provider);
+    state.authFailed = true;
+    state.status = "authentication_failed";
+  },
+  getCacheSize() {
+    return searchCache.size;
+  },
+  getRunBudgetRemaining() {
+    return runBudget.remaining;
+  },
+  setCacheEntry(
+    query: string,
+    providers: ProviderName[],
+    value: { provider: ProviderName; results: IndexedResult[] },
+    ttlMs = DEFAULT_CACHE_TTL_MS
+  ) {
+    setCached(cacheKey(query, providers), value, ttlMs);
+  },
+  expireCache(query: string, providers: ProviderName[]) {
+    const key = cacheKey(query, providers);
+    const entry = searchCache.get(key);
+    if (entry) entry.expiresAt = 0;
   },
 };
